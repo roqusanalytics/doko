@@ -292,7 +292,7 @@ test('Windows saves preserve inherited and protected DACLs and refuse unsupporte
   const { execFileSync } = require('node:child_process');
   const { systemPowerShell } = require('../electron/windows-powershell.cjs');
   const root = await temporary(t);
-  const powershell = (script, file) => execFileSync(systemPowerShell(), ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', "$ErrorActionPreference='Stop';" + script], {
+  const powershell = (script, file) => execFileSync(systemPowerShell(), ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', "$ErrorActionPreference='Stop'; $env:PSModulePath=\"$PSHOME\\Modules\";" + script], {
     encoding: 'utf8', windowsHide: true, env: { ...process.env, FOLIO_TEST_FILE: file },
   }).trim();
   const access = file => powershell('(Get-Acl -LiteralPath $env:FOLIO_TEST_FILE).Sddl', file);

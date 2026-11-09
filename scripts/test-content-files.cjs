@@ -3,6 +3,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 if (process.platform === 'win32') {
+  // Keep native diagnostics for disposable fixtures; the app returns a short, user-facing error.
   const child = require('node:child_process'), execFile = child.execFile;
   child.execFile = (file, args, options, callback) => execFile(file, args, options, (error, stdout, stderr) => {
     if (error) console.error('Native save fixture command failed:', stderr || error.message);

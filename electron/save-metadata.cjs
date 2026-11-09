@@ -8,6 +8,8 @@ const unavailable = () => new Error("Couldn't preserve this file's access permis
 
 const WINDOWS_ACCESS = `
 $ErrorActionPreference = 'Stop'
+# A PowerShell 7 parent can pass incompatible modules to Windows PowerShell 5.1.
+$env:PSModulePath = "$PSHOME\\Modules"
 if ($env:FOLIO_SAVE_SOURCE) {
   # Get-Acl omits mandatory labels and central access policies; refuse files that need them.
   Add-Type -TypeDefinition @'
