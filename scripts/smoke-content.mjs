@@ -186,8 +186,12 @@ try {
     dialog.showSaveDialog = async () => ({ canceled: true, filePath: undefined });
   });
   await page.getByRole("button", { name: "Save copy", exact: true }).click();
+  await assertEventually(async () => !await page.getByRole("button", { name: "Save", exact: true }).isDisabled(), "cancelled Save copy did not finish");
+  const preservedText = longText + "\nSaved after cancelled copy.";
+  await edit(preservedText);
   await save();
-  await diskIs(first, "\ufeff" + longText.replaceAll("\n", "\r\n"));
+  await diskIs(first, "\ufeff" + preservedText.replaceAll("\n", "\r\n"));
+  await assertEventually(async () => await page.locator(".content-save-status").innerText() === "All changes saved", "save after cancelled Save copy did not finish");
   for (const [name, bytes] of [["invalid.md", Buffer.from([0xff, 0xfe, 0x61])], ["oversized.md", Buffer.alloc(5 * 1024 * 1024 + 1, 65)]]) {
     const file = path.join(temp, name);
     writeFileSync(file, bytes);
@@ -200,7 +204,7 @@ try {
   await page.keyboard.press(process.platform === "darwin" ? "Meta+ArrowDown" : "Control+End");
   await page.keyboard.insertText("\nPreserved after rejected opens.\n");
   await save();
-  await diskIs(first, "\ufeff" + (longText + "\nPreserved after rejected opens.\n").replaceAll("\n", "\r\n"));
+  await diskIs(first, "\ufeff" + (preservedText + "\nPreserved after rejected opens.\n").replaceAll("\n", "\r\n"));
   console.log("ok  cancelled Save copy and invalid/oversized Markdown leave the current document intact");
 
   const png = await app.evaluate(({ nativeImage }) => nativeImage.createFromBitmap(Buffer.alloc(800 * 600 * 4, 190), { width: 800, height: 600 }).toPNG().toString("base64"));
@@ -293,15 +297,27 @@ try {
   assert.deepEqual(errors, []);
   console.log(`PASS content (${process.platform}): responsive themes, PDF regression and hidden window`);
 } catch (error) {
+  console.error(error);
   const window = app.windows()[0];
   if (window) {
     await window.screenshot({ path: path.join(shots, "content-failure.png") }).catch(() => {});
     console.error(await readerPage(window).evaluate(() => ({ title: document.title,
+      saveStatus: document.querySelector(".content-save-status")?.textContent,
+      alerts: [...document.querySelectorAll('[role="alert"]')].map(element => element.textContent),
+      focused: document.activeElement?.getAttribute("aria-label"),
       position: document.querySelector('[aria-label="Image position"]')?.textContent,
       scroll: [...document.querySelectorAll('[aria-label="Image gallery"]')].map(element => ({ top: element.scrollTop, height: element.scrollHeight, viewport: element.clientHeight })) })).catch(() => null));
   }
+  console.error(await app.evaluate(({ Menu }) => Menu.getApplicationMenu()?.items.find(item => item.label === "File")?.submenu?.items
+    .filter(item => item.label.startsWith("Save")).map(item => ({ label: item.label, enabled: item.enabled }))).catch(() => null));
   throw error;
 } finally {
+  // This isolated harness must also exit after an assertion leaves unsaved notes open.
+  await app.evaluate(({ BrowserWindow }) => {
+    if (process.env.FOLIO_TEST_USER_DATA && process.env.FOLIO_TEST_HIDDEN === "1") {
+      for (const window of BrowserWindow.getAllWindows()) window.destroy();
+    }
+  }).catch(() => {});
   await app.close();
   rmSync(temp, { recursive: true, force: true });
 }
