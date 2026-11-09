@@ -103,7 +103,7 @@ jobs:
   macos:
     needs: verify
     environment: release-macos
-    runs-on: macos-latest
+    runs-on: macos-26-intel
     steps:
       - *checkout
       - *setup-node
