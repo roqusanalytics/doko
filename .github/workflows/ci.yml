@@ -30,6 +30,27 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npm run test:chat-math
       - run: npm run test:thumbnails
+      - name: Diagnose Windows save permissions
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP ([Guid]::NewGuid().ToString())
+          New-Item -ItemType Directory -Path $root | Out-Null
+          $env:FOLIO_SAVE_SOURCE = Join-Path $root 'source.md'
+          $stageDir = Join-Path $root 'stage'
+          New-Item -ItemType Directory -Path $stageDir | Out-Null
+          $env:FOLIO_SAVE_TEMP = Join-Path $stageDir 'save.tmp'
+          [IO.File]::WriteAllText($env:FOLIO_SAVE_SOURCE, 'original')
+          [IO.File]::WriteAllText($env:FOLIO_SAVE_TEMP, '')
+          $source = Get-Content electron/save-metadata.cjs -Raw
+          $code = [regex]::Match($source, 'const WINDOWS_ACCESS = `([\s\S]+?)`;').Groups[1].Value
+          try { Invoke-Expression $code }
+          catch {
+            $_ | Format-List * -Force
+            Get-Acl -LiteralPath $env:FOLIO_SAVE_SOURCE | Format-List Sddl
+            Get-Acl -LiteralPath $env:FOLIO_SAVE_TEMP | Format-List Sddl
+            throw
+          } finally { Remove-Item -LiteralPath $root -Recurse -Force }
       - run: node --test scripts/test-word-files.cjs scripts/test-network-security.cjs scripts/test-release-build.mjs scripts/test-claude-path.cjs scripts/test-content-files.cjs scripts/test-content-source.mjs scripts/test-markdown-sections.mjs scripts/test-hidden-window.mjs scripts/test-fork-channel.mjs
       - run: node --test scripts/test-link-history.mjs
       - run: node --test scripts/test-openrouter.cjs

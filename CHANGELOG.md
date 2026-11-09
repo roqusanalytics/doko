@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.18.0
+
+- Switch Markdown documents between View and editable View Source, with syntax highlighting and section navigation.
+- Draw, annotate, zoom, pan and export photos using the document tools. Browse folder thumbnails with the mouse wheel and contextual file actions.
+- Use the native File menu for Save, Save As, Export / Convert, Reduce File Size, Print and document properties.
+- Choose from ten appearance presets or a custom color, with consistent menus and corrected thin pen strokes.
+- Cleared photo notes and bookmarks stay cleared. Saving preserves supported file access restrictions and refuses unsafe replacements.
+- Releases now require successful Windows, macOS and Linux CI for the exact version being published.
+
 ## 1.17.0
 
 - Open, edit, preview, and save Markdown documents.

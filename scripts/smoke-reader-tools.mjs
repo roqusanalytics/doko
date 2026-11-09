@@ -170,6 +170,7 @@ async function checkScanSelection(app, page) {
   const search = languages.getByRole("searchbox");
   const apply = languages.getByRole("button", { name: "Apply" });
   const download = languages.getByRole("button", { name: /^Download ·/ });
+  await languages.waitFor(); // Native toggle positions the popover before its controls become visible.
   assert.equal(await languages.getByRole("checkbox").count(), Object.keys(ocrCatalog.languages).length);
   assert.ok(await languages.getByRole("checkbox", { name: "English", exact: true }).isChecked());
   await languages.getByRole("checkbox", { name: "English", exact: true }).uncheck();
