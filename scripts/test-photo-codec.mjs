@@ -13,7 +13,7 @@ const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "folio-photo-codec-"));
 const env = { ...process.env, FOLIO_TEST_USER_DATA: temp, FOLIO_TEST_HIDDEN: "1" };
 delete env.ELECTRON_RUN_AS_NODE;
-const asset = readdirSync(path.join(root, "dist/assets")).find(name => /^photoEditing-.*\.js$/.test(name));
+const asset = readdirSync(path.join(root, "dist/assets")).find(name => /^documentExport-.*\.js$/.test(name));
 assert.ok(asset, "Build Folio before running the photo codec test");
 const app = await electron.launch({ executablePath: electronPath(env), env, args: [root, "--mute-audio",
   ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
@@ -21,7 +21,9 @@ try {
   const page = readerPage(await app.firstWindow());
   await page.getByRole("button", { name: /Try a sample/ }).waitFor({ timeout: 30_000 });
   const result = await page.evaluate(async asset => {
-    const { photoPdf, photoPng } = await import(new URL(`./assets/${asset}`, location.href).href);
+    const { photoPdf, prepareDocumentExport } = await import(new URL(`./assets/${asset}`, location.href).href);
+    const photoPng = async (bytes, signal) => (await prepareDocumentExport({ bytes, name: "photo.png", photo: true, page: 1 },
+      { format: "png", compress: false, quality: 1, maxEdge: 0 }, signal)).blob;
     const reject = async (operation, pattern) => {
       try { await operation(); } catch (error) {
         if (!pattern.test(String(error))) throw error;
@@ -47,9 +49,16 @@ try {
     const pixels = [...output.getContext("2d").getImageData(0, 0, 2, 3).data];
     const dimensions = [bitmap.width, bitmap.height]; bitmap.close();
     source.width = source.height = output.width = output.height = 0;
-    return { dimensions, pixels, bytes: [...bytes] };
+    source.width = 40_000; source.height = 1;
+    const wide = await new Promise(resolve => source.toBlob(resolve, "image/png"));
+    const wideCopy = await photoPng(await photoPdf(wide), new AbortController().signal);
+    const wideBitmap = await createImageBitmap(wideCopy);
+    const wideDimensions = [wideBitmap.width, wideBitmap.height]; wideBitmap.close();
+    source.width = source.height = 0;
+    return { dimensions, pixels, bytes: [...bytes], wideDimensions };
   }, asset);
   assert.deepEqual(result.dimensions, [2, 3]);
+  assert.deepEqual(result.wideDimensions, [40_000, 1], "wide photo dimensions changed");
   assert.deepEqual(result.pixels.slice(0, 4), [255, 0, 0, 255], "photo color changed");
   assert.equal(result.pixels.at(-1), 0, "PNG transparency was flattened");
 
@@ -57,8 +66,9 @@ try {
   pdf.getPage(0).setRotation(degrees(90));
   const rotated = [...await pdf.save()];
   assert.deepEqual(await page.evaluate(async ({ asset, bytes }) => {
-    const { photoPng } = await import(new URL(`./assets/${asset}`, location.href).href);
-    const blob = await photoPng(new Uint8Array(bytes), new AbortController().signal);
+    const { prepareDocumentExport } = await import(new URL(`./assets/${asset}`, location.href).href);
+    const { blob } = await prepareDocumentExport({ bytes: new Uint8Array(bytes), name: "photo.png", photo: true, page: 1 },
+      { format: "png", compress: false, quality: 1, maxEdge: 0 }, new AbortController().signal);
     const bitmap = await createImageBitmap(blob);
     const dimensions = [bitmap.width, bitmap.height]; bitmap.close(); return dimensions;
   }, { asset, bytes: rotated }), [3, 2]);
@@ -66,8 +76,12 @@ try {
   const multiple = await PDFDocument.create(); multiple.addPage(); multiple.addPage();
   for (const [bytes, expected] of [[await huge.save(), "80 million"], [await multiple.save(), "single photo"]]) {
     const error = await page.evaluate(async ({ asset, bytes }) => {
-      const { photoPng } = await import(new URL(`./assets/${asset}`, location.href).href);
-      try { await photoPng(new Uint8Array(bytes), new AbortController().signal); return "accepted"; }
+      const { prepareDocumentExport } = await import(new URL(`./assets/${asset}`, location.href).href);
+      try {
+        await prepareDocumentExport({ bytes: new Uint8Array(bytes), name: "photo.png", photo: true, page: 1 },
+          { format: "png", compress: false, quality: 1, maxEdge: 0 }, new AbortController().signal);
+        return "accepted";
+      }
       catch (error) { return error.message; }
     }, { asset, bytes: [...bytes] });
     assert.ok(error.includes(expected), error);

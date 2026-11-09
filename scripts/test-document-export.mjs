@@ -42,6 +42,7 @@ try {
     };
     await reject({ ...snapshot, bytes: new Uint8Array() }, options, /empty/);
     await reject({ ...snapshot, bytes: new TextEncoder().encode("not pdf") }, options, /PDF|header/);
+    await reject(snapshot, { ...options, format: "gif" }, /supported/);
     await reject(snapshot, { ...options, quality: NaN }, /valid/);
     await reject(snapshot, { ...options, maxEdge: -1 }, /valid/);
     await reject({ ...snapshot, bytes: { byteLength: 301 * 1024 * 1024 } }, options, /300 MB/);
@@ -56,6 +57,10 @@ try {
     const protectedPng = await prepareDocumentExport(protectedSnapshot, { ...options, format: "png", compress: false }, signal);
     if (protectedPng.blob.type !== "image/png") throw new Error("Protected PDF image export failed");
     await reject(protectedSnapshot, options, /cannot be compressed/);
+    for (const name of ["", "x".repeat(10_000) + ".pdf"]) {
+      const output = await prepareDocumentExport({ ...snapshot, name }, { ...options, compress: false }, signal);
+      if (output.name !== (name ? "x".repeat(10_000) : "document") + "-export.pdf") throw new Error("Export name changed");
+    }
     const optimized = await prepareDocumentExport(snapshot, options, signal);
     const unchanged = [...snapshot.bytes];
     const again = await prepareDocumentExport({ ...snapshot, bytes: new Uint8Array(await optimized.blob.arrayBuffer()) }, options, signal);

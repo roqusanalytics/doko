@@ -7,10 +7,6 @@ export interface ExportSnapshot { bytes: Uint8Array; name: string; photo: boolea
 export interface ExportOptions { format: ExportFormat; compress: boolean; quality: number; maxEdge: number }
 export interface ExportResult { blob: Blob; name: string; originalSize: number; baseline: string; smaller: boolean }
 
-function outputName(name: string, format: ExportFormat, compress: boolean, page?: number) {
-  const stem = name.replace(/\.[^.]+$/, "") || "document";
-  return `${stem}${compress ? "-compressed" : page ? `-page-${page}` : "-export"}.${format === "jpeg" ? "jpg" : format}`;
-}
 function encode(canvas: HTMLCanvasElement, format: ExportFormat, quality: number): Promise<Blob> {
   const mime = `image/${format}`;
   return new Promise((resolve, reject) => canvas.toBlob(blob => {
@@ -63,7 +59,7 @@ export async function prepareDocumentExport(snapshot: ExportSnapshot, options: E
       const scale = options.maxEdge ? Math.min(1, options.maxEdge / Math.max(base.width, base.height)) : 1;
       const viewport = page.getViewport({ scale: (snapshot.photo ? 1 : 2) * scale });
       const width = Math.ceil(viewport.width), height = Math.ceil(viewport.height);
-      if (!(width > 0 && height > 0) || !Number.isFinite(width * height) || width * height > 80_000_000 || Math.max(width, height) > 32767) throw new Error("Image exceeds the 80 million pixel export limit. Choose a smaller size.");
+      if (!(width > 0 && height > 0) || !Number.isFinite(width * height) || width * height > 80_000_000 || (!(snapshot.photo && options.format === "png") && Math.max(width, height) > 32767)) throw new Error("Image exceeds the 80 million pixel export limit. Choose a smaller size.");
       canvas = Object.assign(document.createElement("canvas"), { width, height });
       const context = canvas.getContext("2d", { alpha: true });
       if (!context) throw new Error("Couldn't allocate this image. Choose a smaller size.");
@@ -89,5 +85,39 @@ export async function prepareDocumentExport(snapshot: ExportSnapshot, options: E
       await pdf.loadingTask.destroy();
     }
   }
-  return { blob, name: outputName(snapshot.name, options.format, options.compress, snapshot.photo || options.format === "pdf" ? undefined : snapshot.page), originalSize, baseline, smaller: blob.size < originalSize };
+  const stem = snapshot.name.replace(/\.[^.]+$/, "") || "document";
+  const page = !snapshot.photo && options.format !== "pdf" ? snapshot.page : undefined;
+  const name = `${stem}${options.compress ? "-compressed" : page ? `-page-${page}` : "-export"}.${options.format === "jpeg" ? "jpg" : options.format}`;
+  return { blob, name, originalSize, baseline, smaller: blob.size < originalSize };
+}
+
+export async function photoPdf(blob: Blob, signal?: AbortSignal): Promise<Uint8Array> {
+  if (blob.size > 100 * 1024 * 1024) throw new Error("Image exceeds 100 MB.");
+  signal?.throwIfAborted();
+  // A bitmap freezes animated images at their first frame and applies the source orientation.
+  const image = await createImageBitmap(blob);
+  let canvas: HTMLCanvasElement | undefined;
+  try {
+    signal?.throwIfAborted();
+    if (!(image.width > 0 && image.height > 0) || !Number.isFinite(image.width * image.height)) throw new Error("Couldn't read this image's dimensions.");
+    if (image.width * image.height > 80_000_000) throw new Error("Image exceeds 80 million pixels.");
+    canvas = document.createElement("canvas");
+    canvas.width = image.width; canvas.height = image.height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Couldn't allocate this image. Try a smaller image.");
+    context.drawImage(image, 0, 0);
+    const png = await encode(canvas, "png", 1);
+    signal?.throwIfAborted();
+    const pdf = await PDFDocument.create();
+    const embedded = await pdf.embedPng(await png.arrayBuffer());
+    signal?.throwIfAborted();
+    // One PDF point per source pixel makes PNG export retain the original dimensions.
+    pdf.addPage([image.width, image.height]).drawImage(embedded, { x: 0, y: 0, width: image.width, height: image.height });
+    const bytes = await pdf.save();
+    signal?.throwIfAborted();
+    return bytes;
+  } finally {
+    image.close();
+    if (canvas) canvas.width = canvas.height = 0;
+  }
 }

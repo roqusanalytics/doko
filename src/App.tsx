@@ -964,7 +964,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
           blob = new Blob([new Uint8Array(image.data)], { type: image.mime });
         }
         if (!blob) throw new Error("This image is no longer available.");
-        const { photoPdf } = await import("./photoEditing");
+        const { photoPdf } = await import("./documentExport");
         bytes = await photoPdf(blob, signal);
         photoKeys.current.set(name, `photo:${name}:${await contentKey(new Uint8Array(await blob.arrayBuffer()))}`);
       }
@@ -1042,8 +1042,9 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     try {
       const copy = await currentBytes(source);
       if (!copy) throw new Error("Another export is in progress. Try again.");
-      const { photoPng } = await import("./photoEditing");
-      const blob = await photoPng(copy.bytes, opening.current!.signal);
+      const { prepareDocumentExport } = await import("./documentExport");
+      const { blob } = await prepareDocumentExport({ bytes: copy.bytes, name: source.photoName, photo: true, page: 1 },
+        { format: "png", compress: false, quality: 1, maxEdge: 0 }, opening.current!.signal);
       if (docRef.current !== source) return;
       if (!await persistFile(blob, source.photoName.replace(/\.[^.]+$/, "") + " (edited).png", `${source.photoKey}:png`, saveAs)) return;
       if (editRevision.current === revision) {
