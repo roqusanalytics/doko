@@ -2,6 +2,7 @@ import { activeDocument, setActiveDocument } from "./session";
 import { getRecent } from "./recent";
 
 export type OpenSource =
+  | { kind: "content"; name: string; document: ContentDocument }
   | { kind: "bytes"; name: string; data: Uint8Array; note?: string; password?: string }
   | { kind: "blob"; name: string; blob: Blob; recentId?: string }
   | { kind: "word"; name: string; file: File }
@@ -12,6 +13,7 @@ export type OpenSource =
 interface Reader {
   open(source: OpenSource): void;
   flush(): Promise<void>;
+  canClose?(): Promise<boolean>;
 }
 
 export interface ReaderContext { tabs: DocumentTabs; key: number }
@@ -21,6 +23,7 @@ interface Tab {
   key: number;
   name: string;
   contentId?: string;
+  content?: ContentDocument;
   dirty: boolean;
   frame?: ReaderFrame;
   reader?: Reader;
@@ -68,7 +71,7 @@ export class DocumentTabs {
   }
   select(key: number, focusTab = false) {
     const next = this.entry(key);
-    if (!next || next.closing) return;
+    if (!next) return;
     if (key !== this.active && document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     this.active = key;
     this.keyboardFocus = focusTab ? key : undefined;
@@ -88,7 +91,7 @@ export class DocumentTabs {
       this.root.append(frame);
     }
     next.frame.focus({ preventScroll: true });
-    setActiveDocument(next.contentId ?? null);
+    if (!next.content) setActiveDocument(next.contentId ?? null);
     this.changed();
   }
   library() {
@@ -99,9 +102,28 @@ export class DocumentTabs {
     if (!sources.length) return this.active;
     let first = 0;
     for (const source of sources) {
+      if (source.kind === "content" && source.document.id) {
+        const existing = this.entries.find(tab => tab.content?.id === source.document.id);
+        if (existing) {
+          first ||= existing.key;
+          if (source.document.kind === "gallery") {
+            existing.content = source.document;
+            existing.source = source;
+            this.deliver(existing);
+          }
+          continue;
+        }
+      }
       const current = this.entry(this.active);
       const tab = !first && current && !current.name && !current.closing ? current : this.create();
+      if (source.kind === "content" && tab.frame) {
+        tab.frame.disposeReader?.();
+        tab.frame.remove();
+        tab.frame = undefined;
+        tab.reader = undefined;
+      }
       tab.name = source.name;
+      if (source.kind === "content") tab.content = source.document;
       tab.source = source;
       first ||= tab.key;
       this.deliver(tab);
@@ -118,6 +140,21 @@ export class DocumentTabs {
   bind(key: number, reader: Reader) {
     const tab = this.entry(key);
     if (tab) { tab.reader = reader; this.deliver(tab); }
+  }
+  contentFor(key: number) { return this.entry(key)?.content; }
+  rename(key: number, name: string) {
+    const tab = this.entry(key);
+    if (!tab) return;
+    tab.name = name;
+    if (tab.frame) tab.frame.title = name;
+    this.changed();
+  }
+  contentSaved(key: number, content: ContentDocument) {
+    const tab = this.entry(key);
+    if (!tab) return;
+    if (tab.content?.id && tab.content.id !== content.id) void window.folioDesktop?.content.release(tab.content.id);
+    tab.content = content;
+    this.rename(key, content.name);
   }
   finishConversion(key: number, source: OpenSource) {
     const tab = this.entry(key);
@@ -154,8 +191,13 @@ export class DocumentTabs {
   }
   async close(key: number) {
     const tab = this.entry(key);
-    if (!tab || tab.closing || (tab.dirty && !window.confirm(`Close “${tab.name}” and discard its unsaved changes?`))) return;
+    if (!tab || tab.closing) return;
+    if (tab.dirty && tab.reader?.canClose) this.select(key);
     tab.closing = true;
+    if (tab.reader?.canClose ? !await tab.reader.canClose() : tab.dirty && !window.confirm(`Close “${tab.name}” and discard its unsaved changes?`)) {
+      tab.closing = false;
+      return;
+    }
     try {
       await tab.reader?.flush();
     } catch {
@@ -168,6 +210,7 @@ export class DocumentTabs {
     this.entries.splice(index, 1);
     tab.frame?.disposeReader?.();
     tab.frame?.remove();
+    if (tab.content?.id) void window.folioDesktop?.content.release(tab.content.id);
     if (key === this.active) {
       const next = this.entries.slice(index).find(item => !item.closing) ?? this.entries.findLast(item => !item.closing);
       this.select((next ?? this.create()).key);
@@ -182,6 +225,7 @@ export class DocumentTabs {
     this.library();
     const initial = this.revision;
     const desktop = window.folioDesktop;
+    desktop?.content.onOpen(document => this.open([{ kind: "content", name: document.name, document }]));
     desktop?.onTabCommand(command => {
       if (command === "new") this.library();
       else if (command === "close") void this.close(this.active);

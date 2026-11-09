@@ -35,11 +35,11 @@
 !macroend
 
 !macro customInstall
-  WriteRegStr SHELL_CONTEXT "Software\Classes\Folio.WordDocument" "" "Word Document"
-  WriteRegStr SHELL_CONTEXT "Software\Classes\Folio.WordDocument\DefaultIcon" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME},0"
-  WriteRegStr SHELL_CONTEXT "Software\Classes\Folio.WordDocument\shell\open\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "%1"'
-  WriteRegNone SHELL_CONTEXT "Software\Classes\.docx\OpenWithProgids" "Folio.WordDocument"
-  WriteRegNone SHELL_CONTEXT "Software\Classes\.doc\OpenWithProgids" "Folio.WordDocument"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.WordDocument" "" "Word Document"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.WordDocument\DefaultIcon" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME},0"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.WordDocument\shell\open\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "%1"'
+  WriteRegNone SHELL_CONTEXT "Software\Classes\.docx\OpenWithProgids" "FolioLocal.WordDocument"
+  WriteRegNone SHELL_CONTEXT "Software\Classes\.doc\OpenWithProgids" "FolioLocal.WordDocument"
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
   ${If} ${Silent}
   ${AndIf} ${isUpdated}
@@ -56,8 +56,8 @@
 !macroend
 
 !macro customUnInstall
-  DeleteRegValue SHELL_CONTEXT "Software\Classes\.docx\OpenWithProgids" "Folio.WordDocument"
-  DeleteRegValue SHELL_CONTEXT "Software\Classes\.doc\OpenWithProgids" "Folio.WordDocument"
-  DeleteRegKey SHELL_CONTEXT "Software\Classes\Folio.WordDocument"
+  DeleteRegValue SHELL_CONTEXT "Software\Classes\.docx\OpenWithProgids" "FolioLocal.WordDocument"
+  DeleteRegValue SHELL_CONTEXT "Software\Classes\.doc\OpenWithProgids" "FolioLocal.WordDocument"
+  DeleteRegKey SHELL_CONTEXT "Software\Classes\FolioLocal.WordDocument"
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
 !macroend

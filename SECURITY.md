@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please **don't open a public issue** for security problems. Instead, report them privately through
-[GitHub's private vulnerability reporting](https://github.com/Forward-Future/folio/security/advisories/new).
+[GitHub's private vulnerability reporting](https://github.com/roqusanalytics/folio/security/advisories/new).
 
 Include the Folio version (shown in **About Folio**), what an attacker could do, and steps or a sample PDF that
 reproduce it. You can expect an acknowledgement within a week. Fixes ship as a new release that installed copies pick
@@ -58,15 +58,15 @@ Known limitations:
 - **Builds aren't signed with developer certificates yet.** Windows builds are unsigned and macOS builds are ad-hoc
   signed (not notarized); the release build signs both automatically once the certificates are added (see
   [SIGNING.md](SIGNING.md)). Installers are built on GitHub Actions from this repository. Updates are downloaded over
-  HTTPS from [Forward-Future/folio-releases](https://github.com/Forward-Future/folio-releases) and checked against the
+  HTTPS from [roqusanalytics/folio](https://github.com/roqusanalytics/folio) and checked against the
   SHA-512 published with each release, but without a signature the update channel is only as secure as that GitHub
   account. Until Mac builds are signed, Macs don't install updates automatically: Folio announces new versions, which
   are downloaded from the releases page.
-- The Linux apt repository for the 1.10.9 bridge is signed with Folio's existing key
-  (`B337 6868 EE22 8389 6C2B 8ABD C455 276C CAE0 3757`). The bridge also installs the successor public key
-  (`01AF 1CBF 971E 5482 C064 1A6E EE00 67F5 E3B5 48FC`). These keys are installed by the .deb as
-  `/usr/share/keyrings/folio-archive-keyring.gpg` and used only for Folio's source (`signed-by`). apt rejects any
-  repository metadata not signed with it.
+- This fork's Linux apt repository is signed with its own public key
+  (`7A6D 385E D5F6 CC7E AFC6 DC5B 06F8 53C5 9B6C B3E2`). The .deb installs it as
+  `/usr/share/keyrings/folio-local-archive-keyring.gpg`, scoped with `signed-by` to
+  `/etc/apt/sources.list.d/folio-local.list`. It does not replace upstream Folio's trust.
+  Release checks verify both metadata signatures, the package digest and the embedded public keyring.
 - Local data (recent files, reading positions, an optionally remembered signature) is stored unencrypted in your user
   profile. See [Privacy](README.md#privacy).
 - Word and LibreOffice convert documents with your own permissions and aren't sandboxed further by Folio. Word is

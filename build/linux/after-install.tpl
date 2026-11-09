@@ -56,17 +56,17 @@ if apparmor_status --enabled > /dev/null 2>&1; then
   fi
 fi
 
-# Folio: receive updates through apt. Adds Folio's signed package source (hosted on its GitHub releases)
+# Folio Local: receive updates through apt. Adds this fork's signed package source
 # and the key that signs it, unless the administrator already configured or removed them deliberately.
-FOLIO_KEYRING='/usr/share/keyrings/folio-archive-keyring.gpg'
-FOLIO_SOURCE='/etc/apt/sources.list.d/folio.list'
+FOLIO_KEYRING='/usr/share/keyrings/folio-local-archive-keyring.gpg'
+FOLIO_SOURCE='/etc/apt/sources.list.d/folio-local.list'
 # An upgrade is complete only once apt can use the new keyring. Preserve the old file on errors.
-key_tmp=$(mktemp /usr/share/keyrings/.folio-archive-keyring.XXXXXX) || exit 1
+key_tmp=$(mktemp /usr/share/keyrings/.folio-local-archive-keyring.XXXXXX) || exit 1
 if ! install -m 0644 '/opt/${sanitizedProductName}/resources/folio-archive-keyring.gpg' "$key_tmp" ||
    ! mv -fT -- "$key_tmp" "$FOLIO_KEYRING"; then
   rm -f -- "$key_tmp"
   exit 1
 fi
-if [ ! -e "$FOLIO_SOURCE" ] && [ ! -e '/etc/apt/sources.list.d/folio.list.disabled' ]; then
-  echo "deb [arch=amd64 signed-by=$FOLIO_KEYRING] https://github.com/Forward-Future/folio-releases/releases/latest/download ./" > "$FOLIO_SOURCE" || true
+if [ ! -e "$FOLIO_SOURCE" ] && [ ! -e '/etc/apt/sources.list.d/folio-local.list.disabled' ]; then
+  echo "deb [arch=amd64 signed-by=$FOLIO_KEYRING] https://github.com/roqusanalytics/folio/releases/latest/download ./" > "$FOLIO_SOURCE" || true
 fi

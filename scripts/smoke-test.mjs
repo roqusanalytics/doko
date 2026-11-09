@@ -575,7 +575,7 @@ try {
   await newer.click();
   assert.deepEqual(await summaries.allTextContents(), firstPage);
   assert.equal(await whatsNew.getByRole("link", { name: "View releases on GitHub" }).getAttribute("href"),
-    "https://github.com/Forward-Future/folio-releases/releases");
+    "https://github.com/roqusanalytics/folio/releases");
   await page.keyboard.press("Escape");
   await page.getByRole("dialog", { name: "Settings" }).waitFor();
   await page.keyboard.press("Escape");
@@ -687,7 +687,7 @@ try {
   const openWordDocument = async (expectedName) => {
     await page.getByTitle("Back to library").click();
     const chooser = page.waitForEvent("filechooser");
-    await page.getByRole("button", { name: /Open a PDF/ }).click();
+    await page.getByRole("button", { name: /Open a file/ }).click();
     await (await chooser).setFiles(docx);
     // Stops at a conversion error too, and shows what each converter said.
     const settled = await page.window.waitForFunction((name) => {

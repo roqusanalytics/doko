@@ -14,6 +14,18 @@ const { csp } = require("./csp.cjs");
 const { WORD_FILE, openWord } = require("./convert.cjs");
 const { registerPrinting } = require("./printing.cjs");
 const { MAX_DOCUMENT_BYTES, checkDiskPath, readRegular } = require("./document-files.cjs");
+const { createContentFiles, MARKDOWN_FILE, IMAGE_FILE } = require("./content-files.cjs");
+
+const LOCAL_COPY = require("../package.json").folioLocal === true;
+if (LOCAL_COPY) {
+  app.setName("Folio Local");
+  app.setPath("userData", path.join(app.getPath("appData"), "Folio Local"));
+}
+const contentFiles = createContentFiles({ chooseSavePath: async name => {
+  const result = await dialog.showSaveDialog(win, { title: "Save Markdown copy", defaultPath: name,
+    filters: [{ name: "Markdown", extensions: ["md", "markdown"] }], properties: ["showOverwriteConfirmation", "createDirectory"] });
+  return result.canceled ? null : result.filePath;
+} });
 
 if (!app.isPackaged && process.env.FOLIO_TEST_USER_DATA) app.setPath("userData", process.env.FOLIO_TEST_USER_DATA);
 // Automated tests drive a window that never appears, so a local run doesn't take over the screen or focus.
@@ -50,14 +62,14 @@ const TITLEBAR = {
 
 const IS_MAC = process.platform === "darwin";
 const IS_LINUX = process.platform === "linux";
-const RELEASES_PAGE = "https://github.com/Forward-Future/folio-releases/releases/latest";
+const RELEASES_PAGE = "https://github.com/roqusanalytics/folio/releases/latest";
 
 protocol.registerSchemesAsPrivileged([
   { scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
 ]);
 
 let win = null;
-const OPENABLE = /\.(pdf|docx?)$/i;
+const OPENABLE = /\.(pdf|docx?|md|markdown|jpe?g|png|webp|gif|bmp|avif)$/i;
 const pendingFiles = filesFromArgs(process.argv);
 let rendererReady = false;
 
@@ -94,6 +106,11 @@ async function sendFile(file) {
   if (!file || !target) return;
   if (WORD_FILE.test(file)) return sendWordFile(file, target);
   try {
+    if (MARKDOWN_FILE.test(file) || IMAGE_FILE.test(file)) {
+      const document = await contentFiles.open(file);
+      if (!target.isDestroyed()) target.webContents.send("folio:open-content", document);
+      return;
+    }
     checkDiskPath(file);
     const data = await readRegular(await fs.promises.realpath(file));
     if (!target.isDestroyed()) target.webContents.send("folio:open-file", { name: path.basename(file), data });
@@ -124,7 +141,7 @@ function logConvert(msg) {
 }
 
 // ── Auto-update ──────────────────────────────────────────────────────
-// Installed copies check GitHub Releases (Forward-Future/folio-releases, see "publish" in package.json)
+// Installed copies check GitHub Releases (see "publish" in package.json)
 // on launch and every few hours, download new versions in the background, and install them on quit
 // or when the user clicks "Restart" in the update banner. Progress is shown on the home screen and
 // logged to update.log in the app's user-data folder.
@@ -268,7 +285,7 @@ function createWindow() {
     minHeight: 480,
     show: false,
     backgroundColor: TITLEBAR[theme].color,
-    title: "Folio",
+    title: LOCAL_COPY ? "Folio Local" : "Folio",
     icon: path.join(__dirname, "icon.png"),
     titleBarStyle: "hidden",
     // macOS keeps its traffic lights (inset into the top bar); Windows and Linux draw their window
@@ -367,12 +384,12 @@ function createWindow() {
       cancelId: 1,
       title: "Unsaved changes",
       message: "One or more tabs have unsaved changes.",
-      detail: `Press ${IS_MAC ? "⌘S" : "Ctrl+S"} in each marked tab to save a copy before closing Folio.`,
+      detail: `Press ${IS_MAC ? "⌘S" : "Ctrl+S"} in each marked tab to save before closing Folio.`,
     });
     if (choice === 0) e.preventDefault();
   });
 
-  win.on("closed", () => { clearTimeout(windowTimer); win = null; rendererReady = false; });
+  win.on("closed", () => { clearTimeout(windowTimer); contentFiles.clear(); win = null; rendererReady = false; });
 }
 
 const MAX_URL_PDF_BYTES = MAX_DOCUMENT_BYTES;
@@ -563,6 +580,13 @@ if (!app.requestSingleInstanceLock()) {
 
     ai.register(handle, (channel, payload) => win?.webContents.send(channel, payload));
     registerPrinting(handle, () => win);
+    handle("folio:content-open", (_event, file) => contentFiles.open(file));
+    handle("folio:content-save", (_event, id, text, copy) => contentFiles.save(id, text, copy));
+    handle("folio:content-reload", (_event, id) => contentFiles.reload(id));
+    handle("folio:content-refresh", (_event, id, selected) => contentFiles.refresh(id, selected));
+    handle("folio:content-image", (_event, id, name) => contentFiles.image(id, name));
+    handle("folio:content-asset", (_event, id, relative) => contentFiles.asset(id, relative));
+    handle("folio:content-release", (_event, id) => contentFiles.release(id));
 
     handle("folio:ready", () => {
       rendererReady = true;

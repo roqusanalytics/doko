@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.17.0
+
+- Open, edit, preview, and save Markdown documents.
+- Browse photos in the same folder with scrolling, arrow keys, and zoom.
+- Folio Local keeps a separate profile and checks the roqusanalytics/folio release channel.
+- Check for updates and download new Mac versions from PDF, Markdown, and photo views.
+
 ## 1.16.1
 
 - In **Pages**, Ctrl-click thumbnails (⌘-click on macOS) to select pages, or Shift-click for a range. Right-click a selected thumbnail to save those pages as a new PDF.

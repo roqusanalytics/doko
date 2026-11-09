@@ -1,0 +1,60 @@
+import assert from "node:assert/strict";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { test } from "node:test";
+
+const repo = path.resolve(import.meta.dirname, "..");
+
+test("Linux installer keeps the fork's apt source and trust separate", () => {
+  const install = readFileSync(path.join(repo, "build/linux/after-install.tpl"), "utf8");
+  const remove = readFileSync(path.join(repo, "build/linux/after-remove.tpl"), "utf8");
+  for (const script of [install, remove]) {
+    assert.ok(script.includes("/usr/share/keyrings/folio-local-archive-keyring.gpg"));
+    assert.ok(script.includes("/etc/apt/sources.list.d/folio-local.list"));
+    assert.ok(!script.includes("/usr/share/keyrings/folio-archive-keyring.gpg"));
+    assert.ok(!script.includes("/etc/apt/sources.list.d/folio.list"));
+    assert.ok(!script.includes("Forward-Future"));
+  }
+  assert.ok(install.includes("https://github.com/roqusanalytics/folio/releases/latest/download"));
+  assert.ok(install.includes("folio-local.list.disabled"));
+});
+
+test("apt verification accepts the public trust root and refuses multiple keys or mismatched armor", { skip: process.platform === "win32" }, t => {
+  const folder = mkdtempSync(path.join(tmpdir(), "folio-apt-test-"));
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  for (const dir of ["scripts", "build/linux", "artifacts", "bin"]) mkdirSync(path.join(folder, dir), { recursive: true });
+  for (const file of ["scripts/apt-repo.sh", "package.json", "build/linux/folio-archive-keyring.asc", "build/linux/folio-archive-keyring.gpg"]) {
+    copyFileSync(path.join(repo, file), path.join(folder, file));
+  }
+  // Stop after real GnuPG validates the checked-in public certificate; full signatures need Linux release artifacts.
+  writeFileSync(path.join(folder, "bin/gpgv"), "#!/bin/sh\necho reached-signature-verification >&2\nexit 73\n", { mode: 0o755 });
+  const run = () => spawnSync("bash", [path.join(folder, "scripts/apt-repo.sh"), "--verify-only", path.join(folder, "artifacts")], {
+    encoding: "utf8", env: { ...process.env, PATH: `${path.join(folder, "bin")}${path.delimiter}${process.env.PATH}` },
+  });
+  let result = run();
+  assert.equal(result.status, 73, result.stderr);
+  assert.match(result.stderr, /reached-signature-verification/);
+  const keyring = path.join(folder, "build/linux/folio-archive-keyring.gpg");
+  const original = readFileSync(keyring);
+  writeFileSync(keyring, Buffer.concat([original, original]));
+  result = run();
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /exactly one public primary key/);
+  writeFileSync(keyring, original);
+  const armor = path.join(folder, "build/linux/folio-archive-keyring.asc");
+  const armoredKey = readFileSync(armor);
+  writeFileSync(armor, Buffer.concat([armoredKey, armoredKey]));
+  result = run();
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /Armored and binary archive keyrings differ/);
+  assert.doesNotMatch(result.stderr, /reached-signature-verification/);
+});
+
+
+test("Windows Word registration cannot overwrite upstream Folio", () => {
+  const installer = readFileSync(path.join(repo, "build/installer.nsh"), "utf8");
+  assert.ok(!installer.includes("Folio.WordDocument"));
+  assert.equal(installer.match(/FolioLocal\.WordDocument/g)?.length, 8);
+});

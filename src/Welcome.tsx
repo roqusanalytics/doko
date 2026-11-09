@@ -92,7 +92,7 @@ export function Welcome({ active, onPick, onOpenUrl, onOpenRecent, onSample, loa
       <div className="welcome-inner">
         <div className="hero">
           <h1>Read beautifully.</h1>
-          <p>A calm, fast PDF reader. Your files never leave this device.</p>
+          <p>A calm place for PDFs, Markdown, and photos.</p>
         </div>
 
         <button className="dropzone" onClick={onPick} disabled={loading}>
@@ -100,9 +100,9 @@ export function Welcome({ active, onPick, onOpenUrl, onOpenRecent, onSample, loa
             <Icon name={loading ? "file" : "upload"} size={26} />
           </div>
           <div className="dropzone-text">
-            <strong>{loading ? "Opening…" : "Open a PDF"}</strong>
-            <span>{window.folioDesktop ? "Drop a PDF, a Word document, a link, or a webpage anywhere, or click to browse"
-              : "Drop a PDF, a link, or a webpage anywhere, or click to browse"}</span>
+            <strong>{loading ? "Opening…" : "Open a file"}</strong>
+            <span>{window.folioDesktop ? "Choose a PDF, Word document, Markdown file, photo, or link"
+              : "Choose a PDF, Markdown file, photo, or link"}</span>
           </div>
           <kbd>{keys("Ctrl O")}</kbd>
         </button>

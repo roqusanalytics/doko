@@ -1,5 +1,5 @@
 {
-  "name": "folio-pdf-reader",
+  "name": "folio-local",
   "private": true,
   "version": "1.16.1",
   "type": "module",
@@ -15,10 +15,12 @@
     "release": "node scripts/release.mjs",
     "dist:mac": "npm run build && electron-builder --mac --publish never",
     "dist:linux": "npm run build && electron-builder --linux --publish never",
-    "smoke": "node scripts/smoke-test.mjs && node scripts/test-print.mjs && node scripts/smoke-print.mjs && node scripts/smoke-print-resolution.mjs",
+    "smoke": "node scripts/smoke-test.mjs && node scripts/test-print.mjs && node scripts/smoke-print.mjs && node scripts/smoke-print-resolution.mjs && node scripts/smoke-content.mjs && node scripts/smoke-updates.mjs",
     "test:reader-security": "node scripts/test-reader-security.mjs && node scripts/test-url-client-certificates.mjs",
     "test:chat-math": "node scripts/test-chat-math.mjs",
-    "test:thumbnails": "node scripts/test-thumbnails.mjs"
+    "test:thumbnails": "node scripts/test-thumbnails.mjs",
+    "test:content": "node --test scripts/test-content-files.cjs && node scripts/smoke-content.mjs",
+    "build:local": "npm run build && electron-builder --config electron-builder.local.cjs --mac --arm64 --dir --publish never"
   },
   "dependencies": {
     "electron-updater": "^6.8.11",
@@ -52,17 +54,17 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.5"
   },
-  "productName": "Folio",
-  "description": "A simple, clean PDF reader for Windows, macOS, and Linux",
+  "productName": "Folio Local",
+  "description": "PDF, Markdown, and photo-folder reader",
   "license": "MIT",
-  "homepage": "https://github.com/Forward-Future/folio",
+  "homepage": "https://github.com/roqusanalytics/folio",
   "bugs": {
-    "url": "https://github.com/Forward-Future/folio/issues"
+    "url": "https://github.com/roqusanalytics/folio/issues"
   },
   "main": "electron/main.cjs",
   "build": {
-    "appId": "app.folio.reader",
-    "productName": "Folio",
+    "appId": "app.folio.local",
+    "productName": "Folio Local",
     "electronLanguages": [
       "en-US"
     ],
@@ -89,7 +91,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Folio",
+      "shortcutName": "Folio Local",
       "artifactName": "Folio-Setup.exe"
     },
     "portable": {
@@ -102,13 +104,36 @@
         "description": "PDF Document",
         "role": "Viewer",
         "icon": "build/icon.png"
+      },
+      {
+        "ext": [
+          "md",
+          "markdown"
+        ],
+        "name": "Markdown Document",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": [
+          "jpg",
+          "jpeg",
+          "png",
+          "webp",
+          "gif",
+          "bmp",
+          "avif"
+        ],
+        "name": "Image",
+        "role": "Viewer",
+        "rank": "Alternate"
       }
     ],
     "publish": [
       {
         "provider": "github",
-        "owner": "Forward-Future",
-        "repo": "folio-releases",
+        "owner": "roqusanalytics",
+        "repo": "folio",
         "releaseType": "release"
       }
     ],
@@ -181,9 +206,17 @@
       "mimeTypes": [
         "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/msword"
+        "application/msword",
+        "text/markdown",
+        "text/x-markdown",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+        "image/bmp",
+        "image/avif"
       ],
-      "executableName": "folio",
+      "executableName": "folio-local",
       "syncDesktopName": true,
       "extraResources": [
         {
@@ -203,11 +236,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Forward-Future/folio.git"
+    "url": "https://github.com/roqusanalytics/folio.git"
   },
   "author": "Forward Future",
-  "desktopName": "folio-pdf-reader.desktop",
+  "desktopName": "folio-local.desktop",
   "overrides": {
     "katex": "$katex"
-  }
+  },
+  "folioLocal": true
 }

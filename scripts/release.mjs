@@ -1,8 +1,8 @@
 // Publish a new Folio version for Windows, macOS, and Linux:
-//   1. bump the version and tag it, then push the source and tag to Forward-Future/folio;
+//   1. bump the version and tag it, then push the source and tag to roqusanalytics/folio;
 //   2. the "Release build" workflow (.github/workflows/release-build.yml) builds and checks the installers
 //      for every platform on GitHub Actions;
-//   3. this script downloads them and publishes a release on Forward-Future/folio-releases.
+//   3. this script downloads them and publishes a release on roqusanalytics/folio.
 // Installed copies pick the update up automatically (electron-updater reads latest*.yml from the release).
 //
 //   npm run release                      # 1.0.0 -> 1.0.1
@@ -16,13 +16,13 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { checkRelease, RELEASES_REPO } from "./check-release.mjs";
-import { artifactIds, releaseFiles, selectBuild, successfulAttempt, verifyReleaseTag, SOURCE_REPO, WORKFLOW } from "./release-build.mjs";
+import { artifactIds, releaseBump, releaseFiles, selectBuild, successfulAttempt, verifyReleaseTag, SOURCE_REPO, WORKFLOW } from "./release-build.mjs";
 
 const args = process.argv.slice(2);
 const notesAt = args.indexOf("--notes");
 const notes = notesAt >= 0 ? args[notesAt + 1] : "";
 const publishOnly = args.includes("--publish-only");
-const bump = args.find((a, i) => !a.startsWith("--") && i !== notesAt + 1) || "patch";
+const bump = releaseBump(args);
 if (!/^(patch|minor|major|\d+\.\d+\.\d+)$/.test(bump)) {
   console.error(`Unknown version bump "${bump}". Use patch, minor, major, or an exact version like 2.0.0.`);
   process.exit(1);
@@ -93,11 +93,11 @@ const getArtifactIds = () => artifactIds(api(`actions/runs/${runId}/artifacts?pe
 const ids = getArtifactIds();
 
 const body = [
-  notes || `Folio ${version}.`,
+  notes || `Folio Local ${version}.`,
   "",
   "## Download",
   "- **Windows:** **Folio-Setup.exe** (updates itself), or **Folio-Portable.exe** to run without installing.",
-  "- **macOS:** **Folio-mac.dmg** (Apple Silicon and Intel). Developer ID builds update automatically. For ad-hoc builds, see the first-launch instructions in the [README](https://github.com/Forward-Future/folio#download).",
+  `- **macOS:** **Folio-mac.dmg** (Apple Silicon and Intel). Developer ID builds update automatically. For ad-hoc builds, see the first-launch instructions in the [README](https://github.com/${SOURCE_REPO}#download).`,
   "- **Linux:** **Folio-linux-amd64.deb** for Ubuntu/Debian (after that, updates arrive with your system updates), or **Folio-linux-x86_64.AppImage** (updates itself) for other distributions.",
 ].join("\n");
 const folder = mkdtempSync(path.join(tmpdir(), "folio-release-"));
@@ -108,7 +108,7 @@ try {
   writeFileSync(notesFile, body);
   verifyReleaseTag(api, tag, tagObject, commit);
   if (successfulAttempt(findBuild(), runId) !== attempt || getArtifactIds() !== ids) throw new Error("The build changed during download. Run --publish-only again.");
-  gh(["release", "create", tag, "--repo", RELEASES_REPO, "--title", `Folio ${version}`, "--notes-file", notesFile, ...files], { stdio: "inherit" });
+  gh(["release", "create", tag, "--repo", RELEASES_REPO, "--verify-tag", "--title", `Folio Local ${version}`, "--notes-file", notesFile, ...files], { stdio: "inherit" });
 } finally {
   rmSync(folder, { recursive: true, force: true });
 }
@@ -120,5 +120,5 @@ if (problems.length) {
   process.exit(1);
 }
 
-console.log(`\nFolio ${version} is live for Windows, macOS, and Linux: https://github.com/${RELEASES_REPO}/releases/tag/${tag}`);
+console.log(`\nFolio Local ${version} is live for Windows, macOS, and Linux: https://github.com/${RELEASES_REPO}/releases/tag/${tag}`);
 console.log("Installed copies will see it within a few hours (or on next launch).");

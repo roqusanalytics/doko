@@ -17,6 +17,7 @@ import { readSetting, writeSetting } from "./preferences";
 import { DocumentTabBar } from "./DocumentTabBar";
 import { trackTitlebar } from "./titlebar";
 import type { DocumentTabs, OpenSource } from "./documentTabs";
+import { CONTENT_ACCEPT, localSources } from "./content-source";
 import { SearchResults } from "./SearchResults";
 import { Icon, type IconName } from "./icons";
 import { Welcome } from "./Welcome";
@@ -534,19 +535,14 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
   }, [beginOpen, openBytes, tabs, tabKey]);
 
   const openFiles = useCallback((files: FileList) => {
-    tabs.open(Array.from(files, (file): OpenSource => {
-      if (window.folioDesktop && /\.docx?$/i.test(file.name)) return { kind: "word", name: file.name, file };
-      if (file.type && file.type !== "application/pdf" && !/\.pdf$/i.test(file.name))
-        return { kind: "error", name: file.name, message: `“${file.name}” isn't a PDF.` };
-      return { kind: "blob", name: file.name, blob: file };
-    }));
+    void localSources(Array.from(files)).then(sources => tabs.open(sources));
   }, [tabs]);
 
   const pickFile = useCallback(() => {
     const input = document.createElement("input");
     input.type = "file";
     input.multiple = true;
-    input.accept = window.folioDesktop ? "application/pdf,.pdf,.doc,.docx" : "application/pdf,.pdf";
+    input.accept = window.folioDesktop ? CONTENT_ACCEPT : CONTENT_ACCEPT.replace(",.doc,.docx", "");
     input.onchange = () => { if (input.files?.length) openFiles(input.files); };
     input.click();
   }, [openFiles]);

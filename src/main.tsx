@@ -17,14 +17,21 @@ if (reader) {
     document.documentElement.classList.add("desktop", `platform-${desktop.platform}`);
   }
   // No StrictMode: the pdf.js viewer binds imperatively to its container once.
-  void import("./App").then(({ default: App }) => {
-    const frame = window.frameElement as ReaderFrame | null;
-    if (!frame) return;
-    const app = createRoot(root);
-    frame.disposeReader = () => app.unmount();
+  const content = reader.tabs.contentFor(reader.key);
+  const frame = window.frameElement as ReaderFrame;
+  const app = createRoot(root);
+  frame.disposeReader = () => app.unmount();
+  // Separate imports let Vite preload each reader's own styles.
+  if (content) {
+    void import("./ContentReader").then(({ default: ContentReader }) => {
+      if (frame.isConnected) app.render(<ContentReader tabs={reader.tabs} tabKey={reader.key} initial={content} />);
+    });
+  } else {
     const upgradeNotes = desktop && reader.tabs.active === reader.key ? takeUpgradeNotes() : [];
-    app.render(<App tabs={reader.tabs} tabKey={reader.key} upgradeNotes={upgradeNotes} />);
-  });
+    void import("./App").then(({ default: App }) => {
+      if (frame.isConnected) app.render(<App tabs={reader.tabs} tabKey={reader.key} upgradeNotes={upgradeNotes} />);
+    });
+  }
 } else {
   void new DocumentTabs(root).start();
 }

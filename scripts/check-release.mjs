@@ -8,7 +8,7 @@
 // publishing and by the daily "Release check" workflow.
 import { pathToFileURL } from "node:url";
 
-export const RELEASES_REPO = "Forward-Future/folio-releases";
+export const RELEASES_REPO = "roqusanalytics/folio";
 
 /** The files produced by each release job, and the update feeds whose versions must match the release. */
 export const RELEASE_ARTIFACTS = {

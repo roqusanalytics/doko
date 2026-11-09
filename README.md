@@ -13,12 +13,12 @@ documents. Free and open source, with no Folio account required.
 
 | Platform | Download | Updates |
 | --- | --- | --- |
-| **Windows** 10/11 (64-bit) | [Folio-Setup.exe](https://github.com/Forward-Future/folio-releases/releases/latest/download/Folio-Setup.exe) | Automatic |
-| **macOS** 12 or later (Apple Silicon and Intel) | [Folio-mac.dmg](https://github.com/Forward-Future/folio-releases/releases/latest/download/Folio-mac.dmg) | Folio tells you when a new version is out |
-| **Linux**: Ubuntu, Debian, and derivatives (64-bit) | [Folio-linux-amd64.deb](https://github.com/Forward-Future/folio-releases/releases/latest/download/Folio-linux-amd64.deb) | Automatic, with your system updates (apt) |
-| **Linux**: other distributions (64-bit) | [Folio-linux-x86_64.AppImage](https://github.com/Forward-Future/folio-releases/releases/latest/download/Folio-linux-x86_64.AppImage) | Automatic |
+| **Windows** 10/11 (64-bit) | [Folio-Setup.exe](https://github.com/roqusanalytics/folio/releases/latest/download/Folio-Setup.exe) | Automatic |
+| **macOS** 12 or later (Apple Silicon and Intel) | [Folio-mac.dmg](https://github.com/roqusanalytics/folio/releases/latest/download/Folio-mac.dmg) | Folio tells you when a new version is out |
+| **Linux**: Ubuntu, Debian, and derivatives (64-bit) | [Folio-linux-amd64.deb](https://github.com/roqusanalytics/folio/releases/latest/download/Folio-linux-amd64.deb) | Automatic, with your system updates (apt) |
+| **Linux**: other distributions (64-bit) | [Folio-linux-x86_64.AppImage](https://github.com/roqusanalytics/folio/releases/latest/download/Folio-linux-x86_64.AppImage) | Automatic |
 
-[All releases](https://github.com/Forward-Future/folio-releases/releases) · [Changelog](CHANGELOG.md) · Prefer not to
+[All releases](https://github.com/roqusanalytics/folio/releases) · [Changelog](CHANGELOG.md) · Prefer not to
 install on Windows? **Folio-Portable.exe** on the release page runs as-is (it doesn't auto-update).
 
 Folio's builds aren't signed with paid developer certificates yet, so the first launch needs one extra step:
@@ -324,6 +324,22 @@ npm run dist:linux # on Linux: release/Folio-linux-x86_64.AppImage and release/F
 
 Each platform's installers are built on that platform; GitHub Actions builds all three for every release. If your
 terminal has `ELECTRON_RUN_AS_NODE=1` set, unset it first.
+
+### Local Markdown and photo upgrade
+
+This source tree also includes a local Markdown editor and a photo-folder viewer. Open `.md` or `.markdown`
+to edit and preview it, then use Save (⌘S / Ctrl+S) to write the original file. Save copy is available when you
+want another file; outside changes produce a conflict instead of being silently overwritten.
+
+Open a JPG, PNG, WebP, GIF, BMP, or AVIF to browse the supported images in its folder. Scroll vertically or use
+the previous/next buttons and arrow keys. Refresh updates the folder listing. HEIC, TIFF, and RAW are not included.
+In the browser edition, only selected images are available and Markdown saving downloads a copy.
+
+After `npm ci` and `npm run build`, `npm run test:content` exercises the new disk and desktop flows.
+`npm run build:local` prepares an Apple Silicon `Folio Local.app` under the system temporary folder's
+`folio-local-build/`, without publishing. Building outside synced folders avoids Finder metadata breaking codesigning.
+It uses its own profile and the roqusanalytics/folio update feed; the original Folio installation stays independent.
+Public releases still follow the existing three-platform release procedure.
 
 ### How it's put together
 

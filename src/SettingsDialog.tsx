@@ -147,12 +147,9 @@ function StoredData() {
   </details>;
 }
 
-export function SettingsDialog({ initialSection = "General", theme, onTheme, night, onNight, wheelPaging, onWheelPaging, scanLanguages, onScanLanguages, onOpenChangelog, onClose }: Props) {
+export function UpdateSettings() {
   const desktop = window.folioDesktop;
-  const ai = desktop?.ai;
   const [error, setError] = useState<string | null>(null);
-  const [section, setSection] = useState<"General" | "Ask AI" | "Storage">(initialSection);
-
   // Updates
   const [info, setInfo] = useState<Awaited<ReturnType<FolioDesktop["getAppInfo"]>> | null>(null);
   const [status, setStatus] = useState<UpdateStatus>({ state: "idle" });
@@ -167,9 +164,46 @@ export function SettingsDialog({ initialSection = "General", theme, onTheme, nig
     return () => { cancelled = true; unsubscribe?.(); };
   }, [desktop]);
   // Installed Windows copies and Linux AppImages update themselves; Macs check and offer the download.
-  const updatable = info?.mode === "installed" || info?.mode === "appimage";
+  const updatable = !!info && (info.mode === "installed" || info.mode === "appimage" || (info.mode === "development" && status.state !== "unsupported"));
   // Unsigned Mac builds only announce updates (with a download link); signed ones install them.
   const notifyOnly = !!info?.notifyOnly;
+
+  if (!desktop) return null;
+  return <>
+    <Section title="Updates">
+      {updatable && (
+        <Row label="Automatic updates" hint={autoUpdate === false
+          ? "Off: no background checks or downloads. You can still check manually."
+          : notifyOnly
+            ? "Folio checks for new versions and lets you know; download them from the releases page."
+            : "Downloads updates in the background and installs them when Folio closes."}>
+          <Switch label="Automatic updates" checked={autoUpdate === true} disabled={autoUpdate === null || savingUpdate} onChange={async (on) => {
+            setSavingUpdate(true);
+            setError(null);
+            try { setAutoUpdate(await desktop.setAutoUpdateEnabled(on)); }
+            catch { setError("Couldn't save the update setting. Try again."); }
+            finally { setSavingUpdate(false); }
+          }} />
+        </Row>
+      )}
+      <Row label={`Folio ${info?.version ?? ""}`.trim()} hint={updateSummary(status) || (status.checkedAt ? `Last checked ${new Date(status.checkedAt).toLocaleString()}` : undefined)}>
+        {updatable ? (
+          <button className="btn ghost" disabled={status.state === "checking" || status.state === "downloading"}
+            onClick={() => status.state === "ready" ? desktop.installUpdate() : status.state === "available" ? void desktop.openDownload() : desktop.checkForUpdates()}>
+            {status.state === "ready" ? "Restart and update" : status.state === "available" ? `Download ${status.version}` : "Check for updates"}
+          </button>
+        ) : null}
+      </Row>
+    </Section>
+    {error && <p className="form-error" role="alert">{error}</p>}
+  </>;
+}
+
+export function SettingsDialog({ initialSection = "General", theme, onTheme, night, onNight, wheelPaging, onWheelPaging, scanLanguages, onScanLanguages, onOpenChangelog, onClose }: Props) {
+  const desktop = window.folioDesktop;
+  const ai = desktop?.ai;
+  const [error, setError] = useState<string | null>(null);
+  const [section, setSection] = useState<"General" | "Ask AI" | "Storage">(initialSection);
 
   // Ask AI
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
@@ -271,31 +305,7 @@ export function SettingsDialog({ initialSection = "General", theme, onTheme, nig
         </Section></>}
 
         {desktop && section === "General" && (
-          <Section title="Updates">
-            {updatable && (
-              <Row label="Automatic updates" hint={autoUpdate === false
-                ? "Off: no background checks or downloads. You can still check manually."
-                : notifyOnly
-                  ? "Folio checks for new versions and lets you know; download them from the releases page."
-                  : "Downloads updates in the background and installs them when Folio closes."}>
-                <Switch label="Automatic updates" checked={autoUpdate === true} disabled={autoUpdate === null || savingUpdate} onChange={async (on) => {
-                  setSavingUpdate(true);
-                  setError(null);
-                  try { setAutoUpdate(await desktop.setAutoUpdateEnabled(on)); }
-                  catch { setError("Couldn't save the update setting. Try again."); }
-                  finally { setSavingUpdate(false); }
-                }} />
-              </Row>
-            )}
-            <Row label={`Folio ${info?.version ?? ""}`.trim()} hint={updateSummary(status) || (status.checkedAt ? `Last checked ${new Date(status.checkedAt).toLocaleString()}` : undefined)}>
-              {updatable ? (
-                <button className="btn ghost" disabled={status.state === "checking" || status.state === "downloading"}
-                  onClick={() => status.state === "ready" ? desktop.installUpdate() : status.state === "available" ? void desktop.openDownload() : desktop.checkForUpdates()}>
-                  {status.state === "ready" ? "Restart and update" : status.state === "available" ? `Download ${status.version}` : "Check for updates"}
-                </button>
-              ) : null}
-            </Row>
-          </Section>
+          <UpdateSettings />
         )}
 
         {section === "General" && <Section title="About">

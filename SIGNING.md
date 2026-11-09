@@ -1,7 +1,7 @@
 # Code signing
 
-The release workflow uses three GitHub environments in **Forward-Future/folio**. Keep Apple credentials in
-`release-macos`, Azure credentials in `release-windows`, and the successor apt signing subkey in `release-linux`.
+The release workflow uses three GitHub environments in **roqusanalytics/folio**. Keep Apple credentials in
+`release-macos`, Azure credentials in `release-windows`, and this fork's apt signing key in `release-linux`.
 Configure each environment to accept only release tags matching `v*` and require an independent release reviewer.
 Protect the creation, update and deletion of those tags with a repository ruleset. These controls are configured
 in GitHub. A workflow file in a tag cannot enforce restrictions on someone who can change that file.
@@ -28,11 +28,11 @@ build sets `folioMacSigned`, which turns on silent updates in `electron/main.cjs
 5. Add the secrets:
 
    ```sh
-   base64 -i DeveloperID.p12 | gh secret set MAC_CERTIFICATE_P12_BASE64 --env release-macos --repo Forward-Future/folio
-   gh secret set MAC_CERTIFICATE_PASSWORD --env release-macos --repo Forward-Future/folio      # the .p12 password
-   gh secret set APPLE_ID --env release-macos --repo Forward-Future/folio                      # your Apple ID email
-   gh secret set APPLE_APP_SPECIFIC_PASSWORD --env release-macos --repo Forward-Future/folio
-   gh secret set APPLE_TEAM_ID --env release-macos --repo Forward-Future/folio
+   base64 -i DeveloperID.p12 | gh secret set MAC_CERTIFICATE_P12_BASE64 --env release-macos --repo roqusanalytics/folio
+   gh secret set MAC_CERTIFICATE_PASSWORD --env release-macos --repo roqusanalytics/folio      # the .p12 password
+   gh secret set APPLE_ID --env release-macos --repo roqusanalytics/folio                      # your Apple ID email
+   gh secret set APPLE_APP_SPECIFIC_PASSWORD --env release-macos --repo roqusanalytics/folio
+   gh secret set APPLE_TEAM_ID --env release-macos --repo roqusanalytics/folio
    ```
 
 The next `npm run release` produces a signed, notarized Mac app. Macs running an earlier, unsigned Folio still see the
@@ -52,30 +52,37 @@ certificates), and Windows checks the publisher on every update.
 5. Add the secrets:
 
    ```sh
-   gh secret set AZURE_TENANT_ID --env release-windows --repo Forward-Future/folio
-   gh secret set AZURE_CLIENT_ID --env release-windows --repo Forward-Future/folio
-   gh secret set AZURE_CLIENT_SECRET --env release-windows --repo Forward-Future/folio
-   gh secret set AZURE_SIGNING_ENDPOINT --env release-windows --repo Forward-Future/folio     # e.g. https://eus.codesigning.azure.net
-   gh secret set AZURE_SIGNING_ACCOUNT --env release-windows --repo Forward-Future/folio      # Trusted Signing account name
-   gh secret set AZURE_SIGNING_PROFILE --env release-windows --repo Forward-Future/folio      # certificate profile name
-   gh secret set AZURE_SIGNING_PUBLISHER --env release-windows --repo Forward-Future/folio    # exactly the validated publisher name
+   gh secret set AZURE_TENANT_ID --env release-windows --repo roqusanalytics/folio
+   gh secret set AZURE_CLIENT_ID --env release-windows --repo roqusanalytics/folio
+   gh secret set AZURE_CLIENT_SECRET --env release-windows --repo roqusanalytics/folio
+   gh secret set AZURE_SIGNING_ENDPOINT --env release-windows --repo roqusanalytics/folio     # e.g. https://eus.codesigning.azure.net
+   gh secret set AZURE_SIGNING_ACCOUNT --env release-windows --repo roqusanalytics/folio      # Trusted Signing account name
+   gh secret set AZURE_SIGNING_PROFILE --env release-windows --repo roqusanalytics/folio      # certificate profile name
+   gh secret set AZURE_SIGNING_PUBLISHER --env release-windows --repo roqusanalytics/folio    # exactly the validated publisher name
    ```
 
-## Linux apt signing bridge
+## Linux apt signing
 
-Release 1.10.9 uses the repository's existing `APT_SIGNING_KEY`. Its primary fingerprint is
-`B3376868EE2283896C2B8ABDC455276CCAE03757`. The package installs that public key alongside the successor
-primary `01AF1CBF971E5482C0641A6EEE0067F5E3B548FC`. The signing subkey
-`044910C952671F192A495B35E6BB76278A601D69` is provisioned as `APT_SIGNING_KEY_NEXT` in `release-linux`.
-The build checks both repository signatures using only the certificate from pre-bridge installations. It also
-checks the signed package index, the .deb digest and version, and the public keyring inside the .deb.
+Folio Local has its own signing key and apt repository. It does not trust or update the upstream Folio repository.
+The checked-in `build/linux/folio-archive-keyring.asc` and `.gpg` contain exactly one public primary certificate.
+`APT_SIGNING_KEY` in the `roqusanalytics/folio` environment `release-linux` must contain the corresponding armored
+private signing key. Keep a separate secure backup; never commit the private key or print it in logs.
 
-Keep the bridge release and its signed apt metadata available at the immutable `v1.10.9` release URL.
-Clients must install the bridge package before a successor-only feed can work; refreshing the index alone is
-insufficient. Clients that miss the bridge can temporarily point their existing Folio apt source to
-`https://github.com/Forward-Future/folio-releases/releases/download/v1.10.9` with the same `signed-by`
-keyring and `./` distribution, install the bridge through apt, then restore the normal latest-release URL.
+To provision an existing protected key file without displaying it:
 
-Before a future cutover, independently escrow and test recovery of the successor primary key, confirm the
-deployment window and legacy-client recovery path, and change both the workflow's secret mapping and the
-signer fingerprint in `scripts/apt-repo.sh`. Retire the old secret only after validating the new feed.
+```sh
+gh secret set APT_SIGNING_KEY --env release-linux --repo roqusanalytics/folio < /secure/path/apt-signing-key.asc
+```
+
+`scripts/apt-repo.sh` derives the expected signing fingerprint from the checked-in public certificate, rejects
+private keys and multiple primary certificates, and checks that the armored and binary keyrings match. It verifies
+both repository signatures, the signed package index, the .deb digest, package identity and version, and the public
+keyring embedded in `/opt/Folio Local/resources/folio-archive-keyring.gpg`.
+
+The package installs its keyring as `/usr/share/keyrings/folio-local-archive-keyring.gpg` and its apt source as
+`/etc/apt/sources.list.d/folio-local.list`, pointing to
+`https://github.com/roqusanalytics/folio/releases/latest/download`. These paths leave the official Folio installation
+and its trust configuration separate. Removing Folio Local removes only this fork's apt configuration.
+
+Before replacing this key, plan a signed transition that reaches already installed Folio Local clients. Merely
+replacing the checked-in certificate and secret would prevent those clients from authenticating the next update.

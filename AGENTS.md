@@ -2,8 +2,43 @@
 
 Folio ships for **Windows, macOS, and Linux from one codebase**. Every change and every release must reach all three.
 
+## Project map and local setup
+
+Folio is a local-first PDF reader with a React/TypeScript renderer, Vite, and an Electron desktop shell.
+Use Node.js 22 or newer and npm with the existing `package-lock.json`; CI uses Node.js 22 and `npm ci`.
+Install dependencies with `npm ci`. `npm run dev` starts the browser edition; desktop-only features require Electron.
+The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use the npm scripts to run these hooks.
+
+- `src/main.tsx` starts `src/documentTabs.ts`; document frames render PDF `src/App.tsx` or `src/ContentReader.tsx`.
+  Keep the imperative PDF.js lifecycle in mind: `main.tsx` deliberately omits React StrictMode.
+- `src/content-source.ts` routes local formats. `electron/content-files.cjs` owns Markdown file and gallery
+  capabilities; keep their file/folder identity separate from PDF content hashes and PDF session persistence.
+- `src/pdf.ts` and `src/viewer.ts` handle PDF loading and viewing. `src/markup.ts` restores and saves annotations;
+  `src/recent.ts` owns IndexedDB document data, and `src/session.ts` handles reading-position persistence.
+- `src/AiPanel.tsx` and `src/ai.ts` implement the Ask AI UI; `electron/ai.cjs` handles desktop providers.
+  Keep stored credentials in the main process. Preserve the existing privacy rules for password-protected PDFs
+  (see [README.md](README.md#privacy)).
+- Desktop APIs cross `electron/main.cjs` → `electron/preload.cjs` → `src/desktop.d.ts` → renderer callers.
+  Update all affected layers together. Preserve sandboxing, context isolation, and the shared CSP in `electron/csp.cjs`.
+- `scripts/` contains Node regression tests and Playwright-driven Electron smoke tests; `build/` contains packaging
+  resources. Read [CONTRIBUTING.md](CONTRIBUTING.md) before contribution or release work and
+  [SIGNING.md](SIGNING.md) before changing installer signing.
+
+## Choosing checks
+
+- `npm run build` type-checks and builds; `npx tsc --noEmit` checks types alone. Run the required smoke check below
+  against the built app, extending the existing scripts when the changed flow is not covered.
+- Run the affected regression tests from `package.json` and `.github/workflows/ci.yml`.
+  For desktop URL, IPC, or security changes, include `npm run test:reader-security`.
+  For Markdown or galleries, include `npm run test:content`; its Electron E2E also runs in `npm run smoke`.
+  There is no generic `npm test` or lint script; use the actual commands in those files.
+- Report local results separately from the Windows/macOS/Linux CI matrix; a check on one OS does not prove the others.
+
 ## Releasing: one way only
 
+- `npm run build:local` prepares a private Apple Silicon Mac app with `electron-builder.local.cjs`, a separate
+  identity/profile, the fork update feed, and no publication. It builds outside synced folders for codesigning.
+  Public releases still use the procedure below.
 - **Release only with `npm run release`** (`-- minor`, `-- major`, `-- --notes "…"` as needed). It bumps the version,
   pushes the tag, waits for `.github/workflows/release-build.yml` to build and check the Windows, macOS, and Linux
   installers, then publishes all of them together and verifies the result with `scripts/check-release.mjs`.

@@ -28,6 +28,26 @@ contextBridge.exposeInMainWorld("folioDesktop", {
   },
   /** Returns the converted PDF to the tab that opened the Word document. */
   openDocument: (file) => ipcRenderer.invoke("folio:open-document", webUtils.getPathForFile(file)),
+  content: {
+    open: file => ipcRenderer.invoke("folio:content-open", webUtils.getPathForFile(file)),
+    onOpen(callback) {
+      const listener = (_event, document) => callback(document);
+      ipcRenderer.on("folio:open-content", listener);
+      return () => ipcRenderer.removeListener("folio:open-content", listener);
+    },
+    save: (id, text, copy = false) => ipcRenderer.invoke("folio:content-save", id, text, copy),
+    reload: id => ipcRenderer.invoke("folio:content-reload", id),
+    refresh: (id, selected) => ipcRenderer.invoke("folio:content-refresh", id, selected),
+    async image(id, name) {
+      const result = await ipcRenderer.invoke("folio:content-image", id, name);
+      return { data: new Uint8Array(result.data), mime: result.mime };
+    },
+    async asset(id, relative) {
+      const result = await ipcRenderer.invoke("folio:content-asset", id, relative);
+      return { data: new Uint8Array(result.data), mime: result.mime };
+    },
+    release: id => ipcRenderer.invoke("folio:content-release", id),
+  },
   ready: () => ipcRenderer.invoke("folio:ready"),
   platform: process.platform,
   openDownload: () => ipcRenderer.invoke("folio:open-download"),

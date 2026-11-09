@@ -2,8 +2,13 @@ import { readdirSync } from "node:fs";
 import path from "node:path";
 import { RELEASE_ARTIFACTS } from "./check-release.mjs";
 
-export const SOURCE_REPO = "Forward-Future/folio";
+export const SOURCE_REPO = "roqusanalytics/folio";
 export const WORKFLOW = "release-build.yml";
+
+export function releaseBump(args) {
+  const notesAt = args.indexOf("--notes");
+  return args.find((a, i) => !a.startsWith("--") && (notesAt < 0 || i !== notesAt + 1)) || "patch";
+}
 
 // Run this in the trusted publisher. A workflow in an unmerged tag could claim its own checks passed.
 export function verifyReleaseTag(api, tag, tagObject, commit) {

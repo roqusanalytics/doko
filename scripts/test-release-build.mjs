@@ -3,8 +3,8 @@ import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { RELEASE_ARTIFACTS } from "./check-release.mjs";
-import { artifactIds, releaseFiles, selectBuild, successfulAttempt, verifyReleaseTag, SOURCE_REPO } from "./release-build.mjs";
+import { RELEASE_ARTIFACTS, RELEASES_REPO } from "./check-release.mjs";
+import { artifactIds, releaseBump, releaseFiles, selectBuild, successfulAttempt, verifyReleaseTag, SOURCE_REPO } from "./release-build.mjs";
 
 const tag = "v1.2.3";
 const commit = "a".repeat(40);
@@ -13,6 +13,19 @@ const build = {
   status: "completed", conclusion: "success", run_attempt: 2,
 };
 const select = (...runs) => selectBuild({ total_count: runs.length, workflow_runs: runs }, tag, commit);
+
+test("the fork builds and publishes in its own repository", () => {
+  assert.equal(SOURCE_REPO, "roqusanalytics/folio");
+  assert.equal(RELEASES_REPO, SOURCE_REPO);
+});
+
+test("release bump is read with or without notes", () => {
+  assert.equal(releaseBump([]), "patch");
+  assert.equal(releaseBump(["minor"]), "minor");
+  assert.equal(releaseBump(["major", "--notes", "Release notes"]), "major");
+  assert.equal(releaseBump(["--notes", "Release notes", "1.17.0"]), "1.17.0");
+  assert.equal(releaseBump(["--notes", "Release notes"]), "patch");
+});
 
 test("publisher requires the original tag object and a commit on canonical main", () => {
   const tagObject = "1".repeat(40), main = "b".repeat(40);

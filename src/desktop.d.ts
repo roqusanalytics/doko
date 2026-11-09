@@ -1,3 +1,8 @@
+type ContentDocument = MarkdownDocument | GalleryDocument;
+interface MarkdownDocument { kind: "markdown"; id?: string; name: string; text: string }
+interface GalleryDocument { kind: "gallery"; id?: string; name: string; files: string[]; selected: string; blobs?: Record<string, Blob> }
+type ContentSaveResult = { ok?: boolean; document?: MarkdownDocument; cancelled?: boolean; conflict?: boolean; error?: string };
+
 interface UpdateStatus {
   state: "idle" | "unsupported" | "checking" | "latest" | "available" | "downloading" | "ready" | "error";
   version?: string;
@@ -8,6 +13,16 @@ interface UpdateStatus {
 
 // Present only when Folio runs as the desktop app (see electron/preload.cjs).
 interface FolioDesktop {
+  content: {
+    open(file: File): Promise<ContentDocument>;
+    onOpen(callback: (document: ContentDocument) => void): () => void;
+    save(id: string, text: string, copy?: boolean): Promise<ContentSaveResult>;
+    reload(id: string): Promise<MarkdownDocument>;
+    refresh(id: string, selected: string): Promise<GalleryDocument>;
+    image(id: string, name: string): Promise<{ data: Uint8Array; mime: string }>;
+    asset(id: string, relative: string): Promise<{ data: Uint8Array; mime: string }>;
+    release(id: string): Promise<void>;
+  };
   getPrinters(): Promise<{ name: string; displayName: string; isDefault: boolean }[]>;
   printSheets(job: { images: string[]; paper: "Letter" | "A4" | "Legal"; landscape: boolean; dpi: 150 | 300 | 600;
     copies: number; printer: string; booklet: boolean }): Promise<{ ok: boolean; error?: string }>;
