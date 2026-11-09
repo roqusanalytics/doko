@@ -261,6 +261,7 @@ test('metadata helpers use native preservation and fail closed on unsupported to
       const loaded = { exports: {} };
       vm.runInNewContext(source, { module: loaded, process: { platform, env: {} }, require: name => {
         if (name === 'node:fs/promises') return fakeFs;
+        if (name === 'node:path') return platform === 'win32' ? path.win32 : path.posix;
         if (name === './windows-powershell.cjs') return { systemPowerShell: () => 'system-powershell.exe' };
         if (name === 'node:child_process') return { execFile: (program, args, options, done) => {
           commands.push({ program, args, options });
