@@ -16,7 +16,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    # Keep the required check name while avoiding the stalled Apple Silicon runner queue.
+    runs-on: ${{ matrix.os == 'macos-latest' && 'macos-26-intel' || matrix.os }}
     steps:
       - uses: actions/checkout@v7
         with:
