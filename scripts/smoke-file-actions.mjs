@@ -1,6 +1,7 @@
 // Native File menu handlers drive the active reader. Dialogs and Trash are mocked only in the isolated test app.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, realpathSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PDFDocument, PDFName } from "pdf-lib";
@@ -10,7 +11,7 @@ import { readerPage } from "./reader-page.mjs";
 import { assertHidden } from "./hidden-window.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
-const temp = realpathSync(mkdtempSync(path.join(tmpdir(), "folio-file-actions-")));
+const temp = await realpath(mkdtempSync(path.join(tmpdir(), "folio-file-actions-")));
 const photos = path.join(temp, "Photos"); mkdirSync(photos);
 const shots = path.join(root, "release", "smoke"); mkdirSync(shots, { recursive: true });
 const pdfPath = path.join(temp, "fixture.pdf"), savedPdf = path.join(temp, "saved.pdf");
@@ -40,7 +41,7 @@ try {
       return { response: globalThis.fileActionTest.answer };
     };
     shell.trashItem = async file => {
-      if (!file.startsWith(temp)) throw new Error("Test tried trashing outside its fixture directory");
+      if (!file.startsWith(temp)) throw new Error(`Test tried trashing outside its fixture directory: ${JSON.stringify({ file, temp })}`);
       globalThis.fileActionTest.trash.push(file);
     };
   }, temp + path.sep);
