@@ -50,7 +50,8 @@ function formats() {
     const second = await files.open(secondFile);
     assert.notEqual(first.id, second.id, "equal content in different files stays separate");
 
-    assert.equal((await files.save(first.id, "# Edited\nText\n")).ok, true);
+    const saved = await files.save(first.id, "# Edited\nText\n");
+    assert.equal(saved.ok, true, JSON.stringify(saved));
     assert.equal(await fs.readFile(file, "utf8"), "\ufeff# Edited\r\nText\r\n");
     if (process.platform !== "win32") assert.equal((await fs.stat(file)).mode & 0o777, 0o640);
     assert.equal((await files.save(first.id, "")).ok, true);
