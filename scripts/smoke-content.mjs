@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { electronPath } from "./electron-path.mjs";
 import { readerPage } from "./reader-page.mjs";
+import { assertHidden } from "./hidden-window.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 // The installed archive can run in the same hidden harness without opening the user's app.
@@ -257,13 +258,7 @@ try {
   await page.getByRole("button", { name: /Try a sample/ }).click();
   await page.locator(".textLayer span:not(.markedContent)").first().waitFor({ timeout: 30_000 });
   assert.match(await page.locator(".textLayer").first().innerText(), /A short tour of Folio/);
-  const visible = await app.evaluate(({ BrowserWindow, app, screen }) => {
-    const displays = screen.getAllDisplays().map(display => display.bounds);
-    const onDisplay = bounds => displays.some(display => bounds.x < display.x + display.width && bounds.x + bounds.width > display.x && bounds.y < display.y + display.height && bounds.y + bounds.height > display.y);
-    return { onScreen: BrowserWindow.getAllWindows().filter(window => window.isVisible() && onDisplay(window.getBounds())).length,
-      dock: process.platform === "darwin" ? app.dock.isVisible() : false };
-  });
-  assert.deepEqual(visible, { onScreen: 0, dock: false }, "content smoke must stay hidden");
+  await assertHidden(app);
   assert.deepEqual(errors, []);
   console.log(`PASS content (${process.platform}): responsive themes, PDF regression and hidden window`);
 } catch (error) {

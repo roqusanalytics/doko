@@ -98,3 +98,5 @@ without a visible window (off-screen on Windows and Linux, never shown on macOS)
 doesn't interrupt whoever is using the computer. A new script that launches Electron gets the binary from
 `scripts/electron-path.mjs`, which keeps a hidden run out of the Dock on macOS. Don't open a visible window
 (`npm run app`, `electron .`, `FOLIO_SMOKE_SHOW=1`) unless the user asks to see the app.
+
+For hidden Electron test scripts, reuse `scripts/hidden-window.mjs`: Windows/Linux render off-screen, so `isVisible()` alone is not a visibility failure.

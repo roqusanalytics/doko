@@ -8,6 +8,7 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { electronPath } from "./electron-path.mjs";
 import { readerPage } from "./reader-page.mjs";
+import { assertHidden } from "./hidden-window.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "folio-updates-"));
@@ -120,7 +121,7 @@ try {
     assert.deepEqual(links, Array(3).fill("https://github.com/roqusanalytics/folio/releases/latest"));
     console.log("ok  unsigned Mac announces version 99.0.0 in Markdown, galleries and shared settings; every Download opens the fork release page");
   }
-  assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some(window => window.isVisible())), false);
+  await assertHidden(app);
 } finally {
   await app?.close();
   await new Promise(resolve => server.close(resolve));
