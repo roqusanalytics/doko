@@ -12,10 +12,17 @@ export function ContextMenu({ target, label, items, onClose }: {
     const menu = panel.current!;
     menu.showPopover();
     const anchor = target.element.getBoundingClientRect();
-    const gap = 8, edge = 8;
-    menu.style.maxHeight = `${Math.max(0, anchor.top - gap - edge)}px`;
-    menu.style.left = `${Math.max(edge, Math.min(anchor.left, innerWidth - menu.offsetWidth - edge))}px`;
-    menu.style.top = `${Math.max(edge, anchor.top - gap - menu.offsetHeight)}px`;
+    let frame = 0;
+    const position = () => {
+      if (!menu.matches(":popover-open")) return;
+      const current = target.element.getBoundingClientRect();
+      const gap = 8, edge = 8;
+      menu.style.maxHeight = `${Math.max(0, current.top - gap - edge)}px`;
+      menu.style.left = `${Math.max(edge, Math.min(current.left, innerWidth - menu.offsetWidth - edge))}px`;
+      menu.style.top = `${Math.max(edge, current.top - gap - menu.offsetHeight)}px`;
+      frame = requestAnimationFrame(position);
+    };
+    position();
     menu.querySelector<HTMLElement>('button:not(:disabled)')?.focus({ preventScroll: true });
     const dismiss = () => close.current();
     const scroll = (event: Event) => {
@@ -29,7 +36,7 @@ export function ContextMenu({ target, label, items, onClose }: {
     window.addEventListener("blur", dismiss);
     document.addEventListener("scroll", scroll, true);
     menu.addEventListener("toggle", toggle);
-    return () => { window.removeEventListener("resize", dismiss); window.removeEventListener("blur", dismiss); document.removeEventListener("scroll", scroll, true); menu.removeEventListener("toggle", toggle); };
+    return () => { cancelAnimationFrame(frame); window.removeEventListener("resize", dismiss); window.removeEventListener("blur", dismiss); document.removeEventListener("scroll", scroll, true); menu.removeEventListener("toggle", toggle); };
   }, [target]);
   const dismiss = () => { onClose(); target.element.focus({ preventScroll: true }); };
   return createPortal(<div ref={panel} popover="auto" role="menu" aria-label={label} className="menu file-context-menu" onKeyDown={event => {

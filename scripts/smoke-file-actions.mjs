@@ -144,6 +144,13 @@ try {
     else await thumbnail.click({ button: "right" });
     const menu = page.getByRole("menu", { name: `Actions for ${name}`, exact: true });
     await menu.waitFor();
+    // Freeze a thumbnail midway through its hover movement after the menu has opened.
+    await thumbnail.evaluate(async element => {
+      const movement = element.animate([{ transform: "translateY(0)" }, { transform: "translateY(-12px)" }], { duration: 160, fill: "forwards" });
+      movement.id = "context-menu-anchor-regression";
+      movement.pause(); movement.currentTime = 80;
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
     const geometry = await page.evaluate(name => {
       const anchor = document.querySelector(`[data-file="${name}"]`).getBoundingClientRect();
       const popup = document.querySelector('.file-context-menu');
@@ -164,6 +171,7 @@ try {
       await page.keyboard.press("Escape");
     }
     await menu.waitFor({ state: "detached" });
+    await thumbnail.evaluate(element => element.getAnimations().find(animation => animation.id === "context-menu-anchor-regression")?.cancel());
   }
   await page.window.setViewportSize(originalViewport);
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setMinimumSize(420, 480));
