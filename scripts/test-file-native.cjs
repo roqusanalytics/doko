@@ -288,7 +288,7 @@ test('metadata helpers use native preservation and fail closed on unsupported to
   }
 });
 
-test('Windows saves preserve protected DACLs and refuse unsupported integrity labels', { skip: process.platform !== 'win32' }, async t => {
+test('Windows saves preserve inherited and protected DACLs and refuse unsupported integrity labels', { skip: process.platform !== 'win32' }, async t => {
   const { execFileSync } = require('node:child_process');
   const { systemPowerShell } = require('../electron/windows-powershell.cjs');
   const root = await temporary(t);
@@ -297,6 +297,13 @@ test('Windows saves preserve protected DACLs and refuse unsupported integrity la
   }).trim();
   const access = file => powershell('(Get-Acl -LiteralPath $env:FOLIO_TEST_FILE).Sddl', file);
   for (const markdown of [false, true]) {
+    const inherited = path.join(root, markdown ? 'inherited.md' : 'inherited.pdf'); await fs.writeFile(inherited, 'original');
+    const inheritedAccess = () => powershell('Get-Acl -LiteralPath $env:FOLIO_TEST_FILE | Select-Object Owner,Group,AreAccessRulesProtected,AccessToString | ConvertTo-Json -Compress', inherited);
+    const inheritedBefore = inheritedAccess();
+    const inheritedContent = markdown ? createContentFiles() : createSaveFiles({ chooseSavePath: async () => inherited });
+    const inheritedOpened = markdown ? await inheritedContent.open(inherited) : null;
+    assert.equal((markdown ? await inheritedContent.save(inheritedOpened.id, 'changed') : await inheritedContent.save(request())).ok, true);
+    assert.equal(inheritedAccess(), inheritedBefore, 'preserve owner, group, all inherited access rules, and inheritance protection');
     const file = path.join(root, markdown ? 'notes.md' : 'copy.pdf'); await fs.writeFile(file, 'original');
     powershell("$acl=Get-Acl -LiteralPath $env:FOLIO_TEST_FILE; $acl.SetAccessRuleProtection($true,$true); $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new('S-1-5-32-546'),'ReadData','Deny')); Set-Acl -LiteralPath $env:FOLIO_TEST_FILE -AclObject $acl", file);
     const before = access(file);

@@ -46,7 +46,13 @@ Set-Acl -LiteralPath $env:FOLIO_SAVE_TEMP -AclObject $acl
 $actual = Get-Acl -LiteralPath $env:FOLIO_SAVE_TEMP
 $sections = [Security.AccessControl.AccessControlSections]'Access, Owner, Group'
 if ($env:FOLIO_SAVE_SOURCE) {
-  if ($actual.GetSecurityDescriptorSddlForm($sections) -cne $acl.GetSecurityDescriptorSddlForm($sections)) { throw 'Access permissions changed.' }
+  $expected = [Security.AccessControl.RawSecurityDescriptor]::new($acl.GetSecurityDescriptorSddlForm($sections))
+  $observed = [Security.AccessControl.RawSecurityDescriptor]::new($actual.GetSecurityDescriptorSddlForm($sections))
+  # Set-Acl may add the auto-inherited marker without changing any ACE or inheritance protection.
+  foreach ($descriptor in @($expected, $observed)) {
+    $descriptor.SetFlags([Security.AccessControl.ControlFlags]($descriptor.ControlFlags -band (-bnot 0x400)))
+  }
+  if ($observed.GetSddlForm($sections) -cne $expected.GetSddlForm($sections)) { throw 'Access permissions changed.' }
 } elseif (-not $actual.AreAccessRulesProtected) { throw 'Access permissions changed.' }
 `;
 
