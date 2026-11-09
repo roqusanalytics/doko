@@ -15,11 +15,11 @@
     "release": "node scripts/release.mjs",
     "dist:mac": "npm run build && electron-builder --mac --publish never",
     "dist:linux": "npm run build && electron-builder --linux --publish never",
-    "smoke": "node scripts/smoke-test.mjs && node scripts/test-print.mjs && node scripts/smoke-print.mjs && node scripts/smoke-print-resolution.mjs && node scripts/smoke-content.mjs && node scripts/smoke-updates.mjs",
+    "smoke": "node scripts/smoke-test.mjs && node scripts/test-print.mjs && node scripts/smoke-print.mjs && node scripts/smoke-print-resolution.mjs && node scripts/smoke-content.mjs && node scripts/smoke-updates.mjs && node scripts/smoke-markdown-modes.mjs && node scripts/test-photo-codec.mjs && node scripts/smoke-photo-tools.mjs && node scripts/test-appearance.mjs && node scripts/smoke-photo-view.mjs && node scripts/smoke-pen-width.mjs && node scripts/smoke-menus.mjs && node scripts/smoke-appearance.mjs && node --test scripts/test-file-native.cjs && node scripts/test-document-export.mjs && node scripts/smoke-hand-tool.mjs && node scripts/smoke-file-actions.mjs && node scripts/smoke-trash.mjs",
     "test:reader-security": "node scripts/test-reader-security.mjs && node scripts/test-url-client-certificates.mjs",
     "test:chat-math": "node scripts/test-chat-math.mjs",
     "test:thumbnails": "node scripts/test-thumbnails.mjs",
-    "test:content": "node --test scripts/test-content-files.cjs && node scripts/smoke-content.mjs",
+    "test:content": "node --test scripts/test-content-files.cjs scripts/test-markdown-sections.mjs && node scripts/smoke-content.mjs && node scripts/smoke-markdown-modes.mjs && node scripts/test-photo-codec.mjs && node scripts/smoke-photo-tools.mjs && node scripts/smoke-photo-view.mjs && node scripts/smoke-pen-width.mjs",
     "build:local": "npm run build && electron-builder --config electron-builder.local.cjs --mac --arm64 --dir --publish never"
   },
   "dependencies": {
@@ -28,6 +28,8 @@
     "mammoth": "^1.13.0"
   },
   "devDependencies": {
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/lang-python": "^6.2.1",
     "@embedpdf/pdfium": "2.15.1",
     "@tesseract.js-data/deu": "^1.0.0",
     "@tesseract.js-data/eng": "^1.0.0",
@@ -36,11 +38,14 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "codemirror": "^6.0.2",
     "electron": "^45.2.1",
     "electron-builder": "^26.18.0",
     "idb-keyval": "^6.3.0",
     "katex": "^0.19.1",
     "mdast-util-from-markdown": "^2.1.0",
+    "mdast-util-math": "^3.0.0",
+    "micromark-extension-math": "^3.1.0",
     "pdf-lib": "1.17.1",
     "pdfjs-dist": "^6.5.438",
     "playwright-core": "^1.64.1",

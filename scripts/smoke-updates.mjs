@@ -72,7 +72,7 @@ try {
   const markdown = path.join(temp, "Notes.md");
   writeFileSync(markdown, "# Update check\n\nKeep this document open.\n");
   await app.evaluate(({ app }, file) => app.emit("open-file", { preventDefault() {} }, file), markdown);
-  await page.getByRole("textbox", { name: "Markdown source", exact: true }).waitFor();
+  await page.getByLabel("Markdown preview", { exact: true }).getByRole("heading", { name: "Update check", exact: true }).waitFor();
   await page.getByRole("button", { name: "Updates", exact: true }).click();
   const modal = page.getByRole("dialog", { name: "Updates", exact: true });
   await modal.getByText("You're up to date.", { exact: true }).waitFor();
@@ -111,10 +111,11 @@ try {
     const image = path.join(temp, "Photo.png");
     writeFileSync(image, Buffer.from(png, "base64"));
     await app.evaluate(({ app }, file) => app.emit("open-file", { preventDefault() {} }, file), image);
-    await page.getByRole("region", { name: "Image gallery", exact: true }).waitFor();
+    await page.getByRole("region", { name: "Photo gallery", exact: true }).waitFor();
     await download().click();
-    await page.getByRole("button", { name: "Updates", exact: true }).click();
-    await modal.getByRole("button", { name: `Download ${version}`, exact: true }).click();
+    await page.keyboard.press("ControlOrMeta+,");
+    const settings = page.getByRole("dialog", { name: "Settings", exact: true });
+    await settings.getByRole("button", { name: `Download ${version}`, exact: true }).click();
     await page.screenshot({ path: path.join(shots, "updates-gallery.png") });
     await app.evaluate(async () => { for (let attempt = 0; attempt < 100 && globalThis.updateLinks.length < 3; attempt++) await new Promise(resolve => setTimeout(resolve, 20)); });
     const links = await app.evaluate(() => globalThis.updateLinks);

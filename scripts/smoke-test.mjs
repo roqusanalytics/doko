@@ -1,3 +1,4 @@
+import { captureSave } from "./capture-save.mjs";
 // End-to-end smoke test, run in CI on Windows, macOS, and Linux (and locally with `npm run smoke`):
 // launches the built app in Electron, opens the sample document, and checks that pages render, text is
 // selectable and highlightable, text boxes survive reopening, and the window chrome matches the platform.
@@ -207,7 +208,8 @@ try {
   await page.getByTitle("Add a signature").click();
   await page.locator('input[aria-label="Upload signature photo"]').setInputFiles({ name: "signature.png", mimeType: "image/png", buffer: Buffer.from(photo, "base64") });
   await page.getByRole("button", { name: /Use this signature/ }).click();
-  await page.locator('select[aria-label="Signature placement"]').selectOption("manual");
+  await page.getByRole("button", { name: "Signature placement", exact: true }).click();
+  await page.getByRole("menuitemradio", { name: "Choose a position on this page", exact: true }).click();
   await page.locator('[aria-label^="Place signature on page"]').click();
   await page.getByRole("button", { name: /Approve and add signature/ }).click();
   await page.locator(".dirty-dot").waitFor();
@@ -296,7 +298,7 @@ try {
 
   const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
   await page.window.setViewportSize({ width: 420, height: viewport.height });
-  assert.ok(await page.locator(".topbar button").evaluateAll(buttons => buttons.every(button => {
+  assert.ok(await page.locator(".topbar button:visible").evaluateAll(buttons => buttons.every(button => {
     const rect = button.getBoundingClientRect();
     return button.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
   })), "a toolbar button is covered at the minimum width");
@@ -337,7 +339,7 @@ try {
   console.log("ok  Highlight mode marks consecutive selections on release in the chosen color");
 
   await page.getByTitle("Draw (D)").click();
-  const drawingTool = page.getByLabel("Drawing tool");
+  const drawingTool = page.getByLabel("Drawing tool", { exact: true });
   const inkPage = page.locator('.page[data-page-number="1"]');
   await inkPage.locator(".annotationEditorLayer.inkEditing").waitFor();
   await page.getByRole("radio", { name: "Blue" }).click();
@@ -346,7 +348,8 @@ try {
       await page.getByTitle("Rotate (R)").click();
       await inkPage.locator('.annotationEditorLayer.inkEditing[data-main-rotation="90"]').waitFor();
     }
-    await drawingTool.selectOption(shape);
+    await drawingTool.click();
+    await page.getByRole("menuitemradio", { name: shape, exact: true }).click();
     // Zoom and rotation can leave only part of the page visible. Wait for a clear drag on the
     // drawing layer, avoiding existing annotations and the floating reader controls.
     const start = await page.waitForFunction(() => {
@@ -465,12 +468,7 @@ try {
   await page.getByRole("button", { name: /Try a sample/ }).click();
   await page.locator(".textLayer span:not(.markedContent)").first().waitFor({ timeout: 30_000 });
   const copy = path.join(env.FOLIO_TEST_USER_DATA, "copy.pdf");
-  await app.evaluate(({ session }, file) => {
-    globalThis.folioCopySaved = new Promise((resolve) => session.defaultSession.once("will-download", (_event, item) => {
-      item.setSavePath(file);
-      item.once("done", (_done, state) => resolve(state));
-    }));
-  }, copy);
+  await captureSave(app, copy, "folioCopySaved");
   await page.keyboard.press("ControlOrMeta+s");
   assert.equal(await app.evaluate(() => globalThis.folioCopySaved), "completed");
   assert.equal(readFileSync(copy, "latin1").match(/\/Subtype\s*\/Highlight\b/g)?.length, 4);

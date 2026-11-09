@@ -1,3 +1,4 @@
+import { captureSave } from "./capture-save.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -223,12 +224,7 @@ async function checkScanSelection(app, page) {
 }
 
 async function captureDownload(app, file) {
-  await app.evaluate(({ session }, file) => {
-    globalThis.folioReordered = new Promise(resolve => session.defaultSession.once("will-download", (_, item) => {
-      item.setSavePath(file);
-      item.once("done", (_, state) => resolve(state));
-    }));
-  }, file);
+  await captureSave(app, file, "folioReordered");
 }
 
 async function checkPenDrawing(app, page, folder, shots) {
@@ -238,13 +234,14 @@ async function checkPenDrawing(app, page, folder, shots) {
     "folio:open-file", { name: "Pen widths.pdf", data: Buffer.from(pdf) }), blank);
   await page.window.waitForFunction(() => document.title.startsWith("Pen widths.pdf"));
   await page.getByTitle("Draw (D)").click();
-  const width = page.getByRole("combobox", { name: "Pen width" });
+  const width = page.getByRole("button", { name: "Pen width", exact: true });
   const layer = page.locator(".page .annotationEditorLayer.inkEditing");
   await layer.waitFor();
-  assert.equal(await width.inputValue(), "1");
+  assert.equal((await width.innerText()).trim(), "Thin");
   const zoom = page.getByTitle("Zoom", { exact: true });
   for (const [index, name] of ["Thin", "Medium", "Thick"].entries()) {
-    await width.selectOption({ label: name });
+    await width.click();
+    await page.getByRole("menuitemradio", { name, exact: true }).click();
     if (name === "Thick") {
       await zoom.click();
       await page.getByRole("menuitem", { name: "Fit width" }).click();
@@ -285,11 +282,11 @@ async function checkPenDrawing(app, page, folder, shots) {
       await page.getByRole("button", { name: /Toggle sidebar/ }).click();
     }
   }
-  const tool = page.getByRole("combobox", { name: "Drawing tool" });
-  await tool.selectOption("Rectangle");
+  const tool = page.getByRole("button", { name: "Drawing tool", exact: true });
+  await tool.click(); await page.getByRole("menuitemradio", { name: "Rectangle", exact: true }).click();
   assert.equal(await width.count(), 0);
-  await tool.selectOption("Pen");
-  assert.equal(await width.inputValue(), "6");
+  await tool.click(); await page.getByRole("menuitemradio", { name: "Pen", exact: true }).click();
+  assert.equal((await width.innerText()).trim(), "Thick");
   await page.getByRole("button", { name: "Done", exact: true }).click();
   const file = path.join(folder, "pen-widths.pdf");
   await captureDownload(app, file);
@@ -409,7 +406,7 @@ async function checkContentEditing(app, page, folder, shots) {
   await item("Original").click();
   await input.fill("");
   await captureDownload(app, path.join(folder, "removed-text.pdf"));
-  await page.keyboard.press("ControlOrMeta+s");
+  await page.keyboard.press("ControlOrMeta+Shift+s");
   assert.equal(await app.evaluate(() => globalThis.folioReordered), "completed");
   await page.window.waitForFunction(() => document.title.startsWith("Objects (edited) (edited).pdf"));
   const removed = page.locator('.page[data-page-number="1"] .textLayer');
@@ -558,6 +555,7 @@ async function checkLinkHistory(app, page, shots) {
   const choose = async item => { await more.click(); await item.click(); };
   const checkMenu = async (canBack, canForward) => {
     await more.click();
+    await page.getByRole("menu", { name: "More", exact: true }).waitFor();
     assert.equal(await back.count(), Number(canBack));
     assert.equal(await forward.count(), Number(canForward));
     await page.keyboard.press("Escape");
@@ -644,6 +642,8 @@ async function checkLinkHistory(app, page, shots) {
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("menuitem", { name: /New tab/ }).click();
   await page.getByRole("button", { name: /Try a sample/ }).click();
+  // Opening existing bytes selects their original reader after the temporary tab finishes loading.
+  await page.window.waitForFunction(() => document.querySelector("iframe.document-reader.active")?.contentDocument?.title.startsWith("Folio sample.pdf"));
   await checkMenu(false, false);
   await page.keyboard.press("Control+Shift+Tab");
   assert.equal(await page.title(), sourceTitle);

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Icon } from "./icons";
+import { useAnchoredPopover } from "./anchored-popover";
 import { SCAN_LANGUAGES, type ScanLanguage } from "./scanLanguage";
 import { installedScanLanguages, installScanLanguage } from "./scanLanguagePacks";
 
@@ -10,6 +11,8 @@ function searchable(text: string) {
 export function ScanLanguagePicker({ value, onChange }: { value: ScanLanguage[]; onChange: (next: ScanLanguage[]) => void }) {
   const id = useId();
   const panel = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const open = useAnchoredPopover(trigger, panel);
   const search = useRef<HTMLInputElement>(null);
   const session = useRef<AbortController | null>(null);
   const [installed, setInstalled] = useState<Set<ScanLanguage> | null>(null);
@@ -54,11 +57,11 @@ export function ScanLanguagePicker({ value, onChange }: { value: ScanLanguage[];
       panel.current.hidePopover();
     }
   }}>
-    <button type="button" className="btn scan-picker-trigger" popoverTarget={id} aria-haspopup="dialog"
+    <button ref={trigger} type="button" aria-expanded={open} aria-controls={id} className="btn scan-picker-trigger" popoverTarget={id} aria-haspopup="dialog"
       aria-label={`Scan languages: ${summary}`} onClick={() => { setDraft(value); setQuery(""); }}>
       {summary}<Icon name="chevronDown" size={14} />
     </button>
-    <div ref={panel} id={id} popover="auto" role="dialog" aria-label="Choose scan languages" className="scan-picker-panel"
+    <div ref={panel} id={id} popover="auto" role="dialog" aria-label="Choose scan languages" className="scan-picker-panel anchored-popover"
       onToggle={event => {
         session.current?.abort();
         if (event.newState !== "open") return;

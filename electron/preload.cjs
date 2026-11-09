@@ -2,6 +2,13 @@
 const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("folioDesktop", {
+  saveFile: request => ipcRenderer.invoke("folio:save-file", request),
+  setFileMenu: state => ipcRenderer.send("folio:file-menu", state),
+  onFileCommand(callback) {
+    const listener = (_event, command) => callback(command);
+    ipcRenderer.on("folio:file-command", listener);
+    return () => ipcRenderer.removeListener("folio:file-command", listener);
+  },
   getPrinters: () => ipcRenderer.invoke("folio:printers"),
   printSheets: (job) => ipcRenderer.invoke("folio:print-sheets", job),
   /** Called with (name, data, note?) whenever a PDF is opened from Explorer, or a Word document has been converted. */
@@ -46,6 +53,12 @@ contextBridge.exposeInMainWorld("folioDesktop", {
       const result = await ipcRenderer.invoke("folio:content-asset", id, relative);
       return { data: new Uint8Array(result.data), mime: result.mime };
     },
+    async trash(id, name) {
+      const result = await ipcRenderer.invoke("folio:content-trash", id, name);
+      if (result.error) throw new Error(result.error);
+      return result.gallery;
+    },
+    reveal: (id, name) => ipcRenderer.invoke("folio:content-reveal", id, name),
     release: id => ipcRenderer.invoke("folio:content-release", id),
   },
   ready: () => ipcRenderer.invoke("folio:ready"),

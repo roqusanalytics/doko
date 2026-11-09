@@ -6,7 +6,7 @@ export function trackTitlebar(header: HTMLElement) {
   area.className = "window-drag-area";
   area.setAttribute("aria-hidden", "true");
   host.body.append(area);
-  const controls = header.querySelectorAll<HTMLElement>(".brand, .icon-btn, .segmented");
+  const controls = header.querySelectorAll<HTMLElement>("button, .segmented");
   const update = () => {
     const style = getComputedStyle(header);
     const left = parseFloat(style.paddingLeft);

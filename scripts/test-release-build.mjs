@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { RELEASE_ARTIFACTS, RELEASES_REPO } from "./check-release.mjs";
-import { artifactIds, releaseBump, releaseFiles, selectBuild, successfulAttempt, verifyReleaseTag, SOURCE_REPO } from "./release-build.mjs";
+import { artifactIds, releaseBump, releaseFiles, selectBuild, selectCI, successfulAttempt, successfulCI, verifyReleaseTag, SOURCE_REPO } from "./release-build.mjs";
 
 const tag = "v1.2.3";
 const commit = "a".repeat(40);
@@ -13,6 +14,96 @@ const build = {
   status: "completed", conclusion: "success", run_attempt: 2,
 };
 const select = (...runs) => selectBuild({ total_count: runs.length, workflow_runs: runs }, tag, commit);
+const ci = { ...build, id: 50, path: ".github/workflows/ci.yml", head_branch: "main" };
+const ciHistory = (...runs) => ({ total_count: runs.length, workflow_runs: runs });
+
+test("full CI must be from the exact main push, repository and workflow", () => {
+  successfulCI(selectCI(ciHistory(ci), commit));
+  assert.equal(selectCI(ciHistory(), commit), null);
+  assert.throws(() => successfulCI(null), /Full CI/);
+  for (const change of [{ head_sha: "b".repeat(40) }, { path: build.path }, { head_repository: { full_name: "example/fork" } },
+    { event: "pull_request" }, { event: "workflow_dispatch" }, { head_branch: tag }, { id: "50" }]) {
+    assert.throws(() => selectCI(ciHistory({ ...ci, ...change }), commit), /CI does not match/);
+  }
+  assert.throws(() => selectCI({ total_count: 2, workflow_runs: [ci] }, commit), /Incomplete/);
+});
+
+test("an older successful CI run cannot hide a newer run or rerun", () => {
+  for (const change of [{ status: "queued", conclusion: null }, { status: "in_progress", conclusion: null },
+    { conclusion: "failure" }, { conclusion: "cancelled" }, { conclusion: "skipped" }, { run_attempt: 0 }]) {
+    const latest = { ...ci, ...change, id: 51 };
+    assert.throws(() => successfulCI(selectCI(ciHistory(latest, ci), commit)), /Full CI/);
+    assert.throws(() => successfulCI(selectCI(ciHistory(ci, latest), commit)), /Full CI/);
+    assert.throws(() => successfulCI(selectCI(ciHistory({ ...ci, run_attempt: 3, ...change }), commit)), /Full CI/);
+  }
+  successfulCI(selectCI(ciHistory({ ...ci, run_attempt: 3 }), commit));
+});
+
+test("normal and resumed publication execute the CI gate and recheck it after download", (t) => {
+  const folder = mkdtempSync(path.join(tmpdir(), "folio-publisher-test-"));
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  const source = readFileSync(new URL("./release.mjs", import.meta.url), "utf8")
+    .replace('from "node:child_process"', 'from "./mock-process.mjs"')
+    .replaceAll('"./check-release.mjs"', JSON.stringify(new URL("./check-release.mjs", import.meta.url).href))
+    .replaceAll('"./release-build.mjs"', JSON.stringify(new URL("./release-build.mjs", import.meta.url).href));
+  writeFileSync(path.join(folder, "release.mjs"), source);
+  writeFileSync(path.join(folder, "package.json"), JSON.stringify({ version: "1.2.3" }));
+  writeFileSync(path.join(folder, "mock-process.mjs"), `
+    import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+    import path from "node:path";
+    const build = ${JSON.stringify(build)}, ci = ${JSON.stringify(ci)}, manifest = ${JSON.stringify(RELEASE_ARTIFACTS)};
+    let ciReads = 0;
+    export function execSync(command) { appendFileSync("calls", command + "\\n"); return command.includes("rev-parse") ? build.head_sha : ""; }
+    export function execFileSync(command, args) {
+      appendFileSync("calls", JSON.stringify([command, ...args]) + "\\n");
+      if (command === "git") {
+        if (args[0] === "show") return JSON.stringify({ version: "1.2.3" });
+        return build.head_sha;
+      }
+      if (args[0] === "api") {
+        const endpoint = args.at(-1);
+        if (endpoint.includes("git/ref/tags/")) return JSON.stringify({ ref: "refs/tags/v1.2.3", object: { sha: build.head_sha } });
+        if (endpoint.endsWith("git/ref/heads/main")) return JSON.stringify({ object: { sha: build.head_sha } });
+        if (endpoint.includes("/ci.yml/runs?")) {
+          ciReads++;
+          const failing = process.env.CI_SCENARIO === "failed" || (process.env.CI_SCENARIO === "rerun" && ciReads >= 3);
+          return JSON.stringify({ total_count: 1, workflow_runs: [{ ...ci, ...(failing ? { conclusion: "failure" } : {}) }] });
+        }
+        if (endpoint.includes("/release-build.yml/runs?")) return JSON.stringify({ total_count: 1, workflow_runs: [build] });
+        if (endpoint.includes("/artifacts?")) return JSON.stringify({ total_count: 3, artifacts: Object.keys(manifest).map((name, i) => ({ name, id: i + 1, expired: false, workflow_run: { id: build.id, head_sha: build.head_sha } })) });
+        throw new Error("Unexpected API request " + endpoint);
+      }
+      if (args[0] === "run" && args[1] === "download") {
+        const folder = args.at(-1);
+        for (const [group, files] of Object.entries(manifest)) {
+          mkdirSync(path.join(folder, group));
+          for (const { name } of files) writeFileSync(path.join(folder, group, name), "");
+        }
+      }
+      if (args[0] === "release") throw new Error("PUBLICATION_REACHED");
+      return "";
+    }
+  `);
+  for (const args of [[], ["--publish-only"]]) {
+    for (const scenario of ["failed", "rerun", "success"]) {
+      writeFileSync(path.join(folder, "calls"), "");
+      const result = spawnSync(process.execPath, ["release.mjs", ...args], {
+        cwd: folder, encoding: "utf8", env: { ...process.env, CI_SCENARIO: scenario },
+      });
+      const calls = readFileSync(path.join(folder, "calls"), "utf8");
+      assert.equal(result.status, 1, result.stderr);
+      assert.ok(calls.includes("/ci.yml/runs?event=push&branch=main&head_sha=" + commit));
+      if (scenario === "success") {
+        assert.match(result.stderr, /PUBLICATION_REACHED/);
+        assert.ok(calls.includes('["gh","release","create"'));
+      } else {
+        assert.match(result.stderr, /Full CI/);
+        assert.ok(!calls.includes('["gh","release","create"'));
+        assert.equal(calls.includes('["gh","run","download"'), scenario === "rerun");
+      }
+    }
+  }
+});
 
 test("the fork builds and publishes in its own repository", () => {
   assert.equal(SOURCE_REPO, "roqusanalytics/folio");

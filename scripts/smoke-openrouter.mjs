@@ -43,8 +43,8 @@ export async function checkOpenRouter(app, page) {
     await page.window.waitForFunction(() => document.title.startsWith("Field notes.pdf"));
     await page.getByRole("button", { name: "Ask AI", exact: true }).click();
     const panel = page.getByRole("complementary", { name: "Ask AI" });
-    const provider = panel.getByRole("combobox", { name: "AI provider" });
-    await provider.selectOption("openrouter");
+    const provider = panel.getByRole("button", { name: "AI provider", exact: true });
+    await provider.click(); await page.getByRole("menuitemradio", { name: "OpenRouter", exact: true }).click();
     await panel.getByRole("button", { name: "Open Ask AI settings" }).click();
     const settings = page.getByRole("dialog", { name: "Settings" });
     assert.equal(await settings.getByRole("button", { name: "Ask AI", exact: true }).getAttribute("aria-current"), "page");
@@ -70,8 +70,8 @@ export async function checkOpenRouter(app, page) {
     await panel.getByRole("button", { name: "Stop" }).click();
     await panel.getByRole("button", { name: "Send", exact: true }).waitFor();
     assert.ok(await app.evaluate(() => globalThis.routerTest.cancelled));
-    await provider.selectOption("claude");
-    await provider.selectOption("openrouter");
+    await provider.click(); await page.getByRole("menuitemradio", { name: "Claude", exact: true }).click();
+    await provider.click(); await page.getByRole("menuitemradio", { name: "OpenRouter", exact: true }).click();
     await panel.getByText("Where do terns nest?").waitFor();
     await panel.getByRole("button", { name: "sample/reader", exact: true }).click();
     await settings.getByRole("button", { name: "Change model" }).click();
@@ -80,7 +80,7 @@ export async function checkOpenRouter(app, page) {
     await settings.getByRole("button", { name: "Manage key" }).click();
     await settings.getByRole("button", { name: "Remove saved key" }).click();
     await settings.getByLabel("API key", { exact: true }).waitFor();
-    await settings.getByLabel("Ask AI provider").selectOption("chatgpt");
+    await settings.getByRole("button", { name: "Ask AI provider", exact: true }).click(); await page.getByRole("menuitemradio", { name: "ChatGPT", exact: true }).click();
     await settings.getByRole("button", { name: "Close" }).click();
     await page.getByRole("tablist", { name: "Open documents" }).getByRole("button", { name: "Close Field notes.pdf" }).click();
     console.log("ok  OpenRouter setup, models, streaming, citations, Stop, provider switching and key removal");

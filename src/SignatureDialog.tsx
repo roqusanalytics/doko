@@ -1,3 +1,4 @@
+import { SelectMenu } from "./SelectMenu";
 import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "./pdf";
 import type { PageViewport } from "pdfjs-dist";
@@ -206,7 +207,8 @@ export function SignatureDialog({ pdf, pageNumber, targets, onApprove, onClose }
         <section className="signature-document" aria-label="Signature placement preview">
           <div className="signature-section-head"><h3>Page {pageNumber}</h3><span className="signature-badge">{selected ? "Suggested position" : "Page preview"}</span></div>
           {ready && <div className="signature-placement-controls">
-            <label className="signature-field">Placement<select aria-label="Signature placement" value={targetId} onChange={event => setTargetId(event.target.value)}>{targets.map(target => <option key={target.id} value={target.id}>{target.label}</option>)}<option value="manual">Choose a position on this page</option></select></label>
+            <label className="signature-field">Placement<SelectMenu label="Signature placement" value={targetId} onChange={setTargetId}
+              options={[...targets.map(target => ({ value: target.id, label: target.label })), { value: "manual", label: "Choose a position on this page" }]} /></label>
             {targetId === "manual" && <label className="signature-range">Signature width <input aria-label="Signature width" type="range" min="40" max="300" value={size} onChange={event => {
               const width = +event.target.value;
               setSize(width);

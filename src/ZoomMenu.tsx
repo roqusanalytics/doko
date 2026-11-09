@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useId, useRef } from "react";
 import { Icon, type IconName } from "./icons";
+import { useAnchoredPopover } from "./anchored-popover";
 
 const PRESETS: { value: string; label: string; icon?: IconName }[] = [
   { value: "auto", label: "Automatic" },
@@ -13,63 +14,65 @@ export function ZoomMenu({
   onPick,
   spread,
   onToggleSpread,
+  photo = false,
 }: {
+  photo?: boolean;
   scale: number;
   onPick: (value: string) => void;
   spread: boolean;
   onToggleSpread: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    window.addEventListener("mousedown", close);
-    return () => window.removeEventListener("mousedown", close);
-  }, [open]);
-
-  const pick = (v: string) => {
-    onPick(v);
-    setOpen(false);
+  const id = useId();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const open = useAnchoredPopover(trigger, panel);
+  const ratio = photo ? 0.75 : 1;
+  const pick = (value: string) => {
+    panel.current?.hidePopover();
+    trigger.current?.focus();
+    onPick(value);
   };
+  const presets = photo ? [
+    { value: "auto", label: "Automatic" },
+    { value: "page-fit", label: "Fit image", icon: "fitPage" as IconName },
+    { value: "0.75", label: "Actual size" },
+  ] : PRESETS;
 
   return (
-    <div className="zoom" ref={ref}>
-      <button className="zoom-value" onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open} title="Zoom">
-        {Math.round(scale * 100)}%
+    <div className="zoom">
+      <button ref={trigger} popoverTarget={id} aria-controls={id} className="zoom-value" aria-haspopup="menu" aria-expanded={open} title="Zoom">
+        {Math.round(scale / ratio * 100)}%
       </button>
-      {open && (
-        <div className="menu" role="menu">
-          {PRESETS.map((p) => (
+      <div ref={panel} id={id} popover="auto" className="menu anchored-popover" role="menu" aria-label="Zoom">
+          {presets.map((p) => (
             <button key={p.value} role="menuitem" onClick={() => pick(p.value)}>
               {p.icon ? <Icon name={p.icon} size={15} /> : <span className="menu-spacer" />}
               {p.label}
             </button>
           ))}
-          <hr />
+          {!photo && <><hr />
           <button
             role="menuitemcheckbox"
             aria-checked={spread}
             className={spread ? "on" : ""}
             onClick={() => {
               onToggleSpread();
-              setOpen(false);
+              panel.current?.hidePopover();
+              trigger.current?.focus();
             }}
           >
             <Icon name="book" size={15} />
             Two-page view
             <kbd className="menu-kbd">2</kbd>
-          </button>
+          </button></>}
           <hr />
           {LEVELS.map((l) => (
-            <button key={l} role="menuitem" className={Math.abs(scale - l) < 0.005 ? "on" : ""} onClick={() => pick(String(l))}>
+            <button key={l} role="menuitem" className={Math.abs(scale - l * ratio) < 0.005 ? "on" : ""} onClick={() => pick(String(l * ratio))}>
               <span className="menu-spacer" />
               {l * 100}%
             </button>
           ))}
         </div>
-      )}
     </div>
   );
 }

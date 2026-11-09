@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useId, useRef } from "react";
 import { Icon, type IconName } from "./icons";
+import { useAnchoredPopover } from "./anchored-popover";
 
 export type MoreItem =
   | { kind: "action"; icon: IconName; label: string; shortcut?: string; disabled?: boolean; onSelect: () => void }
@@ -7,31 +8,16 @@ export type MoreItem =
   | { kind: "divider" };
 
 export function MoreMenu({ items, label }: { items: MoreItem[]; label?: string }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        setOpen(false);
-      }
-    };
-    window.addEventListener("mousedown", close);
-    window.addEventListener("keydown", key, true);
-    return () => {
-      window.removeEventListener("mousedown", close);
-      window.removeEventListener("keydown", key, true);
-    };
-  }, [open]);
+  const id = useId();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const open = useAnchoredPopover(trigger, panel);
 
   return (
-    <div className="more" ref={ref}>
+    <div className="more">
       <button
+        ref={trigger} popoverTarget={id} aria-controls={id}
         className={label ? "link small" : `icon-btn ${open ? "on" : ""}`}
-        onClick={() => setOpen(!open)}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={label ?? "More"}
@@ -39,8 +25,7 @@ export function MoreMenu({ items, label }: { items: MoreItem[]; label?: string }
       >
         {label ? <>{label}<Icon name="chevronDown" size={13} /></> : <Icon name="more" />}
       </button>
-      {open && (
-        <div className="menu dropdown" role="menu">
+      <div ref={panel} id={id} popover="auto" className="menu dropdown anchored-popover" role="menu" aria-label={label ?? "More"}>
           {items.map((item, i) =>
             item.kind === "divider" ? (
               <hr key={i} />
@@ -51,7 +36,8 @@ export function MoreMenu({ items, label }: { items: MoreItem[]; label?: string }
                 aria-checked={item.kind === "toggle" ? item.checked : undefined}
                 disabled={item.kind === "action" && item.disabled}
                 onClick={() => {
-                  setOpen(false);
+                  panel.current?.hidePopover();
+                  trigger.current?.focus();
                   item.onSelect();
                 }}
               >
@@ -63,7 +49,6 @@ export function MoreMenu({ items, label }: { items: MoreItem[]; label?: string }
             ),
           )}
         </div>
-      )}
     </div>
   );
 }

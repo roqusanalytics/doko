@@ -2,16 +2,20 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import { useFileCommands } from "./fileCommands";
+import { MoreMenu } from "./MoreMenu";
 import { DocumentTabBar } from "./DocumentTabBar";
 import type { DocumentTabs } from "./documentTabs";
 import { Modal } from "./Dialogs";
 import { Icon } from "./icons";
 import { keys } from "./platform";
+import { trackTitlebar } from "./titlebar";
 import { readSetting, writeSetting } from "./preferences";
 import { CONTENT_ACCEPT, localSources } from "./content-source";
 import { normalizeMathDelimiters } from "./chatMath";
 import { UpdateSettings } from "./SettingsDialog";
 import { updateSummary } from "./updates";
+import MarkdownPane, { type MarkdownEditorHandle } from "./MarkdownPane";
 import "katex/dist/katex.min.css";
 import "./content-reader.css";
 
@@ -48,95 +52,60 @@ function LocalImage({ id, src, alt }: { id?: string; src: string; alt: string })
   </span>;
 }
 
-function MarkdownPreview({ doc, text }: { doc: MarkdownDocument; text: string }) {
+function headingAnchors(ids: readonly string[]) {
+  return () => (tree: { type: string; children?: unknown[]; data?: { hProperties?: Record<string, unknown> } }) => {
+    let index = 0;
+    const visit = (node: typeof tree) => {
+      if (node.type === "heading") {
+        const id = ids[index++];
+        if (id) node.data = { ...node.data, hProperties: { ...node.data?.hProperties, id } };
+      }
+      node.children?.forEach(child => visit(child as typeof tree));
+    };
+    visit(tree);
+  };
+}
+
+function MarkdownPreview({ doc, text, headingIds }: { doc: MarkdownDocument; text: string; headingIds: readonly string[] }) {
+  const anchors = useMemo(() => headingAnchors(headingIds), [headingIds]);
   const components = useMemo(() => ({
     a: ({ href, children }: { href?: string; children?: import("react").ReactNode }) => href && webLink(href)
       ? <a href={href} target={href.startsWith("#") ? undefined : "_blank"} rel="noreferrer noopener">{children}</a> : <span>{children}</span>,
     img: ({ src, alt }: { src?: string | Blob; alt?: string }) => <LocalImage id={doc.id} src={typeof src === "string" ? src : ""} alt={alt ?? ""} />,
   }), [doc.id]);
   return <section className="markdown-preview" aria-label="Markdown preview" tabIndex={0}>
-    <div className="content-section-label">Preview</div>
     {!text ? <p className="content-empty">Your preview appears here.</p> : <ReactMarkdown skipHtml
-      remarkPlugins={[[remarkMath, { singleDollarTextMath: false }]]}
+      remarkPlugins={[[remarkMath, { singleDollarTextMath: false }], anchors]}
       rehypePlugins={[[rehypeKatex, { trust: false, strict: "ignore", maxExpand: 1000, maxSize: 20 }]]}
       urlTransform={url => url}
       components={components}>{normalizeMathDelimiters(text)}</ReactMarkdown>}
   </section>;
 }
 
-function GalleryCard({ doc, name, root, fit, onReady }: { doc: GalleryDocument; name: string; root: HTMLElement | null; fit: boolean; onReady: (name: string) => void }) {
-  const card = useRef<HTMLElement>(null);
-  const [near, setNear] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-  const [url, setUrl] = useState("");
-  const [ready, setReady] = useState(false);
-  const [size, setSize] = useState<{ width: number; height: number }>();
-  const [error, setError] = useState("");
-  useEffect(() => {
-    if (!card.current || !root) return;
-    const observer = new IntersectionObserver(entries => setNear(entries[0].isIntersecting), { root, rootMargin: "100% 0px" });
-    observer.observe(card.current);
-    return () => observer.disconnect();
-  }, [root]);
-  useEffect(() => {
-    let stopped = false;
-    let objectUrl = "";
-    setUrl(""); setReady(false); setError("");
-    if (!near) return;
-    void (async () => {
-      let blob = doc.blobs?.[name];
-      if (!blob && doc.id && window.folioDesktop) {
-        const result = await window.folioDesktop.content.image(doc.id, name);
-        blob = new Blob([new Uint8Array(result.data)], { type: result.mime });
-      }
-      if (!blob) throw new Error("This image is no longer available.");
-      if (blob.size > MAX_BYTES) throw new Error("Image is larger than 100 MiB.");
-      if (stopped) return;
-      objectUrl = URL.createObjectURL(blob);
-      setUrl(objectUrl);
-    })().catch(error => { if (!stopped) setError(failure(error)); });
-    return () => { stopped = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [doc, name, near, attempt]);
-  return <figure className="gallery-card" data-file={name} ref={card}>
-    <figcaption>{name}</figcaption>
-    <div className="gallery-image-stage" style={size && !fit ? { width: size.width, height: size.height } : undefined}>
-      {url && !error && <img src={url} alt={name} className={ready ? "" : "gallery-decoding"} onError={() => setError("Couldn't decode this image.")} onLoad={event => {
-        const image = event.currentTarget;
-        if (image.naturalWidth * image.naturalHeight > MAX_PIXELS) { setError("Image exceeds 80 million pixels."); return; }
-        setSize({ width: image.naturalWidth, height: image.naturalHeight }); setReady(true); onReady(name);
-      }} />}
-      {error ? <div className="gallery-message" role="status"><p>{error}</p><button className="btn ghost" onClick={() => setAttempt(attempt + 1)}>Retry</button></div>
-        : !ready && <div className="gallery-message" role="status">{near ? "Loading image…" : name}</div>}
-    </div>
-  </figure>;
-}
-
-export default function ContentReader({ tabs, tabKey, initial }: { tabs: DocumentTabs; tabKey: number; initial: ContentDocument }) {
+export default function ContentReader({ tabs, tabKey, initial }: { tabs: DocumentTabs; tabKey: number; initial: MarkdownDocument }) {
   useSyncExternalStore(tabs.subscribe, tabs.snapshot);
   const [doc, setDoc] = useState(initial);
   const [text, setText] = useState(initial.kind === "markdown" ? initial.text : "");
   const [saved, setSaved] = useState(text);
   const [saving, setSaving] = useState(false);
+  const [printMarkup, setPrintMarkup] = useState("");
   const [error, setError] = useState("");
   const [conflict, setConflict] = useState(false);
-  const [dialog, setDialog] = useState<"close" | "reload" | "updates" | null>(null);
+  const [dialog, setDialog] = useState<"close" | "reload" | "updates" | "export" | "properties" | null>(null);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: "idle" });
-  const [mobileView, setMobileView] = useState("edit");
-  const [fit, setFit] = useState(true);
-  const [selected, setSelected] = useState(initial.kind === "gallery" ? initial.selected : "");
-  const [refreshing, setRefreshing] = useState(false);
-  const [galleryRoot, setGalleryRoot] = useState<HTMLElement | null>(null);
   const [theme, setTheme] = useState(readSetting("folio:theme") || document.documentElement.dataset.theme || "light");
   const input = useRef<HTMLInputElement>(null);
-  const editor = useRef<HTMLTextAreaElement>(null);
+  const header = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (tabs.active === tabKey && window.folioDesktop && !dialog && header.current) return trackTitlebar(header.current);
+  }, [tabs.active, tabKey, dialog]);
+  const editor = useRef<MarkdownEditorHandle>(null);
   const state = useRef({ doc, text, saved });
   state.current = { doc, text, saved };
   const pendingSave = useRef<Promise<boolean> | null>(null);
   const closeAnswer = useRef<((answer: boolean) => void) | null>(null);
-  const pendingScroll = useRef(initial.kind === "gallery" ? initial.selected : "");
   const actions = useRef({ save: (_copy = false): Promise<boolean> => Promise.resolve(false), canClose: (): Promise<boolean> => Promise.resolve(true) });
   const dirty = doc.kind === "markdown" && text !== saved;
-  const index = doc.kind === "gallery" ? doc.files.indexOf(selected) : -1;
 
   useEffect(() => window.folioDesktop?.onUpdateStatus(setUpdateStatus), []);
   useEffect(() => { tabs.markDirty(tabKey, dirty); }, [tabs, tabKey, dirty]);
@@ -195,37 +164,18 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
   } };
   useEffect(() => {
     tabs.bind(tabKey, {
-      open(source) {
-        if (source.kind !== "content") return;
-        const next = source.document;
-        if (next.kind === "gallery") { setDoc(next); setSelected(next.selected); pendingScroll.current = next.selected; }
-      },
+      open() {},
       flush: async () => {},
       canClose: () => actions.current.canClose(),
     });
     return () => { closeAnswer.current?.(false); };
   }, [tabs, tabKey]);
 
-  const scrollTo = (name: string) => {
-    const target = Array.from(galleryRoot?.querySelectorAll<HTMLElement>(".gallery-card") ?? []).find(card => card.dataset.file === name);
-    if (target && galleryRoot) galleryRoot.scrollTo({ top: galleryRoot.scrollTop + target.getBoundingClientRect().top - galleryRoot.getBoundingClientRect().top - 16, behavior: "instant" });
-  };
-  useLayoutEffect(() => {
-    if (doc.kind === "gallery" && galleryRoot && pendingScroll.current) scrollTo(pendingScroll.current);
-  }, [doc, galleryRoot, fit]);
-  const move = (direction: number) => {
-    if (doc.kind !== "gallery") return;
-    const next = doc.files[Math.max(0, Math.min(doc.files.length - 1, index + direction))];
-    if (next) { pendingScroll.current = next; setSelected(next); scrollTo(next); }
-  };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (tabs.active !== tabKey || dialog) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && state.current.doc.kind === "markdown") {
-        event.preventDefault(); void actions.current.save();
-      } else if (state.current.doc.kind === "gallery" && !event.ctrlKey && !event.metaKey && !event.altKey && ["ArrowLeft", "ArrowRight"].includes(event.key)
-        && !(event.target instanceof Element && event.target.closest("input,textarea,[role=tab]"))) {
-        event.preventDefault(); move(event.key === "ArrowRight" ? 1 : -1);
+        event.preventDefault(); void actions.current.save(event.shiftKey);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -233,15 +183,6 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
   });
   const openFiles = async (files: File[]) => {
     try { tabs.open(await localSources(files)); } catch (error) { setError(failure(error)); }
-  };
-  const refresh = async () => {
-    if (doc.kind !== "gallery" || !doc.id || !window.folioDesktop || refreshing) return;
-    setRefreshing(true); setError("");
-    try {
-      const next = await window.folioDesktop.content.refresh(doc.id, selected);
-      setDoc(next); setSelected(next.selected); pendingScroll.current = next.selected;
-    } catch (error) { setError(failure(error)); }
-    finally { setRefreshing(false); }
   };
   const reload = async () => {
     if (doc.kind !== "markdown" || !doc.id || !window.folioDesktop) return;
@@ -253,6 +194,40 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
     } catch (error) { setError(failure(error)); }
     finally { setSaving(false); }
   };
+  const exportMarkdown = async (format: "html" | "txt", printing = false) => {
+    if (saving) return;
+    setSaving(true); setError("");
+    try {
+      const current = state.current;
+      const content = format === "html" ? await (await import("./markdownExport")).markdownHtml(current.doc.name, current.text, current.doc.id) : current.text;
+      if (printing) {
+        const body = new DOMParser().parseFromString(content, "text/html").body.innerHTML;
+        setPrintMarkup(body);
+        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        window.print(); setPrintMarkup(""); return;
+      }
+      const name = current.doc.name.replace(/\.(md|markdown)$/i, "") + "." + format;
+      if (window.folioDesktop) {
+        const result = await window.folioDesktop.saveFile({ name, format, data: new TextEncoder().encode(content), saveAs: true });
+        if (result.cancelled) return;
+        if (!result.ok) throw new Error(result.error || "Couldn't save this export. Try again.");
+      } else {
+        const url = URL.createObjectURL(new Blob([content], { type: format === "html" ? "text/html" : "text/plain" }));
+        const link = document.createElement("a"); link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      setDialog(null);
+    } catch (error) { setError(failure(error)); }
+    finally { setSaving(false); }
+  };
+  const fileCommand = (command: FileCommand) => {
+    if (saving || dialog) return;
+    if (command === "save" || command === "save-as") void save(command === "save-as");
+    else if (command === "export") setDialog("export");
+    else if (command === "print") void exportMarkdown("html", true);
+    else if (command === "properties") setDialog("properties");
+    else if (command === "recent") tabs.library();
+  };
+  useFileCommands(tabs.active === tabKey, "markdown", saving || !!dialog, fileCommand);
   const cancelDialog = () => dialog === "close" ? answerClose(false) : setDialog(null);
   useEffect(() => {
     if (!dialog) return;
@@ -271,12 +246,20 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
     if (!event.dataTransfer.files.length) return;
     event.preventDefault(); void openFiles(Array.from(event.dataTransfer.files));
   }}>
-    <header className="topbar content-topbar">
+    <header ref={header} className="topbar content-topbar">
       <div className="topbar-left">
         <button className="brand" title="Back to library" onClick={() => tabs.library()}><span className="brand-mark" /><span className="brand-name">Folio</span></button>
         <div className="doc-title" title={doc.name}><span>{doc.name}</span>{dirty && <span className="dirty-dot" aria-label="Unsaved changes" role="img" />}</div>
       </div>
       <div className="topbar-right">
+        <MoreMenu label="File" items={[
+          { kind: "action", icon: "upload", label: "Open…", onSelect: () => input.current?.click() },
+          { kind: "action", icon: "download", label: "Save", onSelect: () => fileCommand("save") },
+          { kind: "action", icon: "download", label: "Save As…", onSelect: () => fileCommand("save-as") },
+          { kind: "action", icon: "download", label: "Export / Convert…", onSelect: () => fileCommand("export") },
+          { kind: "action", icon: "print", label: "Print…", onSelect: () => fileCommand("print") },
+          { kind: "action", icon: "info", label: "Properties…", onSelect: () => fileCommand("properties") },
+        ]} />
         {window.folioDesktop && <button className="btn ghost" onClick={() => setDialog("updates")}>Updates</button>}
         <button className="icon-btn" aria-label="Open file" title="Open file" onClick={() => input.current?.click()}><Icon name="upload" /></button>
         <button className="icon-btn" aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"} title="Toggle theme" onClick={() => {
@@ -294,12 +277,8 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
           else window.folioDesktop?.checkForUpdates();
         }}>{updateStatus.state === "ready" ? "Restart and update" : updateStatus.state === "available" ? `Download ${updateStatus.version}` : updateStatus.state === "downloading" ? "Downloading…" : "Retry"}</button>
       </div>}
-      {doc.kind === "markdown" ? <>
+      <>
         <div className="content-toolbar">
-          <div className="segmented markdown-view-switch" aria-label="Markdown view">
-            <button className={mobileView === "edit" ? "on" : ""} aria-pressed={mobileView === "edit"} onClick={() => setMobileView("edit")}>Edit</button>
-            <button className={mobileView === "preview" ? "on" : ""} aria-pressed={mobileView === "preview"} onClick={() => setMobileView("preview")}>Preview</button>
-          </div>
           <span className="content-save-status" role="status">{saving ? "Saving…" : dirty ? "Unsaved changes" : "All changes saved"}</span>
           <div className="content-toolbar-actions">
             {doc.id && <button className="btn ghost" disabled={saving} onClick={() => void save(true)}>Save copy</button>}
@@ -307,49 +286,20 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
           </div>
         </div>
         {error && <div className="content-notice" role="alert"><span>{error}</span>{conflict && <button className="btn ghost" disabled={saving} onClick={() => setDialog("reload")}>Reload from disk</button>}</div>}
-        <div className="markdown-workspace" data-view={mobileView}>
-          <section className="markdown-editor" aria-label="Markdown editor"><label className="content-section-label" htmlFor="markdown-source">Markdown</label>
-            <textarea ref={editor} id="markdown-source" aria-label="Markdown source" value={text} spellCheck={false} onChange={event => {
-              state.current.text = event.target.value; setText(event.target.value); tabs.markDirty(tabKey, event.target.value !== state.current.saved);
-            }} /></section>
-          <MarkdownPreview doc={doc} text={text} />
-        </div>
-      </> : <>
-        <div className="content-toolbar gallery-toolbar">
-          <div className="content-toolbar-actions">
-            <button className="icon-btn" aria-label="Previous image" disabled={index <= 0} onClick={() => move(-1)}><Icon name="chevronLeft" /></button>
-            <output aria-label="Image position">{index < 0 ? 0 : index + 1} / {doc.files.length}</output>
-            <button className="icon-btn" aria-label="Next image" disabled={index < 0 || index >= doc.files.length - 1} onClick={() => move(1)}><Icon name="chevronRight" /></button>
-          </div>
-          <span className="gallery-active-name" title={selected}>{selected}</span>
-          <div className="content-toolbar-actions">
-            <div className="segmented" aria-label="Image size"><button className={fit ? "on" : ""} aria-pressed={fit} onClick={() => { pendingScroll.current = selected; setFit(true); }}>Fit</button><button className={!fit ? "on" : ""} aria-pressed={!fit} onClick={() => { pendingScroll.current = selected; setFit(false); }}>100%</button></div>
-            {doc.id && <button className="btn ghost" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Refreshing…" : "Refresh"}</button>}
-          </div>
-        </div>
-        {error && <div className="content-notice" role="alert"><span>{error}</span><button className="btn ghost" onClick={() => void refresh()}>Retry</button></div>}
-        {!doc.id && <div className="content-browser-note">Browser edition: only the images you selected are available.</div>}
-        <section className="gallery-scroll" aria-label="Image gallery" tabIndex={0} ref={setGalleryRoot} data-fit={fit} onScroll={() => {
-          if (!galleryRoot) return;
-          pendingScroll.current = "";
-          const top = galleryRoot.getBoundingClientRect().top;
-          const cards = Array.from(galleryRoot.querySelectorAll<HTMLElement>(".gallery-card"));
-          const active = galleryRoot.scrollHeight - galleryRoot.scrollTop - galleryRoot.clientHeight <= 2
-            ? cards.at(-1) : cards.find(card => card.getBoundingClientRect().bottom > top + 48) ?? cards.at(-1);
-          if (active?.dataset.file) setSelected(active.dataset.file);
-        }}>
-          {!doc.files.length && <p className="content-empty">No supported images remain in this folder.</p>}
-          {doc.files.map(name => <GalleryCard key={name} doc={doc} name={name} root={galleryRoot} fit={fit} onReady={name => {
-            if (pendingScroll.current === name) { scrollTo(name); pendingScroll.current = ""; }
-          }} />)}
-        </section>
-      </>}
+        <MarkdownPane text={text} editorRef={editor} onChange={value => {
+          state.current.text = value; setText(value); tabs.markDirty(tabKey, value !== state.current.saved);
+        }} renderPreview={headingIds => <MarkdownPreview doc={doc} text={text} headingIds={headingIds} />} />
+      </>
     </main>
     <input type="file" ref={input} hidden multiple accept={CONTENT_ACCEPT} onChange={event => {
       void openFiles(Array.from(event.target.files ?? [])); event.target.value = "";
     }} />
     {dialog === "updates" && <Modal title="Updates" onClose={cancelDialog}><div className="settings"><UpdateSettings /></div></Modal>}
-    {dialog && dialog !== "updates" && <Modal title={dialog === "close" ? "Unsaved changes" : "Reload from disk"} onClose={cancelDialog}>
+    {printMarkup && <div className="markdown-print" dangerouslySetInnerHTML={{ __html: printMarkup }} />}
+    {dialog === "export" && <Modal title="Export Markdown" onClose={() => { if (!saving) setDialog(null); }}><div className="content-dialog"><p>Export the current text as a standalone HTML document or a plain text file. Your Markdown stays unchanged.</p>
+      {error && <p role="alert" className="form-error">{error}</p>}<div className="form-actions"><button className="btn ghost" disabled={saving} onClick={() => setDialog(null)}>Cancel</button><button className="btn ghost" disabled={saving} onClick={() => void exportMarkdown("txt")}>Save text…</button><button className="btn primary" disabled={saving} onClick={() => void exportMarkdown("html")}>Save HTML…</button></div></div></Modal>}
+    {dialog === "properties" && <Modal title="Properties" onClose={() => setDialog(null)}><dl className="info-list"><div><dt>File</dt><dd>{doc.name}</dd></div><div><dt>Type</dt><dd>Markdown (UTF-8)</dd></div><div><dt>Size</dt><dd>{new TextEncoder().encode(text).byteLength.toLocaleString()} bytes</dd></div><div><dt>Words</dt><dd>{text.trim() ? text.trim().split(/\s+/).length : 0}</dd></div></dl></Modal>}
+    {dialog && ["close", "reload"].includes(dialog) && <Modal title={dialog === "close" ? "Unsaved changes" : "Reload from disk"} onClose={cancelDialog}>
       <div className="content-dialog">
         <p>{dialog === "close" ? `Save changes to “${doc.name}” before closing?` : "Reloading discards your unsaved changes and reads the current file from disk."}</p>
         {error && <p className="form-error" role="alert">{error}</p>}

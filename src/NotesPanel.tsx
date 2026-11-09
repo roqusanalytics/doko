@@ -8,6 +8,7 @@ interface Props {
   state: MarkupState;
   onExport: (format: "markdown" | "json") => void;
   persisted: boolean;
+  photo?: boolean;
   onReveal: (id: string) => void;
   onNote: (id: string, note: string) => void;
   onRemove: (id: string) => void;
@@ -53,7 +54,7 @@ function GrowingTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
   return <textarea ref={ref} {...props} onInput={autoGrow} />;
 }
 
-export function NotesPanel({ state, onExport, persisted, onReveal, onNote, onRemove, onDocNote, onAsk }: Props) {
+export function NotesPanel({ state, onExport, persisted, photo, onReveal, onNote, onRemove, onDocNote, onAsk }: Props) {
   const docNote = useDebouncedField(state.note, onDocNote);
   const highlights = state.marks.filter((m) => m.type === "highlight" || (m.type === "freetext" && m.text));
   const other = state.marks.length - highlights.length;
@@ -91,7 +92,7 @@ export function NotesPanel({ state, onExport, persisted, onReveal, onNote, onRem
       )}
       {other > 0 && <p className="notes-foot">Plus {other} drawing{other === 1 ? "" : "s"} on the pages.</p>}
       <p className="notes-foot">
-        {keys(persisted ? "Saved automatically on this computer. Ctrl+S saves a PDF copy that includes them."
+        {keys(photo ? "Document notes and bookmarks are saved on this computer. Use Save PNG to keep an image copy." : persisted ? "Saved automatically on this computer. Ctrl+S saves a PDF copy that includes them."
           : "Password-protected documents aren't saved in Folio. Use Ctrl+S to keep a copy with your highlights.")}
       </p>
     </div>

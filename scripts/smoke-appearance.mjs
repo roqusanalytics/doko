@@ -1,0 +1,109 @@
+// Run after npm run build. Every window stays hidden and uses a disposable profile.
+import assert from "node:assert/strict";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { _electron as electron } from "playwright-core";
+import { electronPath } from "./electron-path.mjs";
+import { readerPage } from "./reader-page.mjs";
+import { assertHidden } from "./hidden-window.mjs";
+
+const root = path.resolve(import.meta.dirname, "..");
+const temp = mkdtempSync(path.join(tmpdir(), "folio-appearance-"));
+const markdown = path.join(temp, "Appearance.md");
+writeFileSync(markdown, "# Appearance\n\nReadable content across document tabs.\n");
+const env = { ...process.env, FOLIO_TEST_USER_DATA: path.join(temp, "profile"), FOLIO_TEST_HIDDEN: "1" };
+delete env.ELECTRON_RUN_AS_NODE;
+const app = await electron.launch({ executablePath: electronPath(env), env, args: [root, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
+try {
+  const window = await app.firstWindow();
+  const page = readerPage(window);
+  await page.getByRole("button", { name: /Try a sample/ }).waitFor({ timeout: 30_000 });
+  await page.getByRole("button", { name: /Try a sample/ }).click();
+  await page.locator(".textLayer span:not(.markedContent)").first().waitFor();
+  const png = await page.evaluate(() => {
+    const canvas = Object.assign(document.createElement("canvas"), { width: 80, height: 60 });
+    const context = canvas.getContext("2d"); context.fillStyle = "#55aa99"; context.fillRect(0, 0, 80, 60);
+    return canvas.toDataURL().split(",")[1];
+  });
+  const photo = path.join(temp, "Appearance.png");
+  writeFileSync(photo, Buffer.from(png, "base64"));
+  const openSettings = async () => {
+    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+Comma" : "Control+Comma");
+    await page.getByRole("dialog", { name: "Settings", exact: true }).waitFor();
+  };
+  await openSettings();
+  assert.equal(await page.locator(".appearance-card").count(), 11, "10 presets plus Custom are required");
+  await page.getByRole("radio", { name: "Light", exact: true }).click();
+  await page.getByRole("button", { name: "Sage background", exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.style.getPropertyValue("--bg") === "#e2eadf");
+  await window.waitForFunction(() => document.documentElement.style.getPropertyValue("--bg") === "#e2eadf");
+  await page.getByRole("button", { name: "Custom background", exact: true }).click();
+  const hex = page.getByRole("textbox", { name: "Custom color", exact: true });
+  for (const invalid of ["", "not-a-color", "x".repeat(10000)]) {
+    await hex.fill(invalid);
+    assert.equal(await hex.getAttribute("aria-invalid"), "true");
+    assert.equal(await page.evaluate(() => localStorage.getItem("folio:appearance")), "#e4eaf2", "invalid input changed the saved palette");
+  }
+  for (const color of ["#000000", "#ffffff", "#00ff00", "#ABC"]) {
+    await hex.fill(color);
+    assert.equal(await hex.getAttribute("aria-invalid"), "false");
+  }
+  await page.getByRole("radio", { name: "Dark", exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === "dark" && document.documentElement.style.getPropertyValue("--bg") === "#aabbcc");
+  await page.getByRole("button", { name: "Ocean background", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await app.evaluate(({ app }, file) => app.emit("open-file", { preventDefault() {} }, file), photo);
+  await page.getByRole("button", { name: "View Appearance.png", exact: true }).waitFor();
+  await page.locator(".page canvas").first().waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.appearance), "ocean", "new photo frame lost appearance");
+  await app.evaluate(({ app }, file) => app.emit("open-file", { preventDefault() {} }, file), markdown);
+  await page.getByLabel("Markdown preview", { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.appearance), "ocean", "new Markdown frame lost appearance");
+  await window.reload();
+  await page.getByRole("button", { name: /Try a sample/ }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.appearance), "ocean", "reload lost appearance");
+  await app.evaluate(({ app }, file) => app.emit("open-file", { preventDefault() {} }, file), markdown);
+  await page.getByLabel("Markdown preview", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "New tab", exact: true }).click();
+  await page.getByRole("button", { name: /Try a sample/ }).waitFor();
+  await openSettings();
+  assert.equal(await page.getByRole("button", { name: "Ocean background", exact: true }).getAttribute("aria-pressed"), "true");
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await window.waitForFunction(() => [...document.querySelectorAll("iframe.document-reader")].every(frame => !frame.contentDocument.documentElement.dataset.appearance));
+  assert.equal(await page.getByRole("button", { name: "Paper background", exact: true }).getAttribute("aria-pressed"), "true");
+  for (const theme of ["Dark", "Light"]) {
+    await page.getByRole("radio", { name: theme, exact: true }).click();
+    const contrast = await page.evaluate(() => {
+      const css = getComputedStyle(document.documentElement);
+      const luminance = color => {
+        color = color.trim();
+        if (color.length === 4) color = "#" + [...color.slice(1)].map(v => v + v).join("");
+        const c = [1, 3, 5].map(i => parseInt(color.trim().slice(i, i + 2), 16) / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
+        return c[0] * .2126 + c[1] * .7152 + c[2] * .0722;
+      };
+      const text = luminance(css.getPropertyValue("--text-3"));
+      const contrast = ["--bg", "--stage", "--surface", "--surface-2"].map(key => {
+        const bg = luminance(css.getPropertyValue(key)); return (Math.max(text, bg) + .05) / (Math.min(text, bg) + .05);
+      });
+      const accent = luminance(css.getPropertyValue("--accent")), foreground = luminance(css.getPropertyValue("--accent-foreground"));
+      contrast.push((Math.max(accent, foreground) + .05) / (Math.min(accent, foreground) + .05));
+      return contrast;
+    });
+    assert.ok(contrast.every(value => value >= 4.5), `Paper ${theme} muted text contrast: ${contrast}`);
+  }
+  await page.locator(".modal").evaluate(el => el.scrollTop = 0);
+  const shots = path.join(root, "release", "smoke");
+  mkdirSync(shots, { recursive: true });
+  await window.setViewportSize({ width: 390, height: 700 });
+  assert.ok(await page.locator(".appearance-card").evaluateAll(cards => cards.every(card => {
+    const rect = card.getBoundingClientRect(); return rect.left >= 0 && rect.right <= innerWidth;
+  })), "appearance cards overflow narrow screen");
+  await page.screenshot({ path: path.join(shots, "appearance-390.png") });
+  await window.setViewportSize({ width: 1280, height: 900 });
+  await page.waitForTimeout(200); // Let the theme's existing color transition settle for visual evidence.
+  await page.screenshot({ path: path.join(shots, "appearance-settings.png") });
+  await assertHidden(app);
+  console.log("PASS appearance hidden Electron: presets, live parent/frame sync, invalid/long/custom input, Dark theme, PDF/photo/Markdown, reload, reset");
+} finally { await app.close(); rmSync(temp, { recursive: true, force: true }); }

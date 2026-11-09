@@ -1,0 +1,44 @@
+.markdown-pane { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface); }
+.markdown-mode-bar { display: flex; justify-content: flex-end; align-items: center; gap: 3px; flex: none; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.markdown-mode-button { min-height: 32px; padding: 5px 11px; border-radius: 6px; color: var(--text-2); font-size: 12px; }
+.markdown-mode-button:hover { color: var(--text); background: var(--surface-2); }
+.markdown-mode-button[aria-pressed="true"] { color: var(--text); background: var(--surface-2); font-weight: 600; }
+.markdown-pane-body { display: flex; flex: 1; min-height: 0; min-width: 0; }
+.markdown-section-rail { display: flex; flex-direction: column; align-items: center; flex: 0 0 44px; overflow-y: auto; scrollbar-width: none; padding-block: 18px; }
+.markdown-section-rail::-webkit-scrollbar { display: none; }
+.markdown-section-button { display: flex; align-items: center; justify-content: flex-start; padding: 0 8px; width: 44px; min-height: 26px; flex: none; border-radius: 4px; }
+.markdown-section-mark { display: block; height: 2px; border-radius: 2px; background: var(--text-3); transition: background .12s; }
+.markdown-section-button:hover .markdown-section-mark, .markdown-section-button:focus-visible .markdown-section-mark { background: var(--text-2); }
+.markdown-section-button[aria-current="location"] .markdown-section-mark { background: var(--accent); height: 3px; }
+.markdown-section-label { position: fixed; z-index: 100; pointer-events: none; max-width: min(300px, calc(100vw - 68px)); padding: 6px 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); color: var(--text); box-shadow: var(--page-shadow); font-size: 12px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.markdown-rendered, .markdown-source { flex: 1; min-height: 0; min-width: 0; }
+.markdown-rendered { overflow: auto; outline-offset: -3px; }
+.markdown-pane [hidden] { display: none !important; }
+.markdown-pane .markdown-preview { overflow: visible; min-height: 100%; padding: 4px 18px 40px; }
+.markdown-pane .markdown-preview > :first-child { margin-top: 20px; }
+.markdown-source { overflow: hidden; }
+.markdown-source .cm-editor { height: 100%; background: var(--surface); color: var(--text); }
+.markdown-source .cm-editor.cm-focused { outline: none; }
+.markdown-source .cm-scroller { overflow: auto; font: 13px/1.75 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.markdown-source .cm-content { padding: 19px 16px 40px 8px; caret-color: var(--text); }
+.markdown-source .cm-line { padding: 0 8px; }
+.markdown-source .cm-gutters { background: var(--surface); color: var(--text-2); border: 0; }
+.markdown-source .cm-lineNumbers .cm-gutterElement { padding-left: 10px; padding-right: 12px; }
+.markdown-source .cm-activeLine, .markdown-source .cm-activeLineGutter { background: var(--surface-2); }
+.markdown-source .cm-cursor, .markdown-source .cm-dropCursor { border-left-color: var(--text); }
+.markdown-source .cm-selectionBackground, .markdown-source .cm-editor.cm-focused .cm-selectionBackground { background: var(--accent-soft); }
+.markdown-source .cm-panels { background: var(--surface-2); color: var(--text); }
+.markdown-source .cm-tooltip { background: var(--surface); color: var(--text); border-color: var(--line); }
+.markdown-source .md-token-heading, .markdown-source .md-token-strong { font-weight: 650; }
+.markdown-source .md-token-heading, .markdown-source .md-token-link, .markdown-source .md-token-keyword { color: var(--accent-text); }
+.markdown-source .md-token-emphasis { font-style: italic; }
+.markdown-source .md-token-link { text-decoration: underline; }
+.markdown-source .md-token-comment { color: var(--text-2); }
+.markdown-source .md-token-literal { color: var(--accent-text); }
+.markdown-source .md-token-code { color: var(--text-2); }
+@media (min-width: 760px) {
+  .markdown-mode-bar { padding-right: 20px; }
+  .markdown-section-rail { flex-basis: 56px; }
+  .markdown-pane .markdown-preview { max-width: 900px; margin-inline: auto; padding: 12px 40px 56px; }
+  .markdown-source .cm-scroller { font-size: 14px; }
+}

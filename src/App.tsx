@@ -50,6 +50,13 @@ import { keepDrawingPointer } from "./drawing";
 import { drawShapes, type Shape } from "./shapes";
 import { enableWheelPaging } from "./wheelPaging";
 import { LinkHistory, type HistoryState } from "./linkHistory";
+import { PhotoCarousel } from "./PhotoCarousel";
+import { fitPhoto } from "./photoView";
+import { SelectMenu } from "./SelectMenu";
+import { useFileCommands } from "./fileCommands";
+import { installHandTool } from "./handTool";
+import DocumentExportDialog from "./DocumentExportDialog";
+import type { ExportSnapshot } from "./documentExport";
 
 type Tool = "select" | "highlight" | "ink" | "freetext";
 
@@ -102,7 +109,10 @@ interface OpenDoc {
   password?: string;
   /** Original library entry while content edits are held in memory. */
   sourceId?: string;
+  saveKey: string;
   historyAllowed: boolean;
+  photoName?: string;
+  photoKey?: string;
   edits?: { original?: Blob; changes: PdfChange[] };
 }
 
@@ -132,7 +142,7 @@ function saveBlob(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs; tabKey: number; upgradeNotes: Release[] }) {
+export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { tabs: DocumentTabs; tabKey: number; upgradeNotes: Release[]; initialGallery?: GalleryDocument }) {
   const headerRef = useRef<HTMLElement>(null);
   const active = useSyncExternalStore(tabs.subscribe, () => tabs.active === tabKey);
   const multipleTabs = useSyncExternalStore(tabs.subscribe, () => tabs.all.length > 1);
@@ -168,7 +178,8 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
       setChatGeneration(current => Math.max(current, generation));
     } else if (category === "notes") {
       markupRef.current?.clearSaved(generation);
-      if (persistRef.current) {
+      for (const draft of photoDrafts.current.values()) delete draft.reading;
+      if (persistRef.current || galleryRef.current) {
         setNotesGeneration(current => Math.max(current, generation));
         setNoteBox(null);
       }
@@ -179,6 +190,18 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
   const savingCopy = useRef(false);
 
   const [doc, setDoc] = useState<OpenDoc | null>(null);
+  const [gallery, setGallery] = useState(initialGallery);
+  const galleryRef = useRef(initialGallery);
+  const photoDrafts = useRef(new Map<string, { bytes: Uint8Array; dirty: boolean; reading?: Pick<MarkupState, "note" | "bookmarkedPages"> }>());
+  const photoSwitch = useRef(false);
+  const photoAutoFit = useRef(true);
+  const photoWheel = useRef({ amount: 0, last: 0, turned: false });
+  const photoKeys = useRef(new Map<string, string>());
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoFailure, setPhotoFailure] = useState("");
+  const [photoSavedId, setPhotoSavedId] = useState("");
+  const [photoDirty, setPhotoDirty] = useState(new Set<string>());
+  const [refreshingPhotos, setRefreshingPhotos] = useState(false);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [textStatus, setTextStatus] = useState<string | null>(null);
@@ -190,15 +213,20 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
   const wheelPagingRef = useRef(wheelPaging);
   wheelPagingRef.current = wheelPaging;
   const [rotation, setRotation] = useState(0);
-  const [sidebar, setSidebar] = useState(() => readSetting("folio:sidebar") !== "0" && window.innerWidth > 760);
+  const [sidebar, setSidebar] = useState(() => !initialGallery && readSetting("folio:sidebar") !== "0" && window.innerWidth > 760);
   const [searchOpen, setSearchOpen] = useState(false);
   const [find, setFind] = useState<FindResult>({ current: 0, total: 0, state: null });
   const [theme, setTheme] = useState(document.documentElement.dataset.theme || "light");
-  const [spread, setSpread] = useState(() => readSetting("folio:spread") === "1");
+  const [spread, setSpread] = useState(() => !initialGallery && readSetting("folio:spread") === "1");
   const spreadRef = useRef(spread);
   spreadRef.current = spread;
-  const [night, setNight] = useState(() => readSetting("folio:night") === "1");
+  const [night, setNight] = useState(() => !initialGallery && readSetting("folio:night") === "1");
+  const [hand, setHand] = useState(false);
+  const [fileBusy, setFileBusy] = useState(false);
+  const [exportDialog, setExportDialog] = useState<{ snapshot: ExportSnapshot; mode: "export" | "compress" } | null>(null);
+  const savedTargets = useRef(new Map<string, string>());
   const [tool, setTool] = useState<Tool>("select");
+  const [penWidth, setPenWidth] = useState(1);
   const [drawTool, setDrawTool] = useState<"Pen" | Shape>("Pen");
   const [colors, setColors] = useState<Partial<Record<Tool, string>>>({
     highlight: HIGHLIGHTS[0].hex,
@@ -217,7 +245,8 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
   const [editorDirty, setEditorDirty] = useState(false);
   const [pageDraft, setPageDraft] = useState<{ order: number[]; copy?: Uint8Array } | null>(null);
   const pageOrder = pageDraft?.order.some((n, i) => n !== i + 1) ? pageDraft.order : undefined;
-  const unsaved = !!doc?.sourceId || dirty || editorDirty || (!!pageOrder && !pageDraft?.copy);
+  const currentPhotoDirty = dirty || editorDirty || (!!doc && doc.id !== photoSavedId);
+  const unsaved = gallery ? currentPhotoDirty || photoDirty.size > 0 : !!doc?.sourceId || dirty || editorDirty || (!!pageOrder && !pageDraft?.copy);
   const [focus, setFocus] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [printCopy, setPrintCopy] = useState<{ pdf: PDFDocumentProxy; bytes: Uint8Array; page: number; name: string } | null>(null);
@@ -231,7 +260,7 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
   const [pending, setPending] = useState<Pending | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
+  const [updateNotice, setUpdateNotice] = useState<UpdateStatus | null>(null);
   const [signing, setSigning] = useState(false);
   const [signatureTargets, setSignatureTargets] = useState<SignatureTarget[]>([]);
   const [signatureDismissed, setSignatureDismissed] = useState(false);
@@ -317,10 +346,11 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
     eventBus.on("pagesinit", () => {
       restoringRef.current = true;
       const saved = restoreRef.current;
-      if (wheelPagingRef.current) viewer.scrollMode = ScrollMode.PAGE;
+      if (wheelPagingRef.current && !galleryRef.current) viewer.scrollMode = ScrollMode.PAGE;
       viewer.spreadMode = (saved?.spread ?? spreadRef.current) ? SpreadMode.ODD : SpreadMode.NONE;
       viewer.pagesRotation = saved?.rotation ?? 0;
-      viewer.currentScaleValue = saved?.scale ?? (window.innerWidth < 900 ? "page-width" : "auto");
+      if (galleryRef.current && photoAutoFit.current) fitPhoto(viewer);
+      else viewer.currentScaleValue = saved?.scale ?? (window.innerWidth < 900 ? "page-width" : "auto");
       const restoredPage = Math.min(lastPageRef.current, viewer.pagesCount);
       viewer.currentPageNumber = restoredPage;
       if (saved && Number.isFinite(saved.top) && Number.isFinite(saved.left)) {
@@ -340,7 +370,15 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
       setPageInput(String(pageNumber));
     });
     eventBus.on("scalechanging", ({ scale }: { scale: number }) => setScale(scale));
-    eventBus.on("rotationchanging", ({ pagesRotation }: { pagesRotation: number }) => setRotation(pagesRotation));
+    eventBus.on("rotationchanging", ({ pagesRotation }: { pagesRotation: number }) => {
+      setRotation(pagesRotation);
+      if (galleryRef.current && photoAutoFit.current) fitPhoto(viewer);
+    });
+    eventBus.on("pagerendered", ({ cssTransform }: { cssTransform: boolean }) => {
+      if (galleryRef.current && !cssTransform && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        innerRef.current?.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 160, easing: "ease-out" });
+      }
+    });
     eventBus.on("updatefindmatchescount", ({ matchesCount }: { matchesCount: { current: number; total: number } }) =>
       setFind((f) => ({ ...f, ...matchesCount })),
     );
@@ -366,6 +404,7 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       if (!viewer.pdfDocument) return;
+      photoAutoFit.current = false;
       viewer.updateScale({
         drawingDelay: 300,
         scaleFactor: Math.exp(-e.deltaY / 300),
@@ -390,9 +429,9 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
 
   useEffect(() => {
     const viewer = viewerRef.current!;
-    if (viewer.pagesCount) viewer.scrollMode = wheelPaging ? ScrollMode.PAGE : ScrollMode.VERTICAL;
-    if (wheelPaging) return enableWheelPaging(containerRef.current!, viewer);
-  }, [wheelPaging, doc]);
+    if (viewer.pagesCount) viewer.scrollMode = wheelPaging && !gallery ? ScrollMode.PAGE : ScrollMode.VERTICAL;
+    if (wheelPaging && !gallery) return enableWheelPaging(containerRef.current!, viewer);
+  }, [wheelPaging, doc, gallery]);
 
   // ── Opening documents ───────────────────────────────────────────────
   const beginOpen = useCallback(() => {
@@ -424,10 +463,11 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
         signal.throwIfAborted();
         const previous = revision ?? exported;
         if (previous && docRef.current !== previous) return false;
-        if (!revision && !tabs.opened(tabKey, id, name)) return false;
+        if (!revision && !galleryRef.current && !tabs.opened(tabKey, id, name)) return false;
         const saved = previous ? readView(previous.id) ?? { page: pageRef.current, scale: viewer.currentScaleValue,
           rotation: viewer.pagesRotation, ...preferencesRef.current } : readView(id);
-        restoreRef.current = initialPage && !previous ? null : saved;
+        if (galleryRef.current && !revision) photoAutoFit.current = true;
+        restoreRef.current = galleryRef.current && !revision ? { page: 1, scale: "page-fit", rotation: 0, sidebar: false, spread: false } : initialPage && !previous ? null : saved;
         lastPageRef.current = Math.min(initialPage ?? saved?.page ?? existing?.lastPage ?? 1, pdf.numPages);
         pageRef.current = lastPageRef.current;
         if (saved) {
@@ -438,16 +478,16 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
         }
 
         const prev = docRef.current;
-        const next: OpenDoc = { id, name, size: data.byteLength, pdf, password, sourceId: revision?.sourceId ?? revision?.id, historyAllowed, edits };
+        const next: OpenDoc = { id, saveKey: previous?.saveKey ?? id, name, size: data.byteLength, pdf, password, sourceId: revision?.sourceId ?? revision?.id, historyAllowed: historyAllowed && !galleryRef.current, edits, photoName: revision?.photoName ?? galleryRef.current?.selected, photoKey: revision?.photoKey ?? photoKeys.current.get(galleryRef.current?.selected ?? "") };
         docRef.current = next;
         // Password-protected documents aren't stored by Folio (same rule as Recent).
-        const reading = previous ? markupRef.current!.state : undefined;
+        const reading = previous ? markupRef.current!.state : photoDrafts.current.get(galleryRef.current?.selected ?? "")?.reading;
         if (reading?.bookmarkedPages && exportedOrder) {
           const bookmarks = new Set(reading.bookmarkedPages);
           reading.bookmarkedPages = exportedOrder.flatMap((n, i) => bookmarks.has(n) ? [i + 1] : []);
         }
-        persistRef.current = !password && !revision;
-        void markupRef.current!.load(id, persistRef.current, reading);
+        persistRef.current = !password && !revision && !galleryRef.current;
+        void markupRef.current!.load(next.photoKey ?? id, next.photoKey ? "reading" : persistRef.current, reading);
         setNoteBox(null);
         setPinned(null);
         setAiContext(null);
@@ -475,7 +515,7 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
         setPageInput(String(lastPageRef.current));
         setRotation(revision ? saved?.rotation ?? 0 : 0);
         setDirty(false);
-        setTool("select");
+        setTool("select"); setHand(false);
         setPending(null);
         setSearchOpen(false);
         setFind({ current: 0, total: 0, state: null });
@@ -484,7 +524,7 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
         setLoading(false);
         // Password-protected documents stay out of Recent: it would keep their bytes and a page-1
         // thumbnail unprotected on disk. Very large files are skipped too — see MAX_RECENT_FILE_BYTES.
-        if (!revision && !password && data.byteLength <= MAX_RECENT_FILE_BYTES) void (async () => {
+        if (!revision && !galleryRef.current && !password && data.byteLength <= MAX_RECENT_FILE_BYTES) void (async () => {
           const thumb = existing?.thumb || (await thumbnailDataUrl(pdf).catch(() => ""));
           if (signal.aborted) return;
           await saveRecent({
@@ -624,12 +664,17 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
     v.currentPageNumber = Math.min(Math.max(1, n), v.pagesCount);
   }, []);
   const zoom = (steps: number) => {
+    photoAutoFit.current = false;
     const v = viewerRef.current!;
     if (v.pdfDocument) v.updateScale({ steps, drawingDelay: 150, origin: undefined as unknown as number[] });
   };
   const setScaleValue = (value: string) => {
     const v = viewerRef.current!;
-    if (v.pdfDocument) v.currentScaleValue = value;
+    photoAutoFit.current = !!gallery && (value === "auto" || value === "page-fit");
+    if (v.pdfDocument) {
+      if (photoAutoFit.current) fitPhoto(v);
+      else v.currentScaleValue = value;
+    }
   };
   const toggleSpread = () => {
     const v = viewerRef.current!;
@@ -648,6 +693,7 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
   };
 
   const chooseTool = async (next: Tool, editContent = false) => {
+    setHand(false);
     if (contentRef.current && !(await contentRef.current.finish())) return false;
     const v = viewerRef.current!;
     if (!v.pdfDocument) return false;
@@ -664,6 +710,12 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
       setTool(next); setContentEditing(editContent); return true;
     } catch { flash("Annotations aren’t supported for this document"); return false; }
   };
+  const chooseHand = async () => {
+    if (await chooseTool("select")) { setHand(true); setImageMenu(null); setHighlightMenu(null); setPinned(null); setNoteBox(null); }
+  };
+  useEffect(() => {
+    if (hand && active && doc && !fileBusy && !exportDialog && !dialog && !printCopy && !signing && containerRef.current) return installHandTool(containerRef.current);
+  }, [hand, active, doc, fileBusy, exportDialog, dialog, printCopy, signing]);
   const leaveEditMode = () => chooseTool("select");
   const startSigning = async () => { if (await chooseTool("select")) setSigning(true); };
 
@@ -683,12 +735,14 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
   };
 
   // ── Highlights and notes ────────────────────────────────────────────
-  const liveSelection = useTextSelection(container, !!doc && !contentEditing && tool === "select" && !signing && !noteBox, doc?.pdf);
+  const liveSelection = useTextSelection(container, !!doc && !hand && !contentEditing && tool === "select" && !signing && !noteBox, doc?.pdf);
   // Typing in the popover's note field clears the page selection, so the popover keeps its own copy.
   const selection = pinned ?? liveSelection;
   const highlightColor = colors.highlight ?? HIGHLIGHTS[0].hex;
   const toolRef = useRef(tool);
   toolRef.current = tool;
+  const handRef = useRef(hand);
+  handRef.current = hand;
 
   const quickHighlight = async (hex: string, note = "") => {
     const info = selection;
@@ -720,7 +774,7 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
     if (!container) return;
     const onDown = () => setPinned(null);
     const onClick = (e: MouseEvent) => {
-      if (toolRef.current !== "select" || e.button !== 0) return;
+      if (handRef.current || toolRef.current !== "select" || e.button !== 0) return;
       const current = document.getSelection();
       if (current && !current.isCollapsed) return;
       if ((e.target as HTMLElement).closest("a, .annotationCommentButton, .folio-content-layer")) return;
@@ -748,7 +802,7 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
     const onClick = (e: MouseEvent) => {
       setImageMenu(null);
       if ((e.target as Element).closest(".folio-content-layer")) return;
-      if (toolRef.current !== "select" || e.button !== 0) return;
+      if (handRef.current || toolRef.current !== "select" || e.button !== 0) return;
       const current = document.getSelection();
       if (current && !current.isCollapsed) return;
       if (markupRef.current?.markAt(e.clientX, e.clientY)) return; // highlights take precedence
@@ -806,13 +860,15 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
   useEffect(() => {
     const refit = () => {
       const v = viewerRef.current;
-      if (!v?.pdfDocument || !FIT_SCALES.includes(v.currentScaleValue)) return;
+      if (!v?.pdfDocument) return;
+      if (!(galleryRef.current && photoAutoFit.current) && !FIT_SCALES.includes(v.currentScaleValue)) return;
       // PDF.js hides the ink layer during a refit. Its pointer offsets are invalid until it is visible again.
       if (containerRef.current?.querySelector(".annotationEditorLayer.inkEditing.drawing")) {
         timer = window.setTimeout(refit, 280);
         return;
       }
-      v.currentScaleValue = v.currentScaleValue;
+      if (galleryRef.current && photoAutoFit.current) fitPhoto(v);
+      else v.currentScaleValue = v.currentScaleValue;
     };
     let timer = window.setTimeout(refit, 280);
     return () => window.clearTimeout(timer);
@@ -820,7 +876,10 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
   useEffect(() => {
     const stage = container?.parentElement;
     if (!stage) return;
-    const observer = new ResizeObserver(() => setStageWidth(stage.clientWidth));
+    const observer = new ResizeObserver(() => {
+      setStageWidth(stage.clientWidth);
+      if (galleryRef.current && photoAutoFit.current && viewerRef.current?.pdfDocument) fitPhoto(viewerRef.current);
+    });
     observer.observe(stage);
     return () => observer.disconnect();
   }, [container]);
@@ -876,6 +935,127 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
     }
   };
 
+  const openPhoto = async (next: GalleryDocument, name: string) => {
+    if (photoSwitch.current || refreshingPhotos || !next.files.includes(name)) return;
+    photoSwitch.current = true; setPhotoBusy(true); setPhotoFailure("");
+    try {
+      if (contentRef.current && !await contentRef.current.finish()) return;
+      const previous = docRef.current;
+      if (previous?.photoName) {
+        const copy = await currentBytes(previous);
+        if (!copy) throw new Error("Another export is in progress. Try again.");
+        const changed = dirty || editorDirty || previous.id !== photoSavedId;
+        if (changed || photoDrafts.current.has(previous.photoName)) photoDrafts.current.set(previous.photoName, { bytes: copy.bytes, dirty: changed, reading: { note: markupRef.current!.state.note, bookmarkedPages: markupRef.current!.state.bookmarkedPages } });
+        setPhotoDirty(files => {
+          const updated = new Set(files);
+          if (changed) updated.add(previous.photoName!); else updated.delete(previous.photoName!);
+          return updated;
+        });
+      }
+      const selected = { ...next, selected: name };
+      galleryRef.current = selected; setGallery(selected);
+      const signal = beginOpen(); setLoading(true);
+      const draft = photoDrafts.current.get(name);
+      let bytes = draft?.bytes;
+      if (!bytes) {
+        let blob = next.blobs?.[name];
+        if (!blob && next.id && window.folioDesktop) {
+          const image = await window.folioDesktop.content.image(next.id, name);
+          blob = new Blob([new Uint8Array(image.data)], { type: image.mime });
+        }
+        if (!blob) throw new Error("This image is no longer available.");
+        const { photoPdf } = await import("./photoEditing");
+        bytes = await photoPdf(blob, signal);
+        photoKeys.current.set(name, `photo:${name}:${await contentKey(new Uint8Array(await blob.arrayBuffer()))}`);
+      }
+      signal.throwIfAborted();
+      if (await openBytes(name, bytes, undefined, signal)) setPhotoSavedId(draft?.dirty ? "" : docRef.current!.id);
+      else if (!signal.aborted) throw new Error("Couldn't open this image. Try again.");
+    } catch (error) {
+      if (!opening.current?.signal.aborted) setPhotoFailure((error as Error).message || "Couldn't open this image.");
+    } finally { photoSwitch.current = false; setPhotoBusy(false); setLoading(false); }
+  };
+
+  useEffect(() => {
+    const surface = containerRef.current?.parentElement;
+    if (!gallery || !surface) return;
+    const gesture = photoWheel.current;
+    const wheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey || !photoAutoFit.current || tool !== "select" || contentEditing
+        || !(event.target instanceof Element) || !event.target.closest(".viewer-container, .photo-status")) return;
+      event.preventDefault();
+      const now = performance.now();
+      if (now - gesture.last > 180) { gesture.amount = 0; gesture.turned = false; }
+      gesture.last = now;
+      if (gesture.turned || photoBusy || refreshingPhotos || photoFailure) return;
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      gesture.amount += delta * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? surface.clientHeight : 1);
+      if (Math.abs(gesture.amount) < 50) return;
+      gesture.turned = true;
+      const name = gallery.files[gallery.files.indexOf(gallery.selected) + Math.sign(gesture.amount)];
+      if (name) void openPhoto(gallery, name);
+    };
+    surface.addEventListener("wheel", wheel, { passive: false });
+    return () => surface.removeEventListener("wheel", wheel);
+  }, [gallery, photoBusy, refreshingPhotos, photoFailure, tool, contentEditing]);
+
+  const refreshPhotos = async () => {
+    const current = galleryRef.current;
+    if (!current?.id || !window.folioDesktop || refreshingPhotos) return;
+    if (unsaved) { setError("Save your photo changes before refreshing the folder."); return; }
+    setRefreshingPhotos(true);
+    try {
+      const next = await window.folioDesktop.content.refresh(current.id, current.selected);
+      photoDrafts.current.clear(); photoKeys.current.clear(); setPhotoDirty(new Set());
+      galleryRef.current = next; setGallery(next);
+      if (next.files.length) {
+        setRefreshingPhotos(false);
+        await openPhoto(next, next.selected);
+      }
+      else {
+        const previous = docRef.current;
+        markupRef.current?.unload(); viewerRef.current!.setDocument(null); setDoc(null); docRef.current = null;
+        void previous?.pdf.loadingTask.destroy(); setPhotoFailure("");
+      }
+    } catch (error) { setError((error as Error).message); }
+    finally { setRefreshingPhotos(false); }
+  };
+
+  const persistFile = async (blob: Blob, name: string, key: string, saveAs: boolean) => {
+    if (!window.folioDesktop) { saveBlob(blob, name); return true; }
+    const format = name.split(".").at(-1)?.toLowerCase() as FileSaveFormat;
+    const result = await window.folioDesktop.saveFile({ name, data: new Uint8Array(await blob.arrayBuffer()), format,
+      id: savedTargets.current.get(key), saveAs });
+    if (result.cancelled) return false;
+    if (!result.ok) throw new Error(result.error || (result.conflict ? "The saved file changed outside Folio. Use Save As to keep both versions." : "Couldn't save this file."));
+    if (result.id) savedTargets.current.set(key, result.id);
+    return true;
+  };
+
+  const savePhoto = async (saveAs = false) => {
+    if (photoBusy || refreshingPhotos || photoFailure || savingCopy.current) return;
+    if (contentRef.current && !await contentRef.current.finish()) return;
+    const source = docRef.current;
+    if (!source?.photoName) return;
+    savingCopy.current = true; setPhotoBusy(true); setFileBusy(true);
+    const revision = editRevision.current;
+    try {
+      const copy = await currentBytes(source);
+      if (!copy) throw new Error("Another export is in progress. Try again.");
+      const { photoPng } = await import("./photoEditing");
+      const blob = await photoPng(copy.bytes, opening.current!.signal);
+      if (docRef.current !== source) return;
+      if (!await persistFile(blob, source.photoName.replace(/\.[^.]+$/, "") + " (edited).png", `${source.photoKey}:png`, saveAs)) return;
+      if (editRevision.current === revision) {
+        setDirty(false); setPhotoSavedId(source.id);
+        photoDrafts.current.set(source.photoName, { bytes: copy.bytes, dirty: false, reading: { note: markupRef.current!.state.note, bookmarkedPages: markupRef.current!.state.bookmarkedPages } });
+        setPhotoDirty(files => { const next = new Set(files); next.delete(source.photoName!); return next; });
+      }
+      flash("Saved an edited PNG copy. Original unchanged.");
+    } catch (error) { if (docRef.current === source) setError(`Couldn't save the image. ${(error as Error).message}`); }
+    finally { savingCopy.current = false; setPhotoBusy(false); setFileBusy(false); }
+  };
+
   const copyName = pageOrder && doc ? doc.name.replace(/\.pdf$/i, "") + " (reordered).pdf" : doc?.name ?? "document.pdf";
   const saveBytes = (bytes: Uint8Array) => {
     saveBlob(pdfBlob(bytes), copyName.toLowerCase().endsWith(".pdf") ? copyName : `${copyName}.pdf`);
@@ -912,19 +1092,26 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
     }
   };
 
-  const download = async () => {
+  const download = async (saveAs = true) => {
     if (contentRef.current && !(await contentRef.current.finish())) return;
     const doc = docRef.current;
     if (!doc || savingCopy.current) return;
-    savingCopy.current = true;
+    savingCopy.current = true; setFileBusy(true);
     const revision = editRevision.current;
     try {
       const copy = await currentBytes(doc, pageOrder);
       if (!copy || docRef.current !== doc) return;
       const name = doc.sourceId ? copyName.replace(/\.pdf$/i, "") + " (edited).pdf" : copyName;
       const blob = pdfBlob(copy.bytes);
-      saveBlob(blob, /\.pdf$/i.test(name) ? name : name + ".pdf");
-      if (editRevision.current === revision) setDirty(false);
+      if (!await persistFile(blob, /\.pdf$/i.test(name) ? name : name + ".pdf", `${doc.photoKey ?? doc.saveKey}:pdf`, saveAs)) return;
+      if (editRevision.current === revision) {
+        setDirty(false);
+        if (doc.photoName) {
+          setPhotoSavedId(doc.id);
+          photoDrafts.current.set(doc.photoName, { bytes: copy.bytes, dirty: false, reading: { note: markupRef.current!.state.note, bookmarkedPages: markupRef.current!.state.bookmarkedPages } });
+          setPhotoDirty(files => { const next = new Set(files); next.delete(doc.photoName!); return next; });
+        }
+      }
       const changes = changesForCopy(doc, copy.annotated, pageOrder);
       let historyMessage = "";
       if (changes.length && doc.historyAllowed && blob.size <= MAX_RECENT_FILE_BYTES) {
@@ -938,21 +1125,21 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
       }
       if (docRef.current !== doc) return;
       setError(null);
-      if (doc.sourceId) {
+      if (doc.sourceId && !gallery) {
         await openBytes(name, copy.bytes, undefined, beginOpen(), pageOrder ? pageOrder.indexOf(pageRef.current) + 1 : pageRef.current, undefined, doc, pageOrder);
       } else if (pageOrder) {
         setPageDraft(draft => draft?.order === pageOrder ? { order: pageOrder, copy: copy.bytes } : draft);
-        flash("Downloading reordered copy");
+        flash("Saved reordered copy");
       } else {
-        flash(copy.annotated ? "Saved a copy with your highlights and notes" : "Download started");
+        flash(copy.annotated ? "Saved a copy with your highlights and notes" : "File saved");
       }
       if (historyMessage) flash(historyMessage);
-    } catch {
+    } catch (error) {
       if (docRef.current === doc) {
         if (dirty) setDirty(true);
-        setError("Couldn't save a copy of this document.");
+        setError((error as Error).message || "Couldn't save a copy of this document.");
       }
-    } finally { savingCopy.current = false; }
+    } finally { savingCopy.current = false; setFileBusy(false); }
   };
 
   const print = async () => {
@@ -1002,6 +1189,12 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
   useEffect(() => {
     const open = async (source: OpenSource) => {
       switch (source.kind) {
+        case "content":
+          if (source.document.kind === "gallery") {
+            if (!source.document.files.length) { galleryRef.current = source.document; setGallery(source.document); }
+            else await openPhoto(source.document, source.document.selected);
+          }
+          break;
         case "bytes":
           await openBytes(source.name, new Uint8Array(source.data.buffer, source.data.byteOffset, source.data.byteLength), source.password);
           if (source.note && docRef.current?.name === source.name) flash(source.note);
@@ -1037,7 +1230,7 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
       await markupRef.current?.flush();
       opening.current?.abort();
     } });
-  }, [tabs, tabKey, openBytes, openBlob, openSample, openUrl, beginOpen, flash]);
+  }, [tabs, tabKey, openBytes, openBlob, openSample, openUrl, beginOpen, flash, openPhoto]);
   useEffect(() => {
     const sync = (event: StorageEvent) => {
       if (event.key === "folio:theme" && (event.newValue === "light" || event.newValue === "dark")) {
@@ -1051,9 +1244,9 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
     return () => window.removeEventListener("storage", sync);
   }, []);
   useEffect(() => { if (active) window.folioDesktop?.setTheme(theme); }, [active, theme]);
-  // The update banner appears once a new version has been downloaded (the status reports that right away too).
+  // Unsigned macOS builds announce a download; signed installers can offer a restart.
   useEffect(() => window.folioDesktop?.onUpdateStatus((status) => {
-    if (status.state === "ready" && status.version) setUpdateVersion(status.version);
+    if (["available", "ready"].includes(status.state) && status.version) setUpdateNotice(status);
   }), []);
 
   const setThemeTo = (next: "light" | "dark") => {
@@ -1080,10 +1273,74 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
 
-  useEffect(() => { writeSetting("folio:sidebar", sidebar ? "1" : "0"); }, [sidebar]);
+  useEffect(() => { if (!gallery) writeSetting("folio:sidebar", sidebar ? "1" : "0"); }, [sidebar, gallery]);
   const setNightTo = (next: boolean) => {
     if (!writeSetting("folio:night", next ? "1" : "0")) flash("PDF dark mode changed, but couldn't save the preference.");
     setNight(next);
+  };
+
+  const prepareExport = async (mode: "export" | "compress") => {
+    if (fileBusy || exportDialog || savingCopy.current) return;
+    setFileBusy(true);
+    try {
+      if (contentRef.current && !await contentRef.current.finish()) return;
+      const source = docRef.current;
+      if (!source) return;
+      const copy = await currentBytes(source, pageOrder);
+      if (!copy || docRef.current !== source) return;
+      setExportDialog({ mode, snapshot: { bytes: copy.bytes, name: source.name, password: source.password, photo: !!source.photoName,
+        page: pageOrder ? Math.max(1, pageOrder.indexOf(page) + 1) : page } });
+    } catch (error) { setError((error as Error).message || "Couldn't prepare the document. Try again."); }
+    finally { setFileBusy(false); }
+  };
+  const fileCommand = (command: FileCommand) => {
+    if (fileBusy || exportDialog || dialog || printCopy || photoBusy || refreshingPhotos || signing) return;
+    if (command === "recent") { tabs.library(); return; }
+    if (!docRef.current) return;
+    if (command === "save" || command === "save-as") { if (galleryRef.current) void savePhoto(command === "save-as"); else void download(command === "save-as"); }
+    else if (command === "export" || command === "compress") void prepareExport(command);
+    else if (command === "print") void print();
+    else if (command === "properties") setDialog("info");
+    else if (command === "hand") void chooseHand();
+  };
+  useFileCommands(active, doc ? gallery ? "photo" : "pdf" : "none",
+    fileBusy || loading || !!exportDialog || !!dialog || !!printCopy || !!pending || signing || photoBusy || refreshingPhotos || !!photoFailure, fileCommand);
+
+  const photoAction = async (name: string, action: string) => {
+    const current = galleryRef.current;
+    if (!current || fileBusy || photoBusy || refreshingPhotos) return;
+    try {
+      if (action === "reveal") {
+        if (current.id && !await window.folioDesktop?.content.reveal(current.id, name)) throw new Error("Couldn't show this image in its folder.");
+        return;
+      }
+      if (action === "trash") {
+        if (!current.id || !window.folioDesktop) return;
+        if (photoDirty.has(name) || name === current.selected && currentPhotoDirty) {
+          throw new Error("Save this photo's changes before moving its original to Trash.");
+        }
+        setFileBusy(true);
+        const refreshed = await window.folioDesktop.content.trash(current.id, name);
+        if (!refreshed) return;
+        photoDrafts.current.delete(name); photoKeys.current.delete(name);
+        const selected = refreshed.files.includes(current.selected) ? current.selected
+          : refreshed.files[Math.min(current.files.indexOf(name), refreshed.files.length - 1)] ?? "";
+        const next = { ...refreshed, selected };
+        galleryRef.current = next; setGallery(next);
+        if (name === current.selected) {
+          const previous = docRef.current;
+          markupRef.current?.unload(); viewerRef.current!.setDocument(null); docRef.current = null; setDoc(null);
+          void previous?.pdf.loadingTask.destroy();
+          if (selected) await openPhoto(next, selected);
+        }
+        flash("Moved the original to Trash."); return;
+      }
+      if (name !== current.selected) { await openPhoto(current, name); if (docRef.current?.photoName !== name) return; }
+      if (action === "save" || action === "save-as") await savePhoto(action === "save-as");
+      else if (action === "print") await print();
+      else if (action === "export" || action === "compress") await prepareExport(action);
+    } catch (error) { setError((error as Error).message || "Couldn't complete this action. Try again."); }
+    finally { setFileBusy(false); }
   };
 
   // ── Keyboard shortcuts ──────────────────────────────────────────────
@@ -1106,7 +1363,7 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
         }
         return;
       }
-      if (printCopy) {
+      if (fileBusy || exportDialog || printCopy) {
         if ((e.ctrlKey || e.metaKey) && ["p", "o", "w", "t", "s", ",", "tab"].includes(e.key.toLowerCase())) e.preventDefault();
         return;
       }
@@ -1132,6 +1389,16 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
         else pickFile();
         return;
       }
+      if (gallery && !mod && !e.altKey && !e.shiftKey && !typing && !signing && !dialog && !pending && !imageView && !printCopy && !contentEditing && !e.defaultPrevented && ["ArrowLeft", "ArrowRight"].includes(e.key)) {
+        const index = gallery.files.indexOf(gallery.selected);
+        const name = gallery.files[index + (e.key === "ArrowRight" ? 1 : -1)];
+        if (name) { e.preventDefault(); void openPhoto(gallery, name); }
+        return;
+      }
+      if (gallery && (photoBusy || refreshingPhotos || photoFailure)) {
+        if (mod && ["s", "p", "=", "+", "-"].includes(e.key.toLowerCase())) e.preventDefault();
+        return;
+      }
       if (!docRef.current) return;
       // A dialog owns the keyboard, and closes itself on Escape. The reader's shortcuts are swallowed
       // rather than left to act on the document behind it (or to fall through to the browser's own).
@@ -1151,7 +1418,7 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
         requestAnimationFrame(() => document.getElementById("folio-search")?.focus());
       } else if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        download();
+        if (gallery) void savePhoto(e.shiftKey); else void download(e.shiftKey);
       } else if (mod && e.key.toLowerCase() === "p") {
         e.preventDefault();
         print();
@@ -1183,6 +1450,7 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
         else if (noteBox) setNoteBox(null);
         else if (searchOpen) setSearchOpen(false);
         else if (contentRef.current?.deselect()) return;
+        else if (hand) setHand(false);
         else if (contentEditing || tool !== "select") void leaveEditMode();
         else if (focus) toggleFocus();
       } else if (e.key === "f" || e.key === "F") {
@@ -1292,11 +1560,13 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
   return (
     <div
       className="app"
+      data-photo={gallery ? "true" : undefined}
       data-focus={focus || undefined}
       data-sidebar={(sidebar && !!doc && !focus) || undefined}
       data-night={night || undefined}
       data-content-edit={contentEditing || undefined}
       data-tool={tool}
+      data-hand={hand || undefined}
     >
       <header className="topbar" ref={headerRef}>
         <div className="topbar-left">
@@ -1315,15 +1585,15 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
           )}
         </div>
 
-        <div className="topbar-center">
+        <div className="topbar-center" inert={fileBusy || !!exportDialog || gallery && (photoBusy || refreshingPhotos || !!photoFailure) ? true : undefined}>
           {doc && (
             <div className="segmented" role="toolbar" aria-label="Tools">
               {TOOLS.map((t) => (
                 <button
                   key={t.id}
-                  className={!contentEditing && tool === t.id ? "on" : ""}
+                  className={!hand && !contentEditing && tool === t.id ? "on" : ""}
                   aria-label={t.label}
-                  aria-pressed={!contentEditing && tool === t.id}
+                  aria-pressed={!hand && !contentEditing && tool === t.id}
                   onClick={() => chooseTool(t.id)}
                   title={`${t.id === "highlight" ? "Automatically highlight selected text" : t.label} (${t.key})`}
                 >
@@ -1331,13 +1601,15 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
                   <span>{t.label}</span>
                 </button>
               ))}
+              <button aria-label="Hand" aria-pressed={hand} className={hand ? "on" : ""} title="Hand: drag to pan" onClick={() => void chooseHand()}><Icon name="hand" size={16} /><span>Hand</span></button>
               <button onClick={startSigning} aria-label="Sign" title="Add a signature"><Icon name="signature" size={16} /><span>Sign</span></button>
               <button className={contentEditing ? "on edit-mode-toggle" : "edit-mode-toggle"} aria-pressed={contentEditing}
                 aria-label={contentEditing ? "Exit edit mode" : "Edit mode"} title={contentEditing ? "Exit edit mode" : "Edit existing text and images"}
                 onClick={() => contentEditing ? leaveEditMode() : chooseTool("select", true)}>
                 <Icon name={contentEditing ? "check" : "edit"} size={16} /><span>{contentEditing ? "Exit edit mode" : "Edit mode"}</span>
               </button>
-              {(doc.sourceId || editorDirty) && <button aria-label="Save copy" title="Save edited copy" onClick={download}><Icon name="download" size={16} /><span>Save copy</span></button>}
+              {gallery && <button aria-label="Save PNG" disabled={photoBusy || refreshingPhotos || !!photoFailure} onClick={() => void savePhoto()}><Icon name="download" size={16} /><span>Save PNG</span></button>}
+              {(doc.sourceId || editorDirty) && <button aria-label="Save copy" title="Save edited copy" onClick={() => void download(true)}><Icon name="download" size={16} /><span>Save copy</span></button>}
             </div>
           )}
         </div>
@@ -1359,7 +1631,11 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
                     { kind: "action", icon: "plus", label: "New tab", shortcut: keys("Ctrl T"), onSelect: () => tabs.library() },
                     { kind: "action", icon: "close", label: "Close document", shortcut: keys("Ctrl W"), onSelect: () => void tabs.close(tabKey) },
                     { kind: "divider" },
-                    { kind: "action", icon: "download", label: "Save a copy", shortcut: keys("Ctrl S"), onSelect: download },
+                    { kind: "action", icon: "download", label: "Save", onSelect: () => fileCommand("save") },
+                    { kind: "action", icon: "download", label: "Save As…", onSelect: () => fileCommand("save-as") },
+                    { kind: "action", icon: "download", label: "Export / Convert…", onSelect: () => fileCommand("export") },
+                    { kind: "action", icon: "download", label: "Reduce file size…", onSelect: () => fileCommand("compress") },
+                    { kind: "action", icon: "download", label: "Save a copy", shortcut: keys("Ctrl S"), onSelect: () => void download(true) },
                     { kind: "action", icon: "history", label: "Version history", onSelect: () => { setAiOpen(false); setHistoryOpen(true); } },
                     { kind: "action", icon: "print", label: "Print", shortcut: keys("Ctrl P"), onSelect: print },
                     { kind: "action", icon: "info", label: "Document info", onSelect: () => setDialog("info") },
@@ -1380,7 +1656,7 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
       <div className="body" id="reader-panel" role={!focus && multipleTabs ? "tabpanel" : undefined}
         aria-labelledby={!focus && multipleTabs ? "selected-document-tab" : undefined}>
         {doc && (
-          <Sidebar
+          <div className="sidebar-slot" inert={fileBusy || !!exportDialog || gallery && (photoBusy || refreshingPhotos || !!photoFailure) ? true : undefined}><Sidebar
             key={doc.pdf.loadingTask.docId}
             pdf={doc.pdf}
             page={page}
@@ -1404,7 +1680,7 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
                 key={notesGeneration}
                 state={markup}
                 onExport={exportNotes}
-                persisted={persistRef.current}
+                persisted={persistRef.current || !!doc.photoKey} photo={!!doc.photoKey}
                 onReveal={(id) => markupRef.current!.reveal(id)}
                 onNote={(id, note) => markupRef.current!.setNote(id, note)}
                 onRemove={(id) => markupRef.current!.remove(id)}
@@ -1412,10 +1688,10 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
                 onAsk={(mark: Mark) => askAbout(mark.text, mark.page + 1)}
               />
             }
-          />
+          /></div>
         )}
 
-        <main className="stage">
+        <main className="stage" aria-busy={gallery && (photoBusy || refreshingPhotos) ? true : undefined}>
           <div ref={containerRef} className="viewer-container" tabIndex={-1}
             onInput={event => {
               // Form values live in the PDF until a copy is saved. Folio only auto-saves its own markup.
@@ -1423,6 +1699,9 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
             }}>
             <div ref={innerRef} className="pdfViewer" />
           </div>
+          {gallery && (photoBusy || refreshingPhotos || photoFailure || !gallery.files.length) && <div className="photo-status" role={photoFailure ? "alert" : "status"}>
+            <p>{photoFailure || (refreshingPhotos ? "Refreshing folder…" : gallery.files.length ? "Loading image…" : "No supported images remain in this folder.")}</p>{photoFailure && <button className="btn ghost" onClick={() => void openPhoto(gallery, gallery.selected)}>Retry</button>}
+          </div>}
           {contentEditing && doc && <ContentEditor key={doc.pdf.loadingTask.docId} ref={contentRef} nextSelection={nextSelection} pdf={doc.pdf} viewer={viewerRef.current!} bus={busRef.current!}
             onDirty={setEditorDirty} snapshot={async () => {
               if (doc.password || await doc.pdf.getPermissions() || (await doc.pdf.getSignatures())?.length) throw new Error("Editing requires an unsigned, unencrypted PDF.");
@@ -1430,7 +1709,7 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
               if (!copy || docRef.current !== doc) throw new Error("The document changed. Try again.");
               return copy.bytes;
             }} apply={async (bytes, change) => docRef.current === doc && !!await openBytes(doc.name, bytes, undefined, opening.current!.signal, undefined, { doc, change })} />}
-          {doc && <div className="page-text-status" role="status">{textStatus}</div>}
+          {doc && <div className="page-text-status" role="status">{fileBusy ? "Preparing file…" : textStatus}</div>}
 
           {doc && searchOpen && (
             <>
@@ -1442,18 +1721,14 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
           {doc && !contentEditing && PALETTE[tool] && (
             <div className="color-pill" role="toolbar" aria-label="Annotation options">
               {tool === "ink" && (
-                <select className="draw-tool" aria-label="Drawing tool" value={drawTool}
-                  onChange={e => setDrawTool(e.target.value as typeof drawTool)}>
-                  {["Pen", "Rectangle", "Oval", "Arrow"].map(name => <option key={name}>{name}</option>)}
-                </select>
+                <SelectMenu className="draw-tool" label="Drawing tool" value={drawTool}
+                  onChange={value => setDrawTool(value as typeof drawTool)}
+                  options={["Pen", "Rectangle", "Oval", "Arrow"].map(value => ({ value, label: value }))} />
               )}
               {tool === "ink" && drawTool === "Pen" && (
-                <select className="draw-tool" aria-label="Pen width" title="Pen width" defaultValue={markupRef.current?.penWidth ?? 1}
-                  onChange={e => markupRef.current?.setPenWidth(Number(e.target.value))}>
-                  <option value={1}>Thin</option>
-                  <option value={3}>Medium</option>
-                  <option value={6}>Thick</option>
-                </select>
+                <SelectMenu className="draw-tool" label="Pen width" title="Pen width" value={String(penWidth)}
+                  onChange={value => { setPenWidth(Number(value)); markupRef.current?.setPenWidth(Number(value)); }}
+                  options={[{ value: "1", label: "Thin" }, { value: "3", label: "Medium" }, { value: "6", label: "Thick" }]} />
               )}
               <div className="color-options" role="radiogroup" aria-label="Color">
                 {PALETTE[tool]!.map((c) => (
@@ -1508,7 +1783,7 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
               <button className="pill-btn" onClick={() => zoom(-1)} title={keys("Zoom out (Ctrl −)")}>
                 <Icon name="minus" size={17} />
               </button>
-              <ZoomMenu scale={scale} onPick={setScaleValue} spread={spread} onToggleSpread={toggleSpread} />
+              <ZoomMenu photo={!!gallery} scale={scale} onPick={setScaleValue} spread={spread} onToggleSpread={toggleSpread} />
               <button className="pill-btn" onClick={() => zoom(1)} title={keys("Zoom in (Ctrl +)")}>
                 <Icon name="plus" size={17} />
               </button>
@@ -1600,7 +1875,10 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
         )}
       </div>
 
-      {!doc && <Welcome active={active} onPick={pickFile} onOpenUrl={() => openUrlDialog()} onOpenRecent={file => tabs.open([{ kind: "blob", name: file.name, blob: file.data, recentId: file.id }])}
+      {gallery && !focus && <PhotoCarousel doc={gallery} selected={gallery.selected} busy={fileBusy || photoBusy || refreshingPhotos} onAction={(name, action) => void photoAction(name, action)} onSelect={name => void openPhoto(gallery, name)}
+        onRefresh={gallery.id ? () => void refreshPhotos() : undefined} refreshing={refreshingPhotos} />}
+
+      {!doc && !gallery && <Welcome active={active} onPick={pickFile} onOpenUrl={() => openUrlDialog()} onOpenRecent={file => tabs.open([{ kind: "blob", name: file.name, blob: file.data, recentId: file.id }])}
         onSample={() => tabs.open([{ kind: "sample", name: "Folio sample.pdf" }])} loading={loading} />}
 
       {loading && doc && <div className="loading-bar" />}
@@ -1623,6 +1901,8 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
         />
       )}
       {dialog === "info" && doc && <InfoDialog key={doc.pdf.loadingTask.docId} pdf={doc.pdf} name={doc.name} size={doc.size} onClose={() => setDialog(null)} />}
+      {exportDialog && <DocumentExportDialog snapshot={exportDialog.snapshot} mode={exportDialog.mode} onClose={() => setExportDialog(null)}
+        onSave={(blob, name) => persistFile(blob, name, `export:${crypto.randomUUID()}`, true)} />}
       {printCopy && <PrintDialog pdf={printCopy.pdf} currentPage={printCopy.page} name={printCopy.name}
         onPrint={() => { printPdfBytes(printCopy.bytes); setPrintCopy(null); }} onClose={() => setPrintCopy(null)} />}
       {dialog === "shortcuts" && <ShortcutsDialog onClose={() => setDialog(null)} />}
@@ -1656,21 +1936,22 @@ export default function App({ tabs, tabKey, upgradeNotes }: { tabs: DocumentTabs
         <button className="pill-btn" aria-label="Dismiss signature suggestion" onClick={() => setSignatureDismissed(true)}><Icon name="close" size={14} /></button>
       </div>}
 
-      {updateVersion && (
+      {updateNotice && (
         <div className="update-card" role="status">
           <div>
-            <strong>Folio {updateVersion} is ready</strong>
-            <span>Restart to update. Installation on close follows your auto-update setting.</span>
+            <strong>Folio {updateNotice.version} {updateNotice.state === "ready" ? "is ready" : "is available"}</strong>
+            <span>{updateNotice.state === "ready" ? "Restart to update. Installation on close follows your auto-update setting." : "Download the new version to update Folio."}</span>
           </div>
           <button
             className="btn primary"
             onClick={() => {
-              window.folioDesktop?.installUpdate();
+              if (updateNotice.state === "ready") window.folioDesktop?.installUpdate();
+              else void window.folioDesktop?.openDownload();
             }}
           >
-            Restart
+            {updateNotice.state === "ready" ? "Restart" : `Download ${updateNotice.version}`}
           </button>
-          <button className="pill-btn" onClick={() => setUpdateVersion(null)} aria-label="Later" title="Later">
+          <button className="pill-btn" onClick={() => setUpdateNotice(null)} aria-label="Later" title="Later">
             <Icon name="close" size={15} />
           </button>
         </div>

@@ -4,6 +4,7 @@ import { RELEASE_ARTIFACTS } from "./check-release.mjs";
 
 export const SOURCE_REPO = "roqusanalytics/folio";
 export const WORKFLOW = "release-build.yml";
+export const CI_WORKFLOW = "ci.yml";
 
 export function releaseBump(args) {
   const notesAt = args.indexOf("--notes");
@@ -36,6 +37,23 @@ export function successfulAttempt(run, runId) {
     throw new Error("The tag-push build must finish successfully before publishing.");
   }
   return run.run_attempt;
+}
+
+export function selectCI({ total_count, workflow_runs }, commit) {
+  if (total_count !== workflow_runs.length) throw new Error("Incomplete CI run history; cannot verify the latest run.");
+  for (const run of workflow_runs) {
+    if (run.path !== `.github/workflows/${CI_WORKFLOW}` || run.event !== "push" || run.head_branch !== "main"
+        || run.head_sha !== commit || run.head_repository?.full_name !== SOURCE_REPO || !Number.isSafeInteger(run.id)) {
+      throw new Error("CI does not match the source repository, workflow, main push and release commit.");
+    }
+  }
+  return workflow_runs.reduce((latest, run) => !latest || run.id > latest.id ? run : latest, null);
+}
+
+export function successfulCI(run) {
+  if (!run || run.status !== "completed" || run.conclusion !== "success" || !Number.isSafeInteger(run.run_attempt) || run.run_attempt < 1) {
+    throw new Error("Full CI for the release commit on main must finish successfully before publishing.");
+  }
 }
 
 // Artifacts are immutable. A rerun may replace a platform's archive; require the same three IDs throughout the download.

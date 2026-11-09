@@ -1,0 +1,22 @@
+/* Top-layer popovers share one anchor rule, including menus inside modal dialogs. */
+.anchored-popover[popover]:popover-open {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  box-sizing: border-box;
+  max-width: calc(100vw - 16px);
+  overflow: auto;
+  transform: none;
+  animation: none;
+  color: var(--text);
+}
+.anchored-popover[popover]:not([data-positioned]) { visibility: hidden; }
+.anchored-popover button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--hover); }
+.select-trigger { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; }
+.select-trigger > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.select-menu button { justify-content: space-between; }
+.anchored-popover.scan-picker-panel { position-anchor: auto; position-area: none; justify-self: auto; --popover-limit: min(320px, 60dvh); }
+.ai-meta .ai-model { max-width: 130px; font: inherit; color: var(--text-2); background: transparent; border: 1px solid var(--line-strong); border-radius: 6px; padding: 2px 4px; }
+.print-dialog .select-trigger { background: var(--bg); color: var(--text); border: 1px solid var(--line-strong); border-radius: 6px; padding: 7px; }
+.print-printer .select-trigger { flex: 1; min-width: 100px; max-width: 100%; }
+.signature-field .select-trigger { min-width: 0; width: 100%; padding: 8px; background: var(--surface); color: var(--text); border: 1px solid var(--line-strong); border-radius: 7px; font: inherit; }

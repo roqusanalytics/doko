@@ -1,0 +1,120 @@
+.photo-carousel {
+  flex: none;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+.photo-carousel-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 34px;
+  margin-bottom: 8px;
+}
+.photo-carousel-controls .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 5px 9px;
+  white-space: nowrap;
+}
+.photo-carousel-controls output {
+  min-width: 56px;
+  color: var(--text-2);
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.photo-carousel-thumbnails {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+  padding: 2px 2px 5px;
+}
+.photo-carousel-thumbnail {
+  display: flex;
+  flex: 0 0 88px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  text-align: left;
+  color: var(--text-2);
+  transition: background 160ms, border-color 160ms, transform 160ms;
+}
+.photo-carousel-thumbnail:hover { background: var(--hover); transform: translateY(-2px); }
+.photo-carousel-thumbnail[aria-current="true"] {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--accent-soft);
+}
+.photo-carousel-image {
+  display: grid;
+  place-items: center;
+  width: 80px;
+  height: 60px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--stage);
+}
+.photo-carousel-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.photo-carousel-placeholder {
+  display: -webkit-box;
+  max-width: 100%;
+  padding: 5px;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 10px;
+  line-height: 1.35;
+  text-align: center;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.photo-carousel-caption {
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .photo-carousel { padding-inline: 8px; }
+  .photo-carousel-controls { gap: 4px; }
+  .photo-carousel-controls .btn { gap: 3px; padding-inline: 6px; font-size: 12px; }
+  .photo-carousel-controls output { min-width: 48px; font-size: 11px; }
+  .photo-carousel-refresh { margin-left: auto; }
+  .photo-carousel-thumbnail { flex-basis: 80px; }
+  .photo-carousel-image { width: 72px; height: 54px; }
+}
+
+.photo-status { position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; color: var(--text); background: var(--stage); text-align: center; }
+.app[data-photo] .photo-carousel { max-height: 30vh; overflow: auto; }
+.app[data-photo] .pdfViewer {
+  min-height: 100%;
+  min-width: 100%;
+  width: fit-content;
+  display: flex;
+  flex-direction: column;
+  align-items: safe center;
+  justify-content: safe center;
+  padding: 20px 16px 84px;
+}
+.app[data-photo] .pdfViewer .page { flex: none; margin: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .photo-carousel-thumbnail { transition: none; }
+}
+
+.file-context-menu[popover]:popover-open { position: fixed; inset: auto; margin: 0; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow: auto; transform: none; animation: none; }

@@ -8,7 +8,7 @@ interface MarkdownNode {
 
 // Use Markdown's own source spans: indentation and backticks alone cannot tell
 // a list continuation from code, or an inline code span from a fenced block.
-export function normalizeMathDelimiters(text: string): string {
+export function normalizeMathDelimiters(text: string, position?: (sourceOffset: number, renderedOffset: number) => void): string {
   const code: { start: number; end: number }[] = [];
   const containers: { start: number; end: number; prefix: string; quotes: number }[] = [];
   const visit = (node: MarkdownNode, prefix = "", quotes = 0) => {
@@ -43,6 +43,7 @@ export function normalizeMathDelimiters(text: string): string {
   };
 
   while (i < text.length) {
+    position?.(i, result.length);
     while (code[codeIndex]?.end <= i) codeIndex++;
     if (code[codeIndex]?.start <= i) {
       const end = code[codeIndex++].end;

@@ -1,3 +1,4 @@
+import { SelectMenu } from "./SelectMenu";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { PDFDocumentProxy } from "./pdf";
 import { Modal } from "./Dialogs";
@@ -182,35 +183,32 @@ export function PrintDialog({ pdf, currentPage, name, onPrint, onClose }: {
                 {(["size", "poster", "multiple", "booklet"] as const).map(mode => <button key={mode} type="button" aria-pressed={settings.mode === mode} onClick={() => update("mode", mode)}>{{ size: "Single page", poster: "Poster", multiple: "Pages per sheet", booklet: "Booklet" }[mode]}</button>)}
               </div>
               {settings.mode === "size" && <label className="print-inline">Sizing
-                <select value={settings.sizing} onChange={e => update("sizing", e.target.value as PrintSettings["sizing"])}>
-                  <option value="fit">Fit to page</option><option value="actual">Actual size</option>
-                  <option value="shrink">Shrink oversized pages</option><option value="custom">Custom scale</option>
-                </select></label>}
+                <SelectMenu label="Sizing" value={settings.sizing} onChange={value => update("sizing", value as PrintSettings["sizing"])}
+                  options={[{ value: "fit", label: "Fit to page" }, { value: "actual", label: "Actual size" },
+                    { value: "shrink", label: "Shrink oversized pages" }, { value: "custom", label: "Custom scale" }]} /></label>}
               {settings.mode === "size" && (settings.sizing === "actual" || settings.sizing === "custom") && <p className="print-hint">Content outside the sheet's quarter-inch margins is clipped. Check the preview.</p>}
               {(settings.mode === "poster" || settings.mode === "size" && settings.sizing === "custom") && <label className="print-inline">{settings.mode === "poster" ? "Tile scale (%)" : "Custom scale (%)"}<input type="number" min="10" max="400" value={settings.scale} onChange={e => update("scale", e.target.valueAsNumber)} /></label>}
               {settings.mode === "poster" && <><label className="print-inline">Overlap<input aria-label="Poster overlap" type="number" min="0" step={overlapUnit === "in" ? "0.05" : "1"}
                 value={Number.isFinite(settings.overlapPoints) ? +overlapFromPoints(settings.overlapPoints, overlapUnit).toFixed(6) : ""}
                 onChange={e => update("overlapPoints", overlapToPoints(e.target.valueAsNumber, overlapUnit))} /></label>
-                <label className="print-inline">Overlap units<select aria-label="Overlap units" value={overlapUnit} onChange={e => setOverlapUnit(e.target.value as OverlapUnit)}><option value="in">Inches</option><option value="mm">Millimeters</option></select></label>
+                <label className="print-inline">Overlap units<SelectMenu label="Overlap units" value={overlapUnit} onChange={value => setOverlapUnit(value as OverlapUnit)} options={[{ value: "in", label: "Inches" }, { value: "mm", label: "Millimeters" }]} /></label>
                 <p className="print-hint">Adjacent tiles repeat the chosen overlap, left to right then down. Trim the quarter-inch paper margins and align the repeated content. Cut marks are not included.</p></>}
-              {settings.mode === "multiple" && <label className="print-inline">Pages per sheet<select value={settings.perSheet} onChange={e => update("perSheet", +e.target.value)}>{[2, 4, 6, 9, 16].map(n => <option key={n}>{n}</option>)}</select></label>}
+              {settings.mode === "multiple" && <label className="print-inline">Pages per sheet<SelectMenu label="Pages per sheet" value={String(settings.perSheet)} onChange={value => update("perSheet", +value)} options={[2, 4, 6, 9, 16].map(n => ({ value: String(n), label: String(n) }))} /></label>}
               {settings.mode === "booklet" && <p className="print-hint">Fold down the middle. Choose two-sided printing with {settings.orientation === "portrait" ? "long-edge" : "short-edge"} binding in the system dialog.</p>}
               </section>
-              <section><div className="print-inline print-selection"><label htmlFor="print-pages">Pages to print</label>
-                <select id="print-pages" value={selection} onChange={e => setSelection(e.target.value)}>
-                <option value="all">All pages</option><option value="current">Current page ({currentPage})</option><option value="range">Page range…</option>
-              </select></div>
+              <section><div className="print-inline print-selection"><span>Pages to print</span>
+                <SelectMenu label="Pages to print" value={selection} onChange={setSelection}
+                  options={[{ value: "all", label: "All pages" }, { value: "current", label: `Current page (${currentPage})` }, { value: "range", label: "Page range…" }]} /></div>
               {selection === "range" && <input aria-label="Page range" placeholder="1-3, 5" value={range} onChange={e => setRange(e.target.value)} />}</section>
-              <details><summary>Paper and quality</summary><label className="print-inline">Print quality<select aria-label="Print quality" value={settings.dpi} onChange={e => update("dpi", +e.target.value as PrintSettings["dpi"])}>{[150, 300, 600].map(dpi => <option key={dpi} value={dpi}>{dpi} dpi</option>)}</select></label>
-                <label className="print-inline">Paper size<select value={settings.paper} onChange={e => update("paper", e.target.value as PrintSettings["paper"])}>{["Letter", "A4", "Legal"].map(p => <option key={p}>{p}</option>)}</select></label>
+              <details><summary>Paper and quality</summary><label className="print-inline">Print quality<SelectMenu label="Print quality" value={String(settings.dpi)} onChange={value => update("dpi", +value as PrintSettings["dpi"])} options={[150, 300, 600].map(dpi => ({ value: String(dpi), label: `${dpi} dpi` }))} /></label>
+                <label className="print-inline">Paper size<SelectMenu label="Paper size" value={settings.paper} onChange={value => update("paper", value as PrintSettings["paper"])} options={["Letter", "A4", "Legal"].map(value => ({ value, label: value }))} /></label>
                 <h3>Orientation</h3><div className="print-radio-row">{(["auto", "portrait", "landscape"] as const).map(value => <label key={value}><input type="radio" name="print-orientation" checked={settings.orientation === value} onChange={() => update("orientation", value)} />{value[0].toUpperCase() + value.slice(1)}</label>)}</div>
                 <label className="print-check"><input type="checkbox" checked={settings.grayscale} onChange={e => update("grayscale", e.target.checked)} />Print in grayscale</label>
                 <label className="print-check"><input type="checkbox" checked={settings.toner} onChange={e => update("toner", e.target.checked)} />Save ink/toner</label>
               </details>
               <details className="print-device"><summary>Printer and copies</summary><fieldset disabled={busy} className="print-printer">
-                <label>Printer<select value={printer} onChange={e => setPrinter(e.target.value)}>
-                  <option value="">System default</option>{printers.map(p => <option key={p.name} value={p.name}>{p.displayName || p.name}</option>)}
-                </select></label>
+                <label>Printer<SelectMenu label="Printer" value={printer} onChange={setPrinter}
+                  options={[{ value: "", label: "System default" }, ...printers.map(p => ({ value: p.name, label: p.displayName || p.name }))]} /></label>
                 <label>Copies<input type="number" min="1" max="999" value={copies} onChange={e => setCopies(e.target.valueAsNumber)} /></label>
               </fieldset></details>
             </fieldset>

@@ -1,0 +1,11 @@
+.hand-tool,
+.hand-tool * {
+  cursor: grab !important;
+  user-select: none !important;
+  touch-action: none;
+}
+
+.hand-tool.hand-dragging,
+.hand-tool.hand-dragging * {
+  cursor: grabbing !important;
+}

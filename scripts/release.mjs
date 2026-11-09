@@ -16,7 +16,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { checkRelease, RELEASES_REPO } from "./check-release.mjs";
-import { artifactIds, releaseBump, releaseFiles, selectBuild, successfulAttempt, verifyReleaseTag, SOURCE_REPO, WORKFLOW } from "./release-build.mjs";
+import { artifactIds, releaseBump, releaseFiles, selectBuild, selectCI, successfulAttempt, successfulCI, verifyReleaseTag, SOURCE_REPO, WORKFLOW, CI_WORKFLOW } from "./release-build.mjs";
 
 const args = process.argv.slice(2);
 const notesAt = args.indexOf("--notes");
@@ -89,6 +89,17 @@ try {
 }
 
 const attempt = successfulAttempt(findBuild(), runId);
+const ciQuery = new URLSearchParams({ event: "push", branch: "main", head_sha: commit, per_page: "100" });
+const findCI = () => selectCI(api(`actions/workflows/${CI_WORKFLOW}/runs?${ciQuery}`), commit);
+console.log(`\nWaiting for full CI on main at ${commit}…`);
+let ci = null;
+for (let i = 0; i < 60 && !ci; i++) {
+  ci = findCI();
+  if (!ci) await sleep(5000);
+}
+if (!ci) successfulCI(ci);
+gh(["run", "watch", String(ci.id), "--repo", SOURCE_REPO, "--exit-status", "--interval", "20"], { stdio: "inherit" });
+successfulCI(findCI());
 const getArtifactIds = () => artifactIds(api(`actions/runs/${runId}/artifacts?per_page=100`), build);
 const ids = getArtifactIds();
 
@@ -108,6 +119,7 @@ try {
   writeFileSync(notesFile, body);
   verifyReleaseTag(api, tag, tagObject, commit);
   if (successfulAttempt(findBuild(), runId) !== attempt || getArtifactIds() !== ids) throw new Error("The build changed during download. Run --publish-only again.");
+  successfulCI(findCI());
   gh(["release", "create", tag, "--repo", RELEASES_REPO, "--verify-tag", "--title", `Folio Local ${version}`, "--notes-file", notesFile, ...files], { stdio: "inherit" });
 } finally {
   rmSync(folder, { recursive: true, force: true });

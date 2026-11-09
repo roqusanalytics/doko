@@ -1,3 +1,4 @@
+import { SelectMenu } from "./SelectMenu";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "./icons";
@@ -299,10 +300,9 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
     <aside className="ai-panel" aria-label="Ask AI">
       <header className="ai-head">
         <div className="ai-title"><Icon name="sparkle" size={16} /> Ask AI</div>
-        {ai && <select className="ai-provider" aria-label="AI provider" value={provider} disabled={!!busy}
-          onChange={event => saveAiPreference("folio:ai-provider", event.target.value)}>
-          {Object.entries(PROVIDERS).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-        </select>}
+        {ai && <SelectMenu className="ai-provider" label="AI provider" value={provider} disabled={!!busy}
+          onChange={value => saveAiPreference("folio:ai-provider", value)}
+          options={Object.entries(PROVIDERS).map(([value, label]) => ({ value, label }))} />}
         <div className="ai-head-actions">
           <button ref={newConversationRef} className="pill-btn" title="New conversation" aria-label="New conversation" disabled={!messages.length || !!busy} onClick={() => setConfirmNew(true)}>
             <Icon name="plus" size={15} />
@@ -448,9 +448,8 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
         {ready && (
           <div className="ai-meta">
             {provider === "openrouter" ? <button className="link small router-model-link" title={model} onClick={onSettings}>{model}</button> :
-            <select value={model} onChange={(e) => saveAiPreference(modelKey, e.target.value)} aria-label="Model">
-              {(provider === "chatgpt" ? models : CLAUDE_MODELS).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>}
+            <SelectMenu value={model} onChange={value => saveAiPreference(modelKey, value)} label="Model" className="ai-model"
+              options={(provider === "chatgpt" ? models : CLAUDE_MODELS).map(model => ({ value: model.id, label: model.name }))} />}
             {provider === "chatgpt" ? (
               <span>Using ChatGPT plan · <a href={USAGE_URL} target="_blank" rel="noreferrer">Manage usage</a></span>
             ) : provider === "openrouter" ? <span>Billed by OpenRouter</span> : (

@@ -12,7 +12,13 @@ interface UpdateStatus {
 }
 
 // Present only when Folio runs as the desktop app (see electron/preload.cjs).
+type FileCommand = "save" | "save-as" | "export" | "compress" | "print" | "properties" | "recent" | "hand";
+type FileSaveFormat = "pdf" | "png" | "jpg" | "webp" | "html" | "txt" | "md" | "zip";
+type FileSaveResult = { ok?: boolean; cancelled?: boolean; id?: string; name?: string; error?: string; conflict?: boolean };
 interface FolioDesktop {
+  saveFile(request: { name: string; data: Uint8Array; format: FileSaveFormat; id?: string; saveAs?: boolean }): Promise<FileSaveResult>;
+  setFileMenu(state: { kind: "none" | "pdf" | "photo" | "markdown"; busy: boolean }): void;
+  onFileCommand(callback: (command: FileCommand) => void): () => void;
   content: {
     open(file: File): Promise<ContentDocument>;
     onOpen(callback: (document: ContentDocument) => void): () => void;
@@ -21,6 +27,8 @@ interface FolioDesktop {
     refresh(id: string, selected: string): Promise<GalleryDocument>;
     image(id: string, name: string): Promise<{ data: Uint8Array; mime: string }>;
     asset(id: string, relative: string): Promise<{ data: Uint8Array; mime: string }>;
+    trash(id: string, name: string): Promise<GalleryDocument | null>;
+    reveal(id: string, name?: string): Promise<boolean>;
     release(id: string): Promise<void>;
   };
   getPrinters(): Promise<{ name: string; displayName: string; isDefault: boolean }[]>;

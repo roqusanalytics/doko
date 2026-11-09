@@ -6,6 +6,19 @@ Configure each environment to accept only release tags matching `v*` and require
 Protect the creation, update and deletion of those tags with a repository ruleset. These controls are configured
 in GitHub. A workflow file in a tag cannot enforce restrictions on someone who can change that file.
 
+Require a reviewed pull request and the three `CI / build` platform checks on `main`. Keep its history and
+release tags protected from deletion or rewriting, including by administrators. The trusted release administrator
+needs a bypass for the pull-request/check rules and tag creation: `npm run release` atomically pushes its version
+commit to `main` and creates the tag before CI can run. Use that bypass only for the release version commit.
+The publisher independently waits for successful `ci.yml` push checks on that exact commit, including when
+resuming with `--publish-only`, and checks them again immediately before publishing. An administrator can still
+change repository policies; these rules do not protect against a compromised administrator account.
+
+An environment's independent reviewer must be a different person with repository read access. Enable
+`prevent_self_review` and disable administrator bypass when adding that reviewer; selecting the only maintainer
+with self-review disabled would block every release. Tag-only deployment policies alone do not provide human
+approval. The three environments need the same review policy.
+
 For an existing deployment, provision the environment secrets from your signing credential store, verify the
 expected credential names in each environment, then remove the repository-level copies. Rotate credentials that
 may have been exposed previously. If the apt key exists only as a non-exportable GitHub secret, retain the

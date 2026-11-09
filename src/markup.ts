@@ -40,6 +40,7 @@ interface EditorLayer {
   add(editor: Editor): void;
 }
 interface UIManager {
+  viewParameters: { realScale: number; rotation: number };
   getMode(): number;
   readonly hasSelection: boolean;
   endCurrentEditing(): void;
@@ -67,10 +68,11 @@ export class MarkupController {
   #bus: EventBus;
   #viewer: PDFViewer;
   #ui: UIManager | null = null;
+  #viewParameters: UIManager["viewParameters"] | null = null;
   #docId: string | null = null;
   #generation = 0;
   #storageGeneration = 0;
-  #persist = false;
+  #persist: boolean | "reading" = false;
   #note = "";
   #bookmarkedPages: number[] | null = null;
   /** Saved marks whose page hasn't rendered yet, keyed by page index. */
@@ -91,6 +93,13 @@ export class MarkupController {
     this.#viewer = viewer;
     this.#listener = listener;
     bus.on("annotationeditoruimanager", ({ uiManager }: { uiManager: UIManager }) => {
+      // PDF.js retains its first ink/signature defaults across documents, including this scale reference.
+      if (this.#viewParameters) {
+        Object.assign(this.#viewParameters, uiManager.viewParameters);
+        uiManager.viewParameters = this.#viewParameters;
+      } else {
+        this.#viewParameters = uiManager.viewParameters;
+      }
       this.#ui = uiManager;
     });
     // pdf.js asks the host app to enter highlight mode when highlighting a selection.
@@ -145,7 +154,7 @@ export class MarkupController {
   }
 
   /** Loads saved markup for a newly opened document. Password-protected documents aren't persisted. */
-  async load(docId: string, persist: boolean, reading?: Pick<MarkupState, "note" | "bookmarkedPages">) {
+  async load(docId: string, persist: boolean | "reading", reading?: Pick<MarkupState, "note" | "bookmarkedPages">) {
     const readingGeneration = this.#storageGeneration;
     this.unload();
     const generation = this.#generation;
@@ -159,7 +168,7 @@ export class MarkupController {
     this.#persist = persist;
     this.#note = reading?.note ?? saved?.note ?? "";
     this.#bookmarkedPages = reading?.bookmarkedPages ?? saved?.bookmarkedPages ?? [];
-    for (const mark of saved?.marks ?? []) {
+    for (const mark of persist === true ? saved?.marks ?? [] : []) {
       this.#known.set(mark.id, mark);
       const list = this.#pending.get(mark.page) ?? [];
       list.push(mark);
@@ -196,6 +205,9 @@ export class MarkupController {
     if (generation <= this.#storageGeneration) return;
     this.#storageGeneration = generation;
     if (!this.#persist) return;
+    if (this.#persist === "reading") {
+      this.#note = ""; this.#bookmarkedPages = []; this.#emit(); return;
+    }
     this.#generation++;
     this.quickHighlighting = false;
     window.clearTimeout(this.#saveTimer);
@@ -316,7 +328,7 @@ export class MarkupController {
     const live = new Map<string, Mark>();
     for (const editor of this.#liveEditors()) {
       // pdf.js can reattach a removed editor through its Undo history.
-      if (this.#persist && editor.__folioGeneration !== undefined && editor.__folioGeneration < this.#storageGeneration) {
+      if (this.#persist === true && editor.__folioGeneration !== undefined && editor.__folioGeneration < this.#storageGeneration) {
         editor.remove();
         continue;
       }
@@ -389,7 +401,7 @@ export class MarkupController {
   flush() {
     window.clearTimeout(this.#saveTimer);
     if (!this.#persist || !this.#docId) return;
-    const notes: DocNotes = { id: this.#docId, note: this.#note, marks: [...this.#known.values()],
+    const notes: DocNotes = { id: this.#docId, note: this.#note, marks: this.#persist === true ? [...this.#known.values()] : [],
       bookmarkedPages: this.#bookmarkedPages ?? [], updatedAt: Date.now() };
     return saveNotes(notes, this.#storageGeneration);
   }

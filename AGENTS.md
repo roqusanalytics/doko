@@ -39,6 +39,9 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
 - `npm run build:local` prepares a private Apple Silicon Mac app with `electron-builder.local.cjs`, a separate
   identity/profile, the fork update feed, and no publication. It builds outside synced folders for codesigning.
   Public releases still use the procedure below.
+- Keep the installed private Mac app only at `/Applications/Folio.app`. Store rollback copies as verified `.zip`
+  archives, never loose `.app` bundles that macOS can index or launch. Unregister archived backup/build bundles
+  with `lsregister -u`; register only the installed app. Verify the archive before removing its loose bundle.
 - **Release only with `npm run release`** (`-- minor`, `-- major`, `-- --notes "…"` as needed). It bumps the version,
   pushes the tag, waits for `.github/workflows/release-build.yml` to build and check the Windows, macOS, and Linux
   installers, then publishes all of them together and verifies the result with `scripts/check-release.mjs`.

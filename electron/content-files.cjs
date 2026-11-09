@@ -4,6 +4,8 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { checkDiskPath, readRegular, sameFile } = require("./document-files.cjs");
 
+const { createSaveTemp } = require("./save-metadata.cjs");
+
 const MARKDOWN_FILE = /\.(md|markdown)$/i;
 const IMAGE_FILE = /\.(jpe?g|png|webp|gif|bmp|avif)$/i;
 const MAX_MARKDOWN_BYTES = 5 * 1024 * 1024;
@@ -113,7 +115,7 @@ function imageInfo(data, name) {
   return { width, height, mime: ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : `image/${ext.slice(1)}` };
 }
 
-function createContentFiles({ chooseSavePath } = {}) {
+function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTrashAccess, showItemInFolder } = {}) {
   const records = new Map();
   const identities = new Map();
   const opening = new Map();
@@ -188,6 +190,52 @@ function createContentFiles({ chooseSavePath } = {}) {
     const data = await readRegular(file, MAX_IMAGE_BYTES);
     return { data, mime: imageInfo(data, file).mime };
   }
+  async function galleryPath(id, name) {
+    const record = get(id, "gallery");
+    if (typeof name !== "string" || !record.files.includes(name) || !IMAGE_FILE.test(name)
+      || name.includes("/") || name.includes("\\") || name.includes(":") || name.includes("\0") || name === "." || name === "..") throw new Error("That image is not in this gallery.");
+    await checkRoot(record);
+    const file = path.join(record.root, name);
+    if (await regular(file) !== file) throw new Error("Symbolic links are not supported.");
+    return { record, file, stat: await fsp.lstat(file, { bigint: true }) };
+  }
+  async function trash(id, name) {
+    const selected = await galleryPath(id, name);
+    if (!confirmTrash || !trashItem) throw new Error("Moving to Trash is unavailable.");
+    if (!await confirmTrash(name)) return null;
+    const current = await galleryPath(id, name);
+    if (!sameFile(selected.stat, current.stat) || selected.stat.ctimeNs !== current.stat.ctimeNs) throw new Error("The image changed. Refresh the gallery and try again.");
+    try { await trashItem(current.file); }
+    catch (error) {
+      const denied = ["EACCES", "EPERM"].includes(error.code) || /permission|not permitted|access denied/i.test(error.message || "");
+      if (!denied) throw error;
+      if (!requestTrashAccess) throw new Error("Permission denied. Use Show in folder to check this file's access and lock settings, then retry.");
+      const beforeAccess = hash(await readRegular(current.file, MAX_IMAGE_BYTES));
+      const beforeConsent = await galleryPath(id, name);
+      if (!sameFile(current.stat, beforeConsent.stat) || current.stat.ctimeNs !== beforeConsent.stat.ctimeNs) throw new Error("The image changed. Refresh the gallery and try again.");
+      const chosen = await requestTrashAccess(current.file);
+      if (!chosen) return null;
+      if (await regular(chosen) !== current.file) throw new Error("Select the same image to allow access. No file was moved.");
+      const retry = await galleryPath(id, name);
+      // macOS can change access metadata during consent; compare identity and content instead of ctime.
+      if (!sameFile(current.stat, retry.stat) || beforeAccess !== hash(await readRegular(retry.file, MAX_IMAGE_BYTES))) throw new Error("The image changed. Refresh the gallery and try again.");
+      try { await trashItem(retry.file); }
+      catch { throw new Error("Still couldn't move this image to Trash. Use Show in folder and check its access and lock settings in Finder."); }
+    }
+    return gallery(current.record, name);
+  }
+  async function reveal(id, name) {
+    const record = get(id);
+    let file;
+    if (record.kind === "gallery" && name !== undefined) file = (await galleryPath(id, name)).file;
+    else {
+      await checkRoot(record);
+      file = record.kind === "gallery" ? record.root : await regular(record.file);
+    }
+    if (!showItemInFolder) throw new Error("Showing this file is unavailable.");
+    showItemInFolder(file);
+    return true;
+  }
   async function save(id, text, copy = false) {
     let record, acquired = false;
     try {
@@ -220,12 +268,11 @@ function createContentFiles({ chooseSavePath } = {}) {
       if (data.length > MAX_MARKDOWN_BYTES) throw new Error("Markdown is limited to 5 MB.");
       const root = path.dirname(file), directory = await fsp.lstat(root, { bigint: true });
       if (!directory.isDirectory() || !(directory.mode & 0o222n)) throw new Error("This folder is read-only. Save a copy elsewhere.");
-      const temp = path.join(root, `.folio-${crypto.randomUUID()}.tmp`);
-      let handle;
+      const pending = await createSaveTemp(root, expected && { file, stat: expected.stat });
+      const { temp } = pending;
+      let handle = pending.handle;
       try {
-        handle = await fsp.open(temp, "wx", expected ? Number(expected.stat.mode & 0o777n) : 0o600);
-        if (expected) await handle.chmod(Number(expected.stat.mode & 0o777n));
-        await handle.writeFile(data); await handle.sync(); await handle.close(); handle = null;
+        await handle.writeFile(data); await pending.verify(); await handle.sync(); await handle.close(); handle = null;
         if (!sameFile(directory, await fsp.lstat(root, { bigint: true }))) throw conflict();
         if (expected) {
           const current = await snapshot(file);
@@ -235,7 +282,7 @@ function createContentFiles({ chooseSavePath } = {}) {
         }
         if (expected) await fsp.rename(temp, file);
         else await fsp.link(temp, file);
-      } finally { await handle?.close(); await fsp.rm(temp, { force: true }); }
+      } finally { await handle?.close(); await pending.cleanup(); }
       const source = await snapshot(file);
       identities.delete(record.key);
       Object.assign(record, { file, root, directory, key: `markdown:${file}`, source, text: normalized });
@@ -245,7 +292,7 @@ function createContentFiles({ chooseSavePath } = {}) {
       return error.conflict ? { conflict: true } : { error: error.code === "EACCES" || error.code === "EPERM" || error.code === "EROFS" ? "Couldn't write this file. Save a copy in another folder." : error.message };
     } finally { if (acquired) record.busy = false; }
   }
-  return { open, save, asset, image: (id, name) => asset(id, name, true),
+  return { open, save, trash, reveal, asset, image: (id, name) => asset(id, name, true),
     reload: async id => loadMarkdown(get(id, "markdown")), refresh: async (id, selected) => gallery(get(id, "gallery"), selected),
     release(id) { const record = get(id); if (record.busy) throw new Error("This document is still saving."); records.delete(id); identities.delete(record.key); },
     clear() { records.clear(); identities.clear(); } };

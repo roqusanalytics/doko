@@ -1,6 +1,6 @@
 // Folio desktop shell: one window, PDFs (and Word documents, converted) opened from Explorer / "Open with",
 // files served over app://.
-const { app, BrowserWindow, protocol, net, ipcMain, dialog, shell, screen, session } = require("electron");
+const { app, BrowserWindow, protocol, net, ipcMain, dialog, shell, screen, session, Menu } = require("electron");
 const crypto = require("node:crypto");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -16,16 +16,46 @@ const { registerPrinting } = require("./printing.cjs");
 const { MAX_DOCUMENT_BYTES, checkDiskPath, readRegular } = require("./document-files.cjs");
 const { createContentFiles, MARKDOWN_FILE, IMAGE_FILE } = require("./content-files.cjs");
 
+const { createSaveFiles } = require("./save-files.cjs");
+const { fileMenuTemplate } = require("./file-menu.cjs");
+
 const LOCAL_COPY = require("../package.json").folioLocal === true;
 if (LOCAL_COPY) {
   app.setName("Folio Local");
   app.setPath("userData", path.join(app.getPath("appData"), "Folio Local"));
 }
-const contentFiles = createContentFiles({ chooseSavePath: async name => {
+const contentFiles = createContentFiles({
+  confirmTrash: async name => (await dialog.showMessageBox(win, { type: "warning", title: "Move to Trash",
+    message: `Move “${name}” to Trash?`, detail: "You can restore it from your system Trash.",
+    buttons: ["Cancel", "Move to Trash"], defaultId: 0, cancelId: 0 })).response === 1,
+  requestTrashAccess: process.platform === "darwin" ? async file => {
+    const result = await dialog.showOpenDialog(win, { title: "Allow access to move this image",
+      message: `macOS denied access. Select “${path.basename(file)}” to retry moving it to Trash.`,
+      buttonLabel: "Allow and Move to Trash", defaultPath: file, properties: ["openFile"] });
+    return result.canceled ? null : result.filePaths[0];
+  } : undefined,
+  trashItem: file => shell.trashItem(file), showItemInFolder: file => shell.showItemInFolder(file),
+  chooseSavePath: async name => {
   const result = await dialog.showSaveDialog(win, { title: "Save Markdown copy", defaultPath: name,
     filters: [{ name: "Markdown", extensions: ["md", "markdown"] }], properties: ["showOverwriteConfirmation", "createDirectory"] });
   return result.canceled ? null : result.filePath;
 } });
+
+const saveFiles = createSaveFiles({ chooseSavePath: async (name, format) => {
+  const result = await dialog.showSaveDialog(win, { title: "Save File", defaultPath: name,
+    filters: [{ name: format.toUpperCase(), extensions: [format] }], properties: ["showOverwriteConfirmation", "createDirectory"] });
+  return result.canceled ? null : result.filePath;
+} });
+let fileMenuState = { kind: "none", busy: false };
+function updateFileMenu() {
+  Menu.setApplicationMenu(Menu.buildFromTemplate(fileMenuTemplate({ platform: process.platform, state: fileMenuState,
+    send: (channel, command) => win?.webContents.send(channel, command), open: async () => {
+      if (!win) return;
+      const result = await dialog.showOpenDialog(win, { title: "Open", properties: ["openFile", "multiSelections"],
+        filters: [{ name: "Documents and Photos", extensions: ["pdf", "doc", "docx", "md", "markdown", "jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"] }] });
+      if (!result.canceled) await sendFiles(result.filePaths);
+    } })));
+}
 
 if (!app.isPackaged && process.env.FOLIO_TEST_USER_DATA) app.setPath("userData", process.env.FOLIO_TEST_USER_DATA);
 // Automated tests drive a window that never appears, so a local run doesn't take over the screen or focus.
@@ -389,7 +419,7 @@ function createWindow() {
     if (choice === 0) e.preventDefault();
   });
 
-  win.on("closed", () => { clearTimeout(windowTimer); contentFiles.clear(); win = null; rendererReady = false; });
+  win.on("closed", () => { clearTimeout(windowTimer); contentFiles.clear(); saveFiles.clear(); fileMenuState = { kind: "none", busy: false }; updateFileMenu(); win = null; rendererReady = false; });
 }
 
 const MAX_URL_PDF_BYTES = MAX_DOCUMENT_BYTES;
@@ -578,6 +608,12 @@ if (!app.requestSingleInstanceLock()) {
       if (isTrustedSender(event)) listener(event, ...args);
     });
 
+    updateFileMenu();
+    handle("folio:save-file", (_event, request) => saveFiles.save(request));
+    on("folio:file-menu", (_event, state) => {
+      if (!state || !["none", "pdf", "photo", "markdown"].includes(state.kind) || typeof state.busy !== "boolean") return;
+      fileMenuState = { kind: state.kind, busy: state.busy }; updateFileMenu();
+    });
     ai.register(handle, (channel, payload) => win?.webContents.send(channel, payload));
     registerPrinting(handle, () => win);
     handle("folio:content-open", (_event, file) => contentFiles.open(file));
@@ -586,6 +622,11 @@ if (!app.requestSingleInstanceLock()) {
     handle("folio:content-refresh", (_event, id, selected) => contentFiles.refresh(id, selected));
     handle("folio:content-image", (_event, id, name) => contentFiles.image(id, name));
     handle("folio:content-asset", (_event, id, relative) => contentFiles.asset(id, relative));
+    handle("folio:content-trash", async (_event, id, name) => {
+      try { return { gallery: await contentFiles.trash(id, name) }; }
+      catch (error) { return { error: error.message || "Couldn't move this image to Trash. Try again." }; }
+    });
+    handle("folio:content-reveal", (_event, id, name) => contentFiles.reveal(id, name));
     handle("folio:content-release", (_event, id) => contentFiles.release(id));
 
     handle("folio:ready", () => {

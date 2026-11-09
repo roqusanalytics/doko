@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { SelectMenu } from "./SelectMenu";
 import { Modal } from "./Dialogs";
+import { AppearanceSettings } from "./AppearanceSettings";
 import { CLAUDE_CODE_URL, PROVIDERS, savedProvider, saveAiPreference, signInChatGPT, USAGE_URL, type AiProvider } from "./ai";
 import { OpenRouterSettings } from "./OpenRouterSettings";
 import { updateSummary } from "./updates";
@@ -235,6 +237,7 @@ export function SettingsDialog({ initialSection = "General", theme, onTheme, nig
             <Choice label="Theme" value={theme === "dark" ? "dark" : "light"} onChange={onTheme}
               options={[{ id: "light", name: "Light" }, { id: "dark", name: "Dark" }]} />
           </Row>
+          <AppearanceSettings dark={theme === "dark"} />
           <Row label="PDF dark mode" hint="Dims bright pages for night reading. Images keep their colors.">
             <Switch label="PDF dark mode" checked={night} onChange={onNight} />
           </Row>
@@ -254,10 +257,10 @@ export function SettingsDialog({ initialSection = "General", theme, onTheme, nig
         {ai && section === "Ask AI" && (
           <section className="settings-section">
             <Row label="Provider">
-              <select aria-label="Ask AI provider" className="ai-provider" value={provider} onChange={event => {
-                const next = event.target.value as AiProvider;
+              <SelectMenu label="Ask AI provider" className="ai-provider" value={provider} onChange={value => {
+                const next = value as AiProvider;
                 setProvider(next); setError(null); saveAiPreference("folio:ai-provider", next);
-              }}>{Object.entries(PROVIDERS).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
+              }} options={Object.entries(PROVIDERS).map(([value, label]) => ({ value, label }))} />
             </Row>
             {provider === "chatgpt" && <Row
               label="ChatGPT"
