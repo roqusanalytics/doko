@@ -42,6 +42,7 @@ try {
     await captureSave(app, file, "photoDownload");
     await action();
     assert.equal(await app.evaluate(() => globalThis.photoDownload), "completed");
+    await page.waitForFunction(() => document.querySelector('.topbar-center')?.inert === false);
     return readFileSync(file);
   };
   await open(path.join(photos, "photo1.png")); await ready("photo1.png");
@@ -128,6 +129,16 @@ try {
   assert.equal(await page.getByRole("button", { name: "Bookmark page 1", exact: true }).getAttribute("aria-pressed"), "true");
   await page.getByRole("tab", { name: "Notes", exact: true }).click();
   assert.equal(await page.getByRole("textbox", { name: "Notes about this document", exact: true }).inputValue(), "Photo reading note");
+  // The native file can exist before the renderer receives its save completion.
+  await page.evaluate(() => {
+    const saveFile = window.folioDesktop.saveFile;
+    window.folioDesktop = { ...window.folioDesktop, saveFile: async (...args) => {
+      window.folioDesktop = { ...window.folioDesktop, saveFile };
+      const result = await saveFile(...args);
+      await new Promise(resolve => setTimeout(resolve, 250));
+      return result;
+    } };
+  });
   await download(path.join(temp, "notes.png"), () => page.keyboard.press("ControlOrMeta+Shift+s"));
   await page.keyboard.press("ControlOrMeta+w");
   await page.getByRole("button", { name: /Try a sample/ }).waitFor();

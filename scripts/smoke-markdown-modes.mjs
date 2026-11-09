@@ -126,7 +126,7 @@ try {
   assert.equal(await preview().getByRole("heading", { name: "Added during editing", exact: true }).count(), 0, "View toggle lost source undo history");
   await source();
   await editor().focus();
-  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+Shift+z" : "Control+y");
   await view();
   await preview().getByRole("heading", { name: "Added during editing", exact: true }).waitFor();
   await source();
