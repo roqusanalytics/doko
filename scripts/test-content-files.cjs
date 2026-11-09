@@ -2,6 +2,13 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
+if (process.platform === 'win32') {
+  const child = require('node:child_process'), execFile = child.execFile;
+  child.execFile = (file, args, options, callback) => execFile(file, args, options, (error, stdout, stderr) => {
+    if (error) console.error('Native save fixture command failed:', stderr || error.message);
+    callback(error, stdout, stderr);
+  });
+}
 const { createContentFiles, imageInfo, MAX_MARKDOWN_BYTES, MAX_IMAGE_BYTES } = require("../electron/content-files.cjs");
 
 function png(width = 2, height = 3) {
