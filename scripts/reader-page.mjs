@@ -4,8 +4,8 @@ export function readerPage(window) {
   const selector = "iframe.document-reader.active";
   const reader = window.frameLocator(selector);
   const frame = async () => {
-    const element = await window.locator(selector).elementHandle();
-    try { return await element.contentFrame(); }
+    const element = await reader.locator(":root").elementHandle();
+    try { return await element.ownerFrame(); }
     finally { await element.dispose(); }
   };
   return {
