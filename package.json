@@ -183,7 +183,7 @@
         }
       ],
       "category": "public.app-category.productivity",
-      "icon": "build/icon.png",
+      "icon": "brand/doko/logos/Doko.icon",
       "fileAssociations": [
         {
           "ext": [

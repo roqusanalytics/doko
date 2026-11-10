@@ -37,3 +37,9 @@ Vietinis build:local exit0; /Applications/Doko.app įdiegta, codesign PASS, pale
 ## Juodas simbolis ant Mint (galutinis)
 
 PASS – simbolis #1A1A1A ant #C5E1CB, kontrastas 12.44:1. Kontūras identiškas patvirtintam Ink simboliui. Desktop PNG ir visi favicon eksportai atnaujinti; baltų užpildo pikselių nebeliko. npm run build:local exit0; įdiegtos Doko.app codesign PASS, ICNS pikseliai tiksliai sutampa su nauju PNG. Vietinė aplikacija paleista iš naujo. Windows/Linux pakavimas nekartotas.
+
+## macOS tamsios ikonos variantas
+
+PASS – Icon Composer Default (Ink ant Mint) ir Dark (Mint ant Ink) variantai sukompiliuoti esamu electron-builder helper. Įdiegtame Assets.car yra Aqua ir DarkAqua Icon įrašai, CFBundleIconName=Icon. Originalaus ženklo path išsaugotas. Kontrasto/geometrijos regresijos ir fork testai 5/5 PASS. Įdiegtos Doko.app parašas galioja, app.asar SHA256 prieš/po identiškas. Sistemos AppleIconAppearanceTheme=RegularDark nepakeistas.
+
+PASS – po Dock piktogramų valdiklio perkrovimo vartotojas patvirtino teisingą ikoną Apps aplinkoje. Native Apps/Spotlight automatinis valdymas buvo neprieinamas; galutinė UI patikra atlikta vartotojo. Default/Dark preview patikrinti Apple ictool renderiais. Windows/Linux ir macOS 12 runtime nekartoti; ICNS fallback išsaugotas.
