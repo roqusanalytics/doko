@@ -31,3 +31,9 @@ Prekių ženklų, panašumo į trečiųjų šalių ženklus ir teisių patikra n
 Dock / favicon fonas: #C5E1CB, simbolis #1A1A1A. Pagrindinio logotipo forma ir brandbook Ink / Paper / Mint paletė išsaugota. Mac paleidimas atnaujina Dock ikoną tiesiogiai iš electron/icon.png.
 
 Programos UI akcentas: užpildai #C5E1CB, tekstas ant užpildų #1A1A1A; akcento tekstas ir būsenų indikatoriai šviesioje temoje #305D40, tamsioje #C5E1CB. Akcentas išlaikomas ir pasirinktuose fonuose.
+
+macOS tamsi ikona: `logos/Doko.icon` yra vietinis Icon Composer išteklius. Default naudoja Ink ženklą ant Mint, Dark – Mint ženklą ant Ink. `mac.icon` paketavimas su Xcode 26+ automatiškai sukuria `Assets.car`, `CFBundleIconName=Icon` ir senesnių Mac ICNS variantą. Bendras sistemos ikonų stilius nekeičiamas; Windows ir Linux naudoja esamus PNG.
+
+| macOS Default | macOS Dark |
+| --- | --- |
+| ![Default ikona](previews/mac-icon-default.png) | ![Dark ikona](previews/mac-icon-dark.png) |

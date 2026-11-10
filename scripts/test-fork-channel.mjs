@@ -77,3 +77,23 @@ test("Windows Word registration cannot overwrite upstream Folio", () => {
   assert.ok(!installer.includes("Folio.WordDocument"));
   assert.equal(installer.match(/FolioLocal\.WordDocument/g)?.length, 8);
 });
+
+test("Mac icon stays legible in default and dark system appearances", () => {
+  const pkg = JSON.parse(readFileSync(path.join(repo, "package.json"), "utf8"));
+  assert.ok(pkg.build.mac.icon.endsWith(".icon"));
+  const folder = path.join(repo, pkg.build.mac.icon);
+  const icon = JSON.parse(readFileSync(path.join(folder, "icon.json"), "utf8"));
+  const mark = icon.groups[0].layers[0];
+  const luminance = solid => solid.slice(5).split(",").slice(0, 3).map(Number)
+    .map(c => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+    .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+  for (const appearance of [undefined, "dark"]) {
+    const background = icon["fill-specializations"].find(s => s.appearance === appearance).value.solid;
+    const foreground = mark["fill-specializations"].find(s => s.appearance === appearance).value.solid;
+    const a = luminance(background), b = luminance(foreground);
+    assert.ok((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) >= 7, `${appearance || "default"} icon loses contrast`);
+  }
+  const svg = readFileSync(path.join(folder, "Assets", mark["image-name"]), "utf8");
+  const original = readFileSync(path.join(repo, "brand/doko/logos/doko-mark-ink.svg"), "utf8");
+  assert.equal(svg.match(/ d="([^"]+)"/)[1], original.match(/ d="([^"]+)"/)[1], "Preserve the approved mark");
+});
