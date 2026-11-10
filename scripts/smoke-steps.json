@@ -120,5 +120,8 @@
   ],
   [
     "scripts/smoke-tab-suspension.mjs"
+  ],
+  [
+    "scripts/smoke-reader-drop.mjs"
   ]
 ]

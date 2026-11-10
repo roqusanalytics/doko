@@ -1,7 +1,7 @@
 import { assertHidden, closeHidden } from "./hidden-window.mjs";
 import { PDFDocument } from "pdf-lib";
 import { _electron as electron } from "playwright-core";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
@@ -11,9 +11,11 @@ const root = path.resolve(import.meta.dirname, "..");
 const shots = path.join(root, "release", "smoke-print"); mkdirSync(shots, { recursive: true });
 const env = { ...process.env, FOLIO_TEST_USER_DATA: mkdtempSync(path.join(tmpdir(), "folio-print-test-")), FOLIO_TEST_HIDDEN: "1" };
 delete env.ELECTRON_RUN_AS_NODE;
-const app = await electron.launch({ executablePath: electronPath(env), args: [root, "--mute-audio"], env, timeout: 60000 });
+const chromiumSandbox = process.platform !== "linux" || process.getuid?.() !== 0;
+const app = await electron.launch({ chromiumSandbox, executablePath: electronPath(env), args: [root, "--mute-audio"], env, timeout: 60000 });
 try {
   assert.ok(await app.evaluate(({ app }) => app.commandLine.hasSwitch("mute-audio")));
+  if (chromiumSandbox) assert.equal(await app.evaluate(({ app }) => app.commandLine.hasSwitch("no-sandbox")), false);
   // Intercept every printing window before its handler can call print. No printer or native dialog is invoked.
   await app.evaluate(({ app }) => {
     globalThis.printCalls = []; globalThis.printPdf = null;
@@ -183,8 +185,58 @@ try {
     { network: [], links: [], prompts: [] }, "Loading PDF JavaScript triggered a remote action");
   assert.equal(await app.evaluate(() => globalThis.printCalls.length), callCount, "The isolation probe sent a print job");
   await page.evaluate(() => { const frame = document.getElementById("print-isolation-probe"); URL.revokeObjectURL(frame.src); frame.remove(); });
+  // A refused Basic print must keep the prepared bytes available through the native save fallback.
+  await page.evaluate(() => {
+    const create = document.createElement.bind(document);
+    window.restorePrintFrame = () => { document.createElement = create; };
+    document.createElement = (tag, ...args) => {
+      const element = create(tag, ...args);
+      if (tag.toLowerCase() === "iframe") Object.defineProperty(element, "contentWindow", { get: () => ({ focus() {}, print() { throw new Error("Synthetic print refusal"); } }) });
+      return element;
+    };
+  });
+  const sourcePages = Number((await page.locator(".page-total").innerText()).replace(/\D+/g, ""));
+  const fallback = path.join(env.FOLIO_TEST_USER_DATA, "print-fallback.pdf");
+  await app.evaluate(({ dialog }, file) => {
+    globalThis.printFallback = { choices: [null, "error", file], calls: 0 };
+    dialog.showSaveDialog = async () => {
+      const next = globalThis.printFallback.choices.shift(); globalThis.printFallback.calls++;
+      if (next === "error") throw new Error("Synthetic save failure");
+      return { canceled: !next, filePath: next || undefined };
+    };
+  }, fallback);
+  for (let index = 1; index <= 3; index++) {
+    await page.locator(".viewer-container").focus();
+    await app.evaluate(({ Menu }) => {
+      const item = Menu.getApplicationMenu().items.find(item => item.label === "File").submenu.items.find(item => item.label === "Print…");
+      if (!item?.enabled) throw new Error("Native Print command is not ready after the previous dialog");
+      item.click();
+    });
+    const printDialog = page.getByRole("dialog", { name: "Print", exact: true });
+    await printDialog.waitFor();
+    await page.getByRole("tab", { name: "Basic", exact: true }).click();
+    await printDialog.getByRole("button", { name: "Print…", exact: true }).click();
+    for (let tries = 0; await app.evaluate(() => globalThis.printFallback.calls) !== index; tries++) {
+      assert.ok(tries < 100, "Refused print did not reach its native save fallback");
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    await printDialog.waitFor({ state: "detached" });
+    if (index === 1) assert.equal(existsSync(fallback), false, "Cancelling print fallback must not create a copy");
+    if (index === 2) {
+      await page.getByText("Synthetic save failure", { exact: true }).waitFor();
+      await page.getByText("Synthetic save failure", { exact: true }).click();
+    }
+    if (index === 3) {
+      await page.getByText("Couldn't print — saved a copy instead", { exact: true }).waitFor();
+      assert.equal((await PDFDocument.load(readFileSync(fallback))).getPageCount(), sourcePages);
+    }
+    assert.equal(await app.evaluate(() => globalThis.printCalls.length), callCount, "Basic fallback sent a real print job");
+    assert.equal(await page.getByRole("textbox", { name: "Page number", exact: true }).isVisible(), true, "Print fallback lost the source reader");
+  }
+  await page.evaluate(() => window.restorePrintFrame());
+  console.log("ok Basic print refusal retains source; native copy cancellation, write failure and successful retry preserve its prepared PDF; no print job sent");
   await assertHidden(app);
-  console.log("ok native PDF print viewer stays sandboxed; synthetic PDF JavaScript opens no URL, network request or prompt; no print job sent");
+  console.log(`ok native PDF print viewer ${chromiumSandbox ? "has an active Chromium sandbox" : "runs without a sandbox in this root-only functional harness"}; synthetic PDF JavaScript opens no URL, network request or prompt; no print job sent`);
   assert.deepEqual(errors, []);
   console.log("ok print dialog, ranges, input shortcuts, DPI/overlap controls and limits, grayscale/toner, focus trap, cancellation during preparation, native handoff; Multiple: 2 sheets, Booklet: 2 sheets in both orientations with matching duplex, Poster: 4 tiles at 600 dpi; no print job sent");
 } finally { await closeHidden(app); }

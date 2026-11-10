@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { assertHidden } from "./hidden-window.mjs";
+import { assertHidden, closeHidden } from "./hidden-window.mjs";
 
 test("an off-screen visible window is hidden, but an on-screen one is rejected", async () => {
   let bounds = { x: -10000, y: -10000, width: 1000, height: 800 };
@@ -12,4 +12,28 @@ test("an off-screen visible window is hidden, but an on-screen one is rejected",
   await assertHidden(app);
   bounds = { ...bounds, x: 10, y: 10 };
   await assert.rejects(assertHidden(app), /appeared on the user's screen/);
+});
+
+
+test("hidden cleanup prevents auto-quit before acknowledgement and refuses a non-test profile", async () => {
+  const previous = process.env.FOLIO_TEST_USER_DATA;
+  const calls = [];
+  let autoQuit = true;
+  const app = {
+    evaluate: async fn => fn({ app: { removeAllListeners(name) { calls.push(name); autoQuit = false; } },
+      BrowserWindow: { getAllWindows: () => [{ destroy() { if (autoQuit) throw new Error("Execution context was destroyed"); calls.push("destroy"); } }] } }),
+    process: () => ({ kill(signal) { calls.push(signal); } }),
+    close: async () => { calls.push("close"); },
+  };
+  try {
+    delete process.env.FOLIO_TEST_USER_DATA;
+    await assert.rejects(closeHidden(app), /non-test profile/);
+    assert.deepEqual(calls, []);
+    process.env.FOLIO_TEST_USER_DATA = "synthetic-isolated-profile";
+    await closeHidden(app);
+    assert.deepEqual(calls, ["window-all-closed", "destroy", "SIGKILL", "close"]);
+  } finally {
+    if (previous === undefined) delete process.env.FOLIO_TEST_USER_DATA;
+    else process.env.FOLIO_TEST_USER_DATA = previous;
+  }
 });

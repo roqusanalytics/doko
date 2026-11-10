@@ -315,12 +315,6 @@ try {
     .filter(item => item.label.startsWith("Save")).map(item => ({ label: item.label, enabled: item.enabled }))).catch(() => null));
   throw error;
 } finally {
-  // This isolated harness must also exit after an assertion leaves unsaved notes open.
-  await app.evaluate(({ BrowserWindow }) => {
-    if (process.env.FOLIO_TEST_USER_DATA && process.env.FOLIO_TEST_HIDDEN === "1") {
-      for (const window of BrowserWindow.getAllWindows()) window.destroy();
-    }
-  }).catch(() => {});
   await closeHidden(app);
   rmSync(temp, { recursive: true, force: true });
 }

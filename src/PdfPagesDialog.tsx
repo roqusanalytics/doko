@@ -106,7 +106,8 @@ export default function PdfPagesDialog({ bytes, name, onApply, onClose }: {
         while (history.length > 1 && (history.length > 10 || size > MAX_PDF_BYTES)) size -= history.shift()!.bytes.byteLength;
         return history;
       });
-      setOriginalPages(pages); setCurrent(next); setSelected([]);
+      // Disable the old preview in the same commit that changes its bytes.
+      setLoading(true); setOriginalPages(pages); setCurrent(next); setSelected([]);
     } catch (error) {
       if (mounted.current) setError(controller.signal.aborted ? controller.signal.reason instanceof Error ? controller.signal.reason.message : "Page change stopped. Your edits are unchanged." : (error as Error).message || "Couldn't change these pages. Try again.");
     } finally { clearTimeout(timeout); job.current = null; locked.current = false; if (mounted.current) setBusy(false); }
@@ -129,7 +130,7 @@ export default function PdfPagesDialog({ bytes, name, onApply, onClose }: {
         <button type="button" className="btn ghost" disabled={disabled} onClick={() => void change({ type: "blank", index, matchPage: selected[0] ?? Math.max(0, (pdf?.numPages ?? 1) - 1) })}>Blank page</button>
         <button type="button" className="btn ghost" disabled={disabled || !selected.length} onClick={() => void change({ type: "rotate", pages: selected })}>Rotate 90°</button>
         <button type="button" className="btn ghost" disabled={disabled || !selected.length || selected.length === pdf?.numPages} onClick={() => void change({ type: "delete", pages: selected })}>Delete selected</button>
-        <button type="button" className="btn ghost" disabled={disabled || !history.length} onClick={() => { setCurrent(history.at(-1)!.bytes); setOriginalPages(history.at(-1)!.pages); setHistory(history.slice(0, -1)); setSelected([]); }}>Undo</button>
+        <button type="button" className="btn ghost" disabled={disabled || !history.length} onClick={() => { setLoading(true); setCurrent(history.at(-1)!.bytes); setOriginalPages(history.at(-1)!.pages); setHistory(history.slice(0, -1)); setSelected([]); }}>Undo</button>
       </div>
       <div className="pdf-pages-selection">
         <span role="status">{selected.length} selected{pdf ? ` · ${pdf.numPages} pages` : ""}</span>
