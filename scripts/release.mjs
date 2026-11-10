@@ -1,8 +1,8 @@
-// Publish a new Folio version for Windows, macOS, and Linux:
-//   1. bump the version and tag it, then push the source and tag to roqusanalytics/folio;
+// Publish a new Doko version for Windows, macOS, and Linux:
+//   1. bump the version and tag it, then push the source and tag to roqusanalytics/doko;
 //   2. the "Release build" workflow (.github/workflows/release-build.yml) builds and checks the installers
 //      for every platform on GitHub Actions;
-//   3. this script downloads them and publishes a release on roqusanalytics/folio.
+//   3. this script downloads them and publishes a release on roqusanalytics/doko.
 // Installed copies pick the update up automatically (electron-updater reads latest*.yml from the release).
 //
 //   npm run release                      # 1.0.0 -> 1.0.1
@@ -48,7 +48,7 @@ if (!publishOnly) {
   run("git fetch --quiet origin main");
   if (execSync("git rev-parse HEAD").toString().trim() !== execSync("git rev-parse origin/main").toString().trim()) {
     console.error("This checkout isn't at the latest main. Merge your work into main, then release from it, for example:\n"
-      + "  git worktree add ../folio-release origin/main && cd ../folio-release && npm run release");
+      + "  git worktree add ../doko-release origin/main && cd ../doko-release && npm run release");
     process.exit(1);
   }
   run(`npm version ${bump} -m "Release v%s"`);
@@ -104,14 +104,14 @@ const getArtifactIds = () => artifactIds(api(`actions/runs/${runId}/artifacts?pe
 const ids = getArtifactIds();
 
 const body = [
-  notes || `Folio Local ${version}.`,
+  notes || `Doko ${version}.`,
   "",
   "## Download",
-  "- **Windows:** **Folio-Setup.exe** (updates itself), or **Folio-Portable.exe** to run without installing.",
-  `- **macOS:** **Folio-mac.dmg** (Apple Silicon and Intel). Developer ID builds update automatically. For ad-hoc builds, see the first-launch instructions in the [README](https://github.com/${SOURCE_REPO}#download).`,
-  "- **Linux:** **Folio-linux-amd64.deb** for Ubuntu/Debian (after that, updates arrive with your system updates), or **Folio-linux-x86_64.AppImage** (updates itself) for other distributions.",
+  "- **Windows:** **Doko-Setup.exe** (updates itself), or **Doko-Portable.exe** to run without installing.",
+  `- **macOS:** **Doko-mac.dmg** (Apple Silicon and Intel). Developer ID builds update automatically. For ad-hoc builds, see the first-launch instructions in the [README](https://github.com/${SOURCE_REPO}#download).`,
+  "- **Linux:** **Doko-linux-amd64.deb** for Ubuntu/Debian (after that, updates arrive with your system updates), or **Doko-linux-x86_64.AppImage** (updates itself) for other distributions.",
 ].join("\n");
-const folder = mkdtempSync(path.join(tmpdir(), "folio-release-"));
+const folder = mkdtempSync(path.join(tmpdir(), "doko-release-"));
 try {
   gh(["run", "download", String(runId), "--repo", SOURCE_REPO, "--dir", folder], { stdio: "inherit" });
   const files = releaseFiles(folder);
@@ -120,7 +120,7 @@ try {
   verifyReleaseTag(api, tag, tagObject, commit);
   if (successfulAttempt(findBuild(), runId) !== attempt || getArtifactIds() !== ids) throw new Error("The build changed during download. Run --publish-only again.");
   successfulCI(findCI());
-  gh(["release", "create", tag, "--repo", RELEASES_REPO, "--verify-tag", "--title", `Folio Local ${version}`, "--notes-file", notesFile, ...files], { stdio: "inherit" });
+  gh(["release", "create", tag, "--repo", RELEASES_REPO, "--verify-tag", "--title", `Doko ${version}`, "--notes-file", notesFile, ...files], { stdio: "inherit" });
 } finally {
   rmSync(folder, { recursive: true, force: true });
 }
@@ -132,5 +132,5 @@ if (problems.length) {
   process.exit(1);
 }
 
-console.log(`\nFolio Local ${version} is live for Windows, macOS, and Linux: https://github.com/${RELEASES_REPO}/releases/tag/${tag}`);
+console.log(`\nDoko ${version} is live for Windows, macOS, and Linux: https://github.com/${RELEASES_REPO}/releases/tag/${tag}`);
 console.log("Installed copies will see it within a few hours (or on next launch).");

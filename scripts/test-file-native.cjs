@@ -366,3 +366,11 @@ test('failed copy fallback preserves a concurrently replaced destination', async
   }
   assert.equal((await fs.readdir(root)).some(name => name.startsWith('.folio-')), false);
 });
+
+test('Doko labels native macOS menus independently from its credential identity', () => {
+  const menu = fileMenuTemplate({ platform: 'darwin', send() {}, open() {} })[0];
+  assert.equal(menu.label, 'Doko');
+  for (const role of ['about', 'hide', 'quit']) {
+    assert.match(menu.submenu.find(item => item.role === role).label, /Doko$/);
+  }
+});

@@ -1,6 +1,6 @@
 // A page owns its links, redirects, scripts and DNS names. Its Chromium session gets a private
 // TCP-only SOCKS proxy: Chromium keeps its normal HTTP, TLS/SNI and certificate checks, while
-// Folio opens the actual connection to a validated numeric address. No second target DNS lookup.
+// Doko opens the actual connection to a validated numeric address. No second target DNS lookup.
 const net = require("node:net");
 const http = require("node:http");
 const https = require("node:https");

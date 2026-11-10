@@ -29,7 +29,7 @@ function imageOperands(bytes: Uint8Array, pdf: PDFDocument, resources: PDFDict) 
     if (delimiter(c)) throw new Error("Couldn't identify the image placement in this PDF.");
     while (!stream.done() && !delimiter(stream.peek())) stream.next();
     const token = stream.offset() - start < 4 ? String.fromCharCode(...bytes.subarray(start, stream.offset())) : "";
-    if (token === "BI") throw new Error("Folio can't replace images on pages containing inline image data.");
+    if (token === "BI") throw new Error("Doko can't replace images on pages containing inline image data.");
     if (token === "Do" && operand) {
       const image = resources.lookup(operand.key);
       if (image instanceof PDFRawStream && image.dict.get(name("Subtype")) === name("Image")) placements.push(operand);

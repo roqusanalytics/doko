@@ -14,7 +14,7 @@ export async function loadPdf(data: Uint8Array, signal: AbortSignal, password?: 
   checkPdfSize(data.byteLength);
   signal.throwIfAborted();
   const task = pdfjs.getDocument({
-    // pdf.js transfers this buffer to the worker. Folio still needs the input for identity, Recent and password retries.
+    // pdf.js transfers this buffer to the worker. Doko still needs the input for identity, Recent and password retries.
     data: data.slice(),
     password,
     // PDFs are untrusted: don't render XFA forms (embedded PDF JavaScript is never run; no scripting manager).

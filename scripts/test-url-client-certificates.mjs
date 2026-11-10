@@ -13,7 +13,7 @@ import { readerPage } from "./reader-page.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const dir = mkdtempSync(path.join(tmpdir(), "folio-url-tls-"));
-const issuer = "Folio test " + randomUUID();
+const issuer = "Doko test " + randomUUID();
 const read = name => readFileSync(path.join(dir, name));
 const openssl = (...args) => execFileSync("openssl", args, { cwd: dir, stdio: "pipe", windowsHide: true });
 const password = randomUUID();
@@ -31,7 +31,7 @@ try {
   ].join("\n"));
   openssl("req", "-new", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=" + issuer,
     "-config", "cert.cnf", "-extensions", "server", "-keyout", "server.key", "-out", "server.pem");
-  openssl("req", "-new", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=Folio test client",
+  openssl("req", "-new", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=Doko test client",
     "-config", "cert.cnf", "-keyout", "client.key", "-out", "client.csr");
   openssl("x509", "-req", "-in", "client.csr", "-CA", "server.pem", "-CAkey", "server.key", "-CAcreateserial",
     "-days", "1", "-extfile", "cert.cnf", "-extensions", "client", "-out", "client.pem");

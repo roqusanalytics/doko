@@ -8,7 +8,7 @@ export function checkPdfSize(size: number, limit = MAX_PDF_BYTES) {
 
 export function checkPageCount(count: number) {
   if (!Number.isSafeInteger(count) || count < 1) throw new Error("The PDF has an invalid page count.");
-  if (count > MAX_PDF_PAGES) throw new Error("Folio can open PDFs with up to 10,000 pages.");
+  if (count > MAX_PDF_PAGES) throw new Error("Doko can open PDFs with up to 10,000 pages.");
 }
 
 export async function readPdfBlob(blob: Blob, signal: AbortSignal, limit = MAX_PDF_BYTES): Promise<Uint8Array> {

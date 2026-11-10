@@ -99,7 +99,7 @@ export function SignatureDialog({ pdf, pageNumber, targets, onApprove, onClose }
     setCameraStarting(true);
     setError("");
     try {
-      // Desktop camera permission belongs to the Folio window that asks for consent.
+      // Desktop camera permission belongs to the Doko window that asks for consent.
       const devices = window.folioDesktop ? window.parent.navigator.mediaDevices : navigator.mediaDevices;
       if (!devices?.getUserMedia) throw new Error("Camera isn't available. Upload a photo instead.");
       const stream = await devices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 } }, audio: false });

@@ -254,7 +254,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   useEffect(() => () => { if (printCopy) void printCopy.pdf.loadingTask.destroy(); }, [printCopy]);
   const [dialog, setDialog] = useState<"info" | "shortcuts" | "about" | "url" | "settings" | "ai-settings" | "changelog" | "upgrade" | null>(
     upgradeNotes.length ? "upgrade" : null);
-  // A pasted or dropped link waits in Open from URL, so the user sees where it goes before Folio contacts it.
+  // A pasted or dropped link waits in Open from URL, so the user sees where it goes before Doko contacts it.
   const [linkDraft, setLinkDraft] = useState("");
   const openUrlDialog = (link = "") => { setLinkDraft(link); setDialog("url"); };
   const [pending, setPending] = useState<Pending | null>(null);
@@ -324,7 +324,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       annotationEditorMode: AnnotationEditorType.NONE,
       annotationEditorHighlightColors: HIGHLIGHTS.map((c) => `${c.name.toLowerCase()}=${c.hex}`).join(","),
       // Records where images are drawn (used to keep them true to color in night reading). The huge
-      // minimum size turns off pdf.js's own right-click image targets, which Folio doesn't use.
+      // minimum size turns off pdf.js's own right-click image targets, which Doko doesn't use.
       imagesRightClickMinSize: 1e9,
     });
     trackPageImages(eventBus);
@@ -480,7 +480,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         const prev = docRef.current;
         const next: OpenDoc = { id, saveKey: previous?.saveKey ?? id, name, size: data.byteLength, pdf, password, sourceId: revision?.sourceId ?? revision?.id, historyAllowed: historyAllowed && !galleryRef.current, edits, photoName: revision?.photoName ?? galleryRef.current?.selected, photoKey: revision?.photoKey ?? photoKeys.current.get(galleryRef.current?.selected ?? "") };
         docRef.current = next;
-        // Password-protected documents aren't stored by Folio (same rule as Recent).
+        // Password-protected documents aren't stored by Doko (same rule as Recent).
         const reading = previous ? markupRef.current!.state : photoDrafts.current.get(galleryRef.current?.selected ?? "")?.reading;
         if (reading?.bookmarkedPages && exportedOrder) {
           const bookmarks = new Set(reading.bookmarkedPages);
@@ -497,7 +497,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         navigationRef.current!.reset();
         prev?.pdf.loadingTask.destroy();
 
-        // Markup is saved automatically; only documents Folio can't store count as having unsaved changes.
+        // Markup is saved automatically; only documents Doko can't store count as having unsaved changes.
         (pdf.annotationStorage as { onSetModified: unknown }).onSetModified = () => {
           if (docRef.current === next && !persistRef.current) markDirty();
         };
@@ -519,7 +519,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         setPending(null);
         setSearchOpen(false);
         setFind({ current: 0, total: 0, state: null });
-        document.title = `${name} — Folio`;
+        document.title = `${name} — Doko`;
 
         setLoading(false);
         // Password-protected documents stay out of Recent: it would keep their bytes and a page-1
@@ -639,7 +639,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     try {
       const res = await fetch(`${import.meta.env.BASE_URL}sample.pdf`, { signal });
       const data = await readPdfResponse(res, signal);
-      if (!signal.aborted) await openBytes("Folio sample.pdf", data, undefined, signal);
+      if (!signal.aborted) await openBytes("Doko sample.pdf", data, undefined, signal);
     } catch {
       if (!signal.aborted) { setLoading(false); tabs.failed(tabKey); setError("Couldn't open the sample document."); }
     }
@@ -884,7 +884,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     return () => observer.disconnect();
   }, [container]);
 
-  // pdf.js shows a small note button on highlights that have a note; open Folio's note box from it.
+  // pdf.js shows a small note button on highlights that have a note; open Doko's note box from it.
   useEffect(() => {
     if (!container) return;
     const onClick = (e: MouseEvent) => {
@@ -1027,7 +1027,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     const result = await window.folioDesktop.saveFile({ name, data: new Uint8Array(await blob.arrayBuffer()), format,
       id: savedTargets.current.get(key), saveAs });
     if (result.cancelled) return false;
-    if (!result.ok) throw new Error(result.error || (result.conflict ? "The saved file changed outside Folio. Use Save As to keep both versions." : "Couldn't save this file."));
+    if (!result.ok) throw new Error(result.error || (result.conflict ? "The saved file changed outside Doko. Use Save As to keep both versions." : "Couldn't save this file."));
     if (result.id) savedTargets.current.set(key, result.id);
     return true;
   };
@@ -1479,7 +1479,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   // ── Drag & drop anywhere ────────────────────────────────────────────
   useEffect(() => {
     let depth = 0;
-    let internal = false; // dragging text or images from inside Folio isn't an "open" gesture
+    let internal = false; // dragging text or images from inside Doko isn't an "open" gesture
     const hasFiles = (e: DragEvent) => {
       const types = e.dataTransfer?.types ?? [];
       return !internal && (types.includes("Files") || types.includes("text/uri-list") || types.includes("text/plain"));
@@ -1571,9 +1571,9 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     >
       <header className="topbar" ref={headerRef}>
         <div className="topbar-left">
-          <button className="brand" onClick={doc ? () => tabs.library() : undefined} title={doc ? "Back to library" : "Folio"}>
+          <button className="brand" onClick={doc ? () => tabs.library() : undefined} title={doc ? "Back to library" : "Doko"}>
             <span className="brand-mark" />
-            <span className="brand-name">Folio</span>
+            <span className="brand-name">Doko</span>
           </button>
           {doc && (
             <>
@@ -1647,7 +1647,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
                 : []),
               { kind: "action", icon: "settings", label: "Settings", shortcut: keys("Ctrl ,"), onSelect: () => setDialog("settings") },
               { kind: "action", icon: "keyboard", label: "Keyboard shortcuts", shortcut: "?", onSelect: () => setDialog("shortcuts") },
-              { kind: "action", icon: "info", label: "About Folio", onSelect: () => setDialog("about") },
+              { kind: "action", icon: "info", label: "About Doko", onSelect: () => setDialog("about") },
             ]}
           />
         </div>
@@ -1695,7 +1695,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         <main className="stage" aria-busy={gallery && (photoBusy || refreshingPhotos) ? true : undefined}>
           <div ref={containerRef} className="viewer-container" tabIndex={-1}
             onInput={event => {
-              // Form values live in the PDF until a copy is saved. Folio only auto-saves its own markup.
+              // Form values live in the PDF until a copy is saved. Doko only auto-saves its own markup.
               if ((event.target as HTMLElement).closest(".annotationLayer :is(input, textarea, select)")) markDirty();
             }}>
             <div ref={innerRef} className="pdfViewer" />
@@ -1880,7 +1880,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         onRefresh={gallery.id ? () => void refreshPhotos() : undefined} refreshing={refreshingPhotos} />}
 
       {!doc && !gallery && <Welcome active={active} onPick={pickFile} onOpenUrl={() => openUrlDialog()} onOpenRecent={file => tabs.open([{ kind: "blob", name: file.name, blob: file.data, recentId: file.id }])}
-        onSample={() => tabs.open([{ kind: "sample", name: "Folio sample.pdf" }])} loading={loading} />}
+        onSample={() => tabs.open([{ kind: "sample", name: "Doko sample.pdf" }])} loading={loading} />}
 
       {loading && doc && <div className="loading-bar" />}
 
@@ -1940,8 +1940,8 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       {updateNotice && (
         <div className="update-card" role="status">
           <div>
-            <strong>Folio {updateNotice.version} {updateNotice.state === "ready" ? "is ready" : "is available"}</strong>
-            <span>{updateNotice.state === "ready" ? "Restart to update. Installation on close follows your auto-update setting." : "Download the new version to update Folio."}</span>
+            <strong>Doko {updateNotice.version} {updateNotice.state === "ready" ? "is ready" : "is available"}</strong>
+            <span>{updateNotice.state === "ready" ? "Restart to update. Installation on close follows your auto-update setting." : "Download the new version to update Doko."}</span>
           </div>
           <button
             className="btn primary"

@@ -60,7 +60,7 @@ export class DocumentTabs {
   private changed() {
     this.revision++;
     const selected = this.entry(this.active);
-    document.title = selected?.name ? selected.name + " — Folio" : "Folio";
+    document.title = selected?.name ? selected.name + " — Doko" : "Doko";
     for (const fn of this.listeners) fn();
   }
   private entry(key: number) { return this.entries.find(tab => tab.key === key); }

@@ -1,12 +1,12 @@
 name: Feature idea
-description: Suggest something new or a change to how Folio works.
+description: Suggest something new or a change to how Doko works.
 labels: [idea]
 body:
   - type: markdown
     attributes:
       value: |
         Please don't start building until a maintainer has agreed to the idea and its scope here.
-        Folio stays simple, fast, and private, so not every good idea will fit.
+        Doko stays simple, fast, and private, so not every good idea will fit.
   - type: textarea
     id: problem
     attributes:

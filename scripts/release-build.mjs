@@ -2,7 +2,7 @@ import { readdirSync } from "node:fs";
 import path from "node:path";
 import { RELEASE_ARTIFACTS } from "./check-release.mjs";
 
-export const SOURCE_REPO = "roqusanalytics/folio";
+export const SOURCE_REPO = "roqusanalytics/doko";
 export const WORKFLOW = "release-build.yml";
 export const CI_WORKFLOW = "ci.yml";
 

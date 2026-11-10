@@ -58,7 +58,7 @@ async function checkStaysHidden() {
       onScreen: BrowserWindow.getAllWindows().filter((w) => w.isVisible() && onDisplay(w.getBounds())).length };
   });
   assert.deepEqual(seen, { dockIcon: false, inFront: false, onScreen: 0 }, "the hidden test run showed up on macOS");
-  // The Dock makes room for an ordinary app as it starts, before Folio can say otherwise, so the run has to have
+  // The Dock makes room for an ordinary app as it starts, before Doko can say otherwise, so the run has to have
   // started from an app that macOS treats as an agent (see electron-path.mjs).
   const plist = path.join(await app.evaluate(() => process.execPath), "..", "..", "Info.plist");
   assert.equal(spawnSync("/usr/bin/plutil", ["-extract", "LSUIElement", "raw", plist], { encoding: "utf8" }).stdout.trim(), "true",
@@ -83,10 +83,10 @@ try {
   assert.equal(await whatsNew.count(), 0, "a fresh install opens straight to the library");
   assert.equal(await page.evaluate(() => localStorage.getItem("folio:last-opened-version")), installed);
 
-  // An older profile has a sidebar preference but has never recorded its Folio version.
+  // An older profile has a sidebar preference but has never recorded its Doko version.
   await page.evaluate(() => localStorage.removeItem("folio:last-opened-version"));
   await page.reload();
-  await whatsNew.getByRole("heading", { name: "Folio " + installed, exact: true }).waitFor();
+  await whatsNew.getByRole("heading", { name: "Doko " + installed, exact: true }).waitFor();
   assert.equal(await whatsNew.locator("section").count(), 1);
   assert.ok(await whatsNew.getByRole("listitem").count() > 0);
   await whatsNew.getByRole("button", { name: "Done" }).click();
@@ -94,9 +94,9 @@ try {
 
   await page.evaluate(() => localStorage.setItem("folio:last-opened-version", "1.13.1"));
   await page.reload();
-  await whatsNew.getByRole("heading", { name: "Folio 1.14.0", exact: true }).waitFor();
-  assert.equal(await whatsNew.locator("h3").first().textContent(), "Folio " + installed);
-  assert.equal(await whatsNew.getByRole("heading", { name: "Folio 1.13.1", exact: true }).count(), 0);
+  await whatsNew.getByRole("heading", { name: "Doko 1.14.0", exact: true }).waitFor();
+  assert.equal(await whatsNew.locator("h3").first().textContent(), "Doko " + installed);
+  assert.equal(await whatsNew.getByRole("heading", { name: "Doko 1.13.1", exact: true }).count(), 0);
   await page.keyboard.press("Escape");
   assert.equal(await page.getByRole("dialog").count(), 0);
   await page.reload();
@@ -106,7 +106,7 @@ try {
 
   await page.getByRole("button", { name: /Try a sample/ }).click();
   await page.locator(".textLayer span:not(.markedContent)").first().waitFor({ timeout: 30_000 });
-  assert.match(await page.locator(".textLayer").first().innerText(), /A short tour of Folio/);
+  assert.match(await page.locator(".textLayer").first().innerText(), /A short tour of Doko/);
   console.log("ok  sample rendered with a text layer");
 
   // The list of matching pages quotes each page's first match. The words it marks are the ones searched for,
@@ -126,8 +126,8 @@ try {
   });
   const before = await layout();
   await page.getByRole("button", { name: "More", exact: true }).click();
-  await page.getByRole("menuitem", { name: "About Folio" }).click();
-  await page.getByRole("dialog", { name: "About Folio" }).waitFor();
+  await page.getByRole("menuitem", { name: "About Doko" }).click();
+  await page.getByRole("dialog", { name: "About Doko" }).waitFor();
   await page.keyboard.press("r");
   await page.keyboard.press("2");
   await page.waitForTimeout(200);
@@ -150,7 +150,7 @@ try {
   await docs.getByRole("tab", { name: "Library", selected: true }).waitFor();
   assert.equal(await docs.getByRole("tab").count(), 2);
   await docs.getByRole("button", { name: "Close Library" }).click();
-  await page.locator(".doc-title", { hasText: "Folio sample.pdf" }).waitFor();
+  await page.locator(".doc-title", { hasText: "Doko sample.pdf" }).waitFor();
   assert.equal(await page.locator(".document-tabs").count(), 0);
   console.log("ok  the tab strip appears for a second tab and disappears when one remains");
 
@@ -248,13 +248,13 @@ try {
   await page.locator(".textLayer span:not(.markedContent)").first().waitFor();
   await docs.getByRole("tab", { name: "Another.pdf", selected: true }).waitFor();
   assert.equal(await page.locator(".stampEditor").count(), 0);
-  await select("Folio sample.pdf");
+  await select("Doko sample.pdf");
   assert.equal(await page.getByLabel("Page number", { exact: true }).inputValue(), "2");
   await page.getByTitle("Previous page").click();
   await page.locator(".stampEditor").waitFor();
   assert.deepEqual(await page.window.evaluate(() => window.tabPrompts), []);
   await select("Another.pdf");
-  const closeSigned = docs.getByRole("button", { name: "Close Folio sample.pdf, unsaved changes" });
+  const closeSigned = docs.getByRole("button", { name: "Close Doko sample.pdf, unsaved changes" });
   await closeSigned.click();
   assert.equal(await docs.getByRole("tab").count(), 2);
   await closeSigned.click();
@@ -394,7 +394,7 @@ try {
   console.log("ok  Draw creates the three shapes and supports undo and redo");
 
   // Select a sentence and highlight it in one click.
-  await dragAcross(page.locator('.page[data-page-number="1"] .textLayer').getByText(/A short tour of Folio/));
+  await dragAcross(page.locator('.page[data-page-number="1"] .textLayer').getByText(/A short tour of Doko/));
   await page.mouse.up();
   await page.locator(".selection-popover").waitFor();
 
@@ -409,7 +409,7 @@ try {
     await page.locator('.selection-popover button[title="Copied"]').waitFor({ timeout: 5_000 });
     const copied = await app.evaluate(({ clipboard }) => clipboard.readText());
     await app.evaluate(({ clipboard }, text) => clipboard.writeText(text), clipboardBefore);
-    assert.ok(/A short tour of Folio/.test(copied), "Copy didn't reach the clipboard");
+    assert.ok(/A short tour of Doko/.test(copied), "Copy didn't reach the clipboard");
     console.log("ok  selection copied to the clipboard");
   } else {
     console.log("--  clipboard check skipped: the window isn't focused");
@@ -531,8 +531,8 @@ try {
   await page.getByRole("tab", { name: /Pages/ }).click();
 
   await page.getByRole("button", { name: "More" }).click();
-  await page.getByRole("menuitem", { name: "About Folio" }).click();
-  const about = page.getByRole("dialog", { name: "About Folio" });
+  await page.getByRole("menuitem", { name: "About Doko" }).click();
+  const about = page.getByRole("dialog", { name: "About Doko" });
   assert.doesNotMatch(await about.innerText(), /Ask AI accounts/);
   assert.equal(await about.getByRole("button", { name: "Settings" }).count(), 0);
   await page.keyboard.press("Escape");
@@ -561,7 +561,7 @@ try {
   await summaries.first().waitFor();
   const firstPage = await summaries.allTextContents();
   assert.equal(firstPage.length, 5);
-  assert.equal(firstPage[0], "Folio " + installed);
+  assert.equal(firstPage[0], "Doko " + installed);
   assert.equal(await whatsNew.locator("details[open]").count(), 1);
   await summaries.nth(1).click();
   assert.ok(await whatsNew.locator("details").nth(1).locator("li").first().isVisible());
@@ -573,7 +573,7 @@ try {
   await newer.click();
   assert.deepEqual(await summaries.allTextContents(), firstPage);
   assert.equal(await whatsNew.getByRole("link", { name: "View releases on GitHub" }).getAttribute("href"),
-    "https://github.com/roqusanalytics/folio/releases");
+    "https://github.com/roqusanalytics/doko/releases");
   await page.keyboard.press("Escape");
   await page.getByRole("dialog", { name: "Settings" }).waitFor();
   await page.keyboard.press("Escape");
@@ -675,7 +675,7 @@ try {
   await page.getByRole("button", { name: "Cancel" }).click();
   console.log("ok  reordered thumbnails keep each page's shape:", rows.map((r) => `page ${r.page} ${Math.round(r.width)}x${Math.round(r.height)}`).join(", "));
 
-  // A Word document opens converted to PDF (by Word, LibreOffice, or Folio itself, whichever the computer has),
+  // A Word document opens converted to PDF (by Word, LibreOffice, or Doko itself, whichever the computer has),
   // and the PDF is saved next to it. Opening the document again reuses that PDF.
   const folder = mkdtempSync(path.join(tmpdir(), "folio-word-"));
   const docx = path.join(folder, "Quarterly report.docx");
@@ -721,7 +721,7 @@ try {
   await page.keyboard.press("Escape");
   console.log("ok  a pasted link waits in Open from URL");
 
-  // Questions Folio asks in the main process are answered here, and links are recorded instead of reaching the browser.
+  // Questions Doko asks in the main process are answered here, and links are recorded instead of reaching the browser.
   await app.evaluate(({ dialog, shell }) => {
     const check = globalThis.folioCheck = { asked: [], opened: [], answer: 1 };
     dialog.showMessageBox = async (_window, options) => { check.asked.push(options.message); return { response: check.answer }; };
@@ -733,7 +733,7 @@ try {
     return app.evaluate(() => globalThis.folioCheck);
   };
 
-  // A link from a document opens in the browser only after the user has seen where it goes; Folio's own links just open.
+  // A link from a document opens in the browser only after the user has seen where it goes; Doko's own links just open.
   await page.evaluate(() => window.open("https://example.com/invoice", "_blank"));
   assert.deepEqual(await settled(1), { asked: ["Open example.com in your browser?"], opened: [], answer: 1 });
   await answer(0);
@@ -876,7 +876,7 @@ try {
   await page.getByRole("tab", { name: /^Notes/ }).click();
   const documentNote = page.getByLabel("Notes about this document");
   await documentNote.fill("Note in the other tab");
-  const readerName = await page.evaluate(() => document.title.replace(/ — Folio$/, ""));
+  const readerName = await page.evaluate(() => document.title.replace(/ — Doko$/, ""));
   await page.keyboard.press("ControlOrMeta+t");
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("menuitem", { name: /^Settings/ }).click();

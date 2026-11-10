@@ -56,7 +56,7 @@ if apparmor_status --enabled > /dev/null 2>&1; then
   fi
 fi
 
-# Folio Local: receive updates through apt. Adds this fork's signed package source
+# Doko: receive updates through apt. Adds this fork's signed package source
 # and the key that signs it, unless the administrator already configured or removed them deliberately.
 FOLIO_KEYRING='/usr/share/keyrings/folio-local-archive-keyring.gpg'
 FOLIO_SOURCE='/etc/apt/sources.list.d/folio-local.list'
@@ -68,5 +68,5 @@ if ! install -m 0644 '/opt/${sanitizedProductName}/resources/folio-archive-keyri
   exit 1
 fi
 if [ ! -e "$FOLIO_SOURCE" ] && [ ! -e '/etc/apt/sources.list.d/folio-local.list.disabled' ]; then
-  echo "deb [arch=amd64 signed-by=$FOLIO_KEYRING] https://github.com/roqusanalytics/folio/releases/latest/download ./" > "$FOLIO_SOURCE" || true
+  echo "deb [arch=amd64 signed-by=$FOLIO_KEYRING] https://github.com/roqusanalytics/doko/releases/latest/download ./" > "$FOLIO_SOURCE" || true
 fi

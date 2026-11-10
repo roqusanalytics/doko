@@ -25,7 +25,7 @@ if [ -f "$APPARMOR_PROFILE_DEST" ]; then
   fi
   rm -f "$APPARMOR_PROFILE_DEST"
 fi
-# Folio Local: remove only this fork's apt source and key, not during upgrades.
+# Doko: remove only this fork's apt source and key, not during upgrades.
 if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
   rm -f '/etc/apt/sources.list.d/folio-local.list' '/usr/share/keyrings/folio-local-archive-keyring.gpg'
 fi

@@ -138,7 +138,7 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
           if (result.cancelled) return false;
           if (!result.ok || !result.document) {
             setConflict(!!result.conflict);
-            setError(result.error || (result.conflict ? "This file changed outside Folio. Save a copy or reload it." : "Couldn't save. Your changes are still here."));
+            setError(result.error || (result.conflict ? "This file changed outside Doko. Save a copy or reload it." : "Couldn't save. Your changes are still here."));
             return false;
           }
           setDoc(result.document); tabs.contentSaved(tabKey, result.document);
@@ -248,7 +248,7 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
   }}>
     <header ref={header} className="topbar content-topbar">
       <div className="topbar-left">
-        <button className="brand" title="Back to library" onClick={() => tabs.library()}><span className="brand-mark" /><span className="brand-name">Folio</span></button>
+        <button className="brand" title="Back to library" onClick={() => tabs.library()}><span className="brand-mark" /><span className="brand-name">Doko</span></button>
         <div className="doc-title" title={doc.name}><span>{doc.name}</span>{dirty && <span className="dirty-dot" aria-label="Unsaved changes" role="img" />}</div>
       </div>
       <div className="topbar-right">

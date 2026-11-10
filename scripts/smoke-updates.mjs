@@ -24,7 +24,7 @@ const server = http.createServer((request, response) => {
   if (fail) { response.writeHead(503); response.end("Unavailable"); return; }
   assert.match(request.url, /^\/latest(?:-mac|-linux)?\.yml(?:\?|$)/, "unexpected artifact download");
   response.setHeader("Content-Type", "text/yaml");
-  response.end(`version: ${version}\nfiles:\n  - url: Folio-mac.zip\n    sha512: ${Buffer.alloc(64).toString("base64")}\n    size: 1\npath: Folio-mac.zip\nsha512: ${Buffer.alloc(64).toString("base64")}\nreleaseDate: '2026-11-09T00:00:00.000Z'\n`);
+  response.end(`version: ${version}\nfiles:\n  - url: Doko-mac.zip\n    sha512: ${Buffer.alloc(64).toString("base64")}\n    size: 1\npath: Doko-mac.zip\nsha512: ${Buffer.alloc(64).toString("base64")}\nreleaseDate: '2026-11-09T00:00:00.000Z'\n`);
 });
 await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 writeFileSync(config, `provider: generic\nurl: http://127.0.0.1:${server.address().port}/\nupdaterCacheDirName: folio-update-test\n`);
@@ -49,8 +49,16 @@ try {
   }, config);
   assert.equal(metadata.local, true);
   assert.equal(metadata.target.owner, "roqusanalytics");
-  assert.equal(metadata.target.repo, "folio");
+  assert.equal(metadata.target.repo, "doko");
   assert.equal(await app.evaluate(({ app }) => app.getName()), "Folio Local");
+  if (process.platform === "darwin") {
+    const brand = await app.evaluate(({ Menu }) => {
+      const menu = Menu.getApplicationMenu().items[0];
+      return { title: menu.label, labels: menu.submenu.items.filter(item => ['about', 'hide', 'quit'].includes(item.role)).map(item => item.label) };
+    });
+    assert.equal(brand.title, "Doko");
+    assert.deepEqual(brand.labels, ["About Doko", "Hide Doko", "Quit Doko"]);
+  }
   assert.equal(requests.length, 0, "disabled startup checking accessed the update feed");
   await window.evaluate(() => {
     window.updateStates = [];
@@ -119,7 +127,7 @@ try {
     await page.screenshot({ path: path.join(shots, "updates-gallery.png") });
     await app.evaluate(async () => { for (let attempt = 0; attempt < 100 && globalThis.updateLinks.length < 3; attempt++) await new Promise(resolve => setTimeout(resolve, 20)); });
     const links = await app.evaluate(() => globalThis.updateLinks);
-    assert.deepEqual(links, Array(3).fill("https://github.com/roqusanalytics/folio/releases/latest"));
+    assert.deepEqual(links, Array(3).fill("https://github.com/roqusanalytics/doko/releases/latest"));
     console.log("ok  unsigned Mac announces version 99.0.0 in Markdown, galleries and shared settings; every Download opens the fork release page");
   }
   await assertHidden(app);

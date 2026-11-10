@@ -11,7 +11,7 @@ interface UpdateStatus {
   checkedAt?: number;
 }
 
-// Present only when Folio runs as the desktop app (see electron/preload.cjs).
+// Present only when Doko runs as the desktop app (see electron/preload.cjs).
 type FileCommand = "save" | "save-as" | "export" | "compress" | "print" | "properties" | "recent" | "hand";
 type FileSaveFormat = "pdf" | "png" | "jpg" | "webp" | "html" | "txt" | "md" | "zip";
 type FileSaveResult = { ok?: boolean; cancelled?: boolean; id?: string; name?: string; error?: string; conflict?: boolean };

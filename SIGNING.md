@@ -1,6 +1,6 @@
 # Code signing
 
-The release workflow uses three GitHub environments in **roqusanalytics/folio**. Keep Apple credentials in
+The release workflow uses three GitHub environments in **roqusanalytics/doko**. Keep Apple credentials in
 `release-macos`, Azure credentials in `release-windows`, and this fork's apt signing key in `release-linux`.
 Configure each environment to accept only release tags matching `v*` and require an independent release reviewer.
 Protect the creation, update and deletion of those tags with a repository ruleset. These controls are configured
@@ -41,14 +41,14 @@ build sets `folioMacSigned`, which turns on silent updates in `electron/main.cjs
 5. Add the secrets:
 
    ```sh
-   base64 -i DeveloperID.p12 | gh secret set MAC_CERTIFICATE_P12_BASE64 --env release-macos --repo roqusanalytics/folio
-   gh secret set MAC_CERTIFICATE_PASSWORD --env release-macos --repo roqusanalytics/folio      # the .p12 password
-   gh secret set APPLE_ID --env release-macos --repo roqusanalytics/folio                      # your Apple ID email
-   gh secret set APPLE_APP_SPECIFIC_PASSWORD --env release-macos --repo roqusanalytics/folio
-   gh secret set APPLE_TEAM_ID --env release-macos --repo roqusanalytics/folio
+   base64 -i DeveloperID.p12 | gh secret set MAC_CERTIFICATE_P12_BASE64 --env release-macos --repo roqusanalytics/doko
+   gh secret set MAC_CERTIFICATE_PASSWORD --env release-macos --repo roqusanalytics/doko      # the .p12 password
+   gh secret set APPLE_ID --env release-macos --repo roqusanalytics/doko                      # your Apple ID email
+   gh secret set APPLE_APP_SPECIFIC_PASSWORD --env release-macos --repo roqusanalytics/doko
+   gh secret set APPLE_TEAM_ID --env release-macos --repo roqusanalytics/doko
    ```
 
-The next `npm run release` produces a signed, notarized Mac app. Macs running an earlier, unsigned Folio still see the
+The next `npm run release` produces a signed, notarized Mac app. Macs running an earlier, unsigned Doko still see the
 "download" prompt once; after installing the signed version, updates are automatic.
 
 ## Windows: Azure Trusted Signing
@@ -65,37 +65,38 @@ certificates), and Windows checks the publisher on every update.
 5. Add the secrets:
 
    ```sh
-   gh secret set AZURE_TENANT_ID --env release-windows --repo roqusanalytics/folio
-   gh secret set AZURE_CLIENT_ID --env release-windows --repo roqusanalytics/folio
-   gh secret set AZURE_CLIENT_SECRET --env release-windows --repo roqusanalytics/folio
-   gh secret set AZURE_SIGNING_ENDPOINT --env release-windows --repo roqusanalytics/folio     # e.g. https://eus.codesigning.azure.net
-   gh secret set AZURE_SIGNING_ACCOUNT --env release-windows --repo roqusanalytics/folio      # Trusted Signing account name
-   gh secret set AZURE_SIGNING_PROFILE --env release-windows --repo roqusanalytics/folio      # certificate profile name
-   gh secret set AZURE_SIGNING_PUBLISHER --env release-windows --repo roqusanalytics/folio    # exactly the validated publisher name
+   gh secret set AZURE_TENANT_ID --env release-windows --repo roqusanalytics/doko
+   gh secret set AZURE_CLIENT_ID --env release-windows --repo roqusanalytics/doko
+   gh secret set AZURE_CLIENT_SECRET --env release-windows --repo roqusanalytics/doko
+   gh secret set AZURE_SIGNING_ENDPOINT --env release-windows --repo roqusanalytics/doko     # e.g. https://eus.codesigning.azure.net
+   gh secret set AZURE_SIGNING_ACCOUNT --env release-windows --repo roqusanalytics/doko      # Trusted Signing account name
+   gh secret set AZURE_SIGNING_PROFILE --env release-windows --repo roqusanalytics/doko      # certificate profile name
+   gh secret set AZURE_SIGNING_PUBLISHER --env release-windows --repo roqusanalytics/doko    # exactly the validated publisher name
    ```
 
 ## Linux apt signing
 
-Folio Local has its own signing key and apt repository. It does not trust or update the upstream Folio repository.
+Doko keeps the existing `Folio Local` profile, Linux package/executable names and apt trust paths for installed users.
+Its signing key and apt repository remain separate from upstream Folio's repository.
 The checked-in `build/linux/folio-archive-keyring.asc` and `.gpg` contain exactly one public primary certificate.
-`APT_SIGNING_KEY` in the `roqusanalytics/folio` environment `release-linux` must contain the corresponding armored
+`APT_SIGNING_KEY` in the `roqusanalytics/doko` environment `release-linux` must contain the corresponding armored
 private signing key. Keep a separate secure backup; never commit the private key or print it in logs.
 
 To provision an existing protected key file without displaying it:
 
 ```sh
-gh secret set APT_SIGNING_KEY --env release-linux --repo roqusanalytics/folio < /secure/path/apt-signing-key.asc
+gh secret set APT_SIGNING_KEY --env release-linux --repo roqusanalytics/doko < /secure/path/apt-signing-key.asc
 ```
 
 `scripts/apt-repo.sh` derives the expected signing fingerprint from the checked-in public certificate, rejects
 private keys and multiple primary certificates, and checks that the armored and binary keyrings match. It verifies
 both repository signatures, the signed package index, the .deb digest, package identity and version, and the public
-keyring embedded in `/opt/Folio Local/resources/folio-archive-keyring.gpg`.
+keyring embedded in `/opt/Doko/resources/folio-archive-keyring.gpg`.
 
 The package installs its keyring as `/usr/share/keyrings/folio-local-archive-keyring.gpg` and its apt source as
 `/etc/apt/sources.list.d/folio-local.list`, pointing to
-`https://github.com/roqusanalytics/folio/releases/latest/download`. These paths leave the official Folio installation
-and its trust configuration separate. Removing Folio Local removes only this fork's apt configuration.
+`https://github.com/roqusanalytics/doko/releases/latest/download`. These paths leave the upstream Folio installation
+and its trust configuration separate. Removing the Doko fork removes only its apt configuration.
 
 Before replacing this key, plan a signed transition that reaches already installed Folio Local clients. Merely
 replacing the checked-in certificate and secret would prevent those clients from authenticating the next update.

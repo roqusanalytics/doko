@@ -24,7 +24,7 @@ function validatePrintJob(job) {
 
 function printHtml(job) {
   validatePrintJob(job);
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>Folio print</title><style>
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>Doko print</title><style>
     @page { size: ${job.paper} ${job.landscape ? "landscape" : "portrait"}; margin: 0; }
     * { box-sizing: border-box; } html, body { margin: 0; padding: 0; }
     .sheet { width: 100vw; height: 100vh; break-after: page; overflow: hidden; }

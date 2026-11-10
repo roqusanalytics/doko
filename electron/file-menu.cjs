@@ -2,7 +2,11 @@ function fileMenuTemplate({ platform, send, open, state = { kind: 'none', busy: 
   const active = state.kind !== 'none' && !state.busy;
   const action = (label, command, accelerator, enabled = active) => ({ label, enabled, accelerator, click: () => send('folio:file-command', command) });
   return [
-    ...(platform === 'darwin' ? [{ role: 'appMenu' }] : []),
+    ...(platform === 'darwin' ? [{ role: 'appMenu', label: 'Doko', submenu: [
+      { role: 'about', label: 'About Doko' }, { type: 'separator' }, { role: 'services' },
+      { type: 'separator' }, { role: 'hide', label: 'Hide Doko' }, { role: 'hideOthers' }, { role: 'unhide' },
+      { type: 'separator' }, { role: 'quit', label: 'Quit Doko' },
+    ] }] : []),
     { label: 'File', submenu: [
       { label: 'New Tab', accelerator: 'CmdOrCtrl+T', click: () => send('folio:tab-command', 'new') },
       { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: open },

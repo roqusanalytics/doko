@@ -14,7 +14,7 @@ const temp = mkdtempSync(path.join(tmpdir(), "folio-document-export-"));
 const env = { ...process.env, FOLIO_TEST_USER_DATA: temp, FOLIO_TEST_HIDDEN: "1" };
 delete env.ELECTRON_RUN_AS_NODE;
 const asset = readdirSync(path.join(root, "dist/assets")).find(name => /^documentExport-.*\.js$/.test(name));
-assert.ok(asset, "Build Folio before running the document export test");
+assert.ok(asset, "Build Doko before running the document export test");
 const pdf = await PDFDocument.create(); pdf.addPage([80, 60]);
 const form = pdf.getForm(); const field = form.createTextField("Name"); field.setText("Keep me"); field.addToPage(pdf.getPage(0), { x: 5, y: 5, width: 50, height: 15 });
 const note = pdf.context.obj({ Type: "Annot", Subtype: "Text", Rect: [5, 35, 15, 45], Contents: PDFString.of("Preserve note"), F: PDFNumber.of(4) });
