@@ -1,10 +1,10 @@
-# Working on Folio (notes for AI coding agents and maintainers)
+# Working on Doko (notes for AI coding agents and maintainers)
 
-Folio ships for **Windows, macOS, and Linux from one codebase**. Every change and every release must reach all three.
+Doko ships for **Windows, macOS, and Linux from one codebase**. Every change and every release must reach all three.
 
 ## Project map and local setup
 
-Folio is a local-first PDF reader with a React/TypeScript renderer, Vite, and an Electron desktop shell.
+Doko is a local-first PDF reader with a React/TypeScript renderer, Vite, and an Electron desktop shell.
 Use Node.js 22 or newer and npm with the existing `package-lock.json`; CI uses Node.js 22 and `npm ci`.
 Install dependencies with `npm ci`. `npm run dev` starts the browser edition; desktop-only features require Electron.
 The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use the npm scripts to run these hooks.
@@ -39,7 +39,8 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
 - `npm run build:local` prepares a private Apple Silicon Mac app with `electron-builder.local.cjs`, a separate
   identity/profile, the fork update feed, and no publication. It builds outside synced folders for codesigning.
   Public releases still use the procedure below.
-- Keep the installed private Mac app only at `/Applications/Folio.app`. Store rollback copies as verified `.zip`
+- Keep the installed private Mac app only at `/Applications/Doko.app`. Existing `/Applications/Folio.app` installs are
+  not renamed by this documentation change. Store rollback copies as verified `.zip`
   archives, never loose `.app` bundles that macOS can index or launch. Unregister archived backup/build bundles
   with `lsregister -u`; register only the installed app. Verify the archive before removing its loose bundle.
 - **Release only with `npm run release`** (`-- minor`, `-- major`, `-- --notes "…"` as needed). It bumps the version,
@@ -51,7 +52,7 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
 - For a transient build failure, rerun the failed jobs on the original tag-push run. Once it succeeds,
   `npm run release -- --publish-only` resumes publication. A source fix on `main` needs a new version and tag.
 - The release must start at the latest `main` (the script checks). It pushes to `main` by name, so it works from a
-  worktree on any branch, e.g. `git worktree add ../folio-release origin/main`. If the run stops after the tag is
+  worktree on any branch, e.g. `git worktree add ../doko-release origin/main`. If the run stops after the tag is
   pushed (a closed terminal, a restarted session), run `npm run release -- --publish-only` to finish it.
 - **One release at a time.** Releases are built from committed, pushed code. If another session is working in the same
   checkout, coordinate: don't commit or release its uncommitted work, and use a separate `git worktree` for your own.
@@ -75,7 +76,7 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
 | Windows portable | none (download again) |
 | macOS | electron-updater reads `latest-mac.yml`; installs itself only when built with the Developer ID secrets (see SIGNING.md), otherwise shows a download link |
 | Linux AppImage | electron-updater reads `latest-linux.yml`, replaces itself |
-| Linux .deb | apt: the package adds Folio's signed repository (`Packages`/`InRelease` on each release, signed with the `APT_SIGNING_KEY` secret) |
+| Linux .deb | apt: the package adds Doko's signed repository (`Packages`/`InRelease` on each release, signed with the `APT_SIGNING_KEY` secret) |
 
 All of these files are produced by the release build and published together; `scripts/check-release.mjs` lists them.
 
@@ -96,7 +97,7 @@ All of these files are produced by the release build and published together; `sc
 Match the surrounding code: comments explain why, not what; user-facing text is plain and short. Run
 `npx tsc --noEmit`, `npm run build`, and `npm run smoke` before committing.
 
-To check a change in the running app, use `npm run smoke` (extend it if it doesn't cover your change). It runs Folio
+To check a change in the running app, use `npm run smoke` (extend it if it doesn't cover your change). It runs Doko
 without a visible window (off-screen on Windows and Linux, never shown on macOS) and leaves the clipboard alone, so it
 doesn't interrupt whoever is using the computer. A new script that launches Electron gets the binary from
 `scripts/electron-path.mjs`, which keeps a hidden run out of the Dock on macOS. Don't open a visible window

@@ -17,7 +17,7 @@ Choose **Advanced** to lay out sheets before opening the system print dialog.
 - **Pages per sheet** places 2, 4, 6, 9, or 16 pages on each sheet.
 - **Booklet** pairs pages for folding and pads the last sheet where necessary. For eight pages the sides are 8/1, 2/7, 6/3, and 4/5. Use a duplex printer and select two-sided printing with short-edge binding for landscape or long-edge binding for portrait.
 
-**Paper and quality** offers Letter, A4, or Legal, output at 150, 300, or 600 dpi, and grayscale or lighter ink. Automatic orientation follows each source page for Single page and Poster. Pages per sheet and Booklet default to landscape. Advanced jobs use one paper size. Folio turns differently oriented sheets to fit the printer’s job orientation.
+**Paper and quality** offers Letter, A4, or Legal, output at 150, 300, or 600 dpi, and grayscale or lighter ink. Automatic orientation follows each source page for Single page and Poster. Pages per sheet and Booklet default to landscape. Advanced jobs use one paper size. Doko turns differently oriented sheets to fit the printer’s job orientation.
 
 Advanced layouts render sheets as images. Limits are 100 sheets, 48 megapixels per sheet, 576 MiB of decoded sheet pixels, and 64 MiB of encoded data per job. If a job exceeds a limit, reduce the resolution, select fewer pages, or use Basic to print the PDF directly.
 

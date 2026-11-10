@@ -438,15 +438,15 @@ async function checkContentEditing(app, page, folder, shots) {
   const number = page.getByLabel("Page number", { exact: true });
   await number.fill("1"); await number.press("Enter");
   await openEditor();
-  await sheet.getByRole("button", { name: /A short tour of Folio/ }).first().click();
-  await input.fill("A tour of Folio"); await input.press("Enter");
-  await item("A tour of Folio").waitFor();
+  await sheet.getByRole("button", { name: /A short tour of Doko/ }).first().click();
+  await input.fill("A tour of Doko"); await input.press("Enter");
+  await item("A tour of Doko").waitFor();
   await captureDownload(app, path.join(folder, "edited-sample.pdf"));
   await save.click();
   assert.equal(await app.evaluate(() => globalThis.folioReordered), "completed");
   await page.window.waitForFunction(() => document.title.startsWith("Text runs (edited).pdf"));
-  await page.locator('.page[data-page-number="1"] .textLayer').getByText("A tour of Folio", { exact: true }).waitFor();
-  console.log("ok  fragmented embedded-font text in Folio's sample edits as a line and reopens in the reader");
+  await page.locator('.page[data-page-number="1"] .textLayer').getByText("A tour of Doko", { exact: true }).waitFor();
+  console.log("ok  fragmented embedded-font text in Doko's sample edits as a line and reopens in the reader");
 }
 
 export function linkHistoryPdf() {
@@ -644,7 +644,7 @@ async function checkLinkHistory(app, page, shots) {
   await page.getByRole("menuitem", { name: /New tab/ }).click();
   await page.getByRole("button", { name: /Try a sample/ }).click();
   // Opening existing bytes selects their original reader after the temporary tab finishes loading.
-  await page.window.waitForFunction(() => document.querySelector("iframe.document-reader.active")?.contentDocument?.title.startsWith("Folio sample.pdf"));
+  await page.window.waitForFunction(() => document.querySelector("iframe.document-reader.active")?.contentDocument?.title.startsWith("Doko sample.pdf"));
   await checkMenu(false, false);
   await page.keyboard.press("Control+Shift+Tab");
   assert.equal(await page.title(), sourceTitle);

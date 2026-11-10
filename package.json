@@ -20,7 +20,7 @@
     "test:chat-math": "node scripts/test-chat-math.mjs",
     "test:thumbnails": "node scripts/test-thumbnails.mjs",
     "test:content": "node --test scripts/test-content-files.cjs scripts/test-markdown-sections.mjs && node scripts/smoke-content.mjs && node scripts/smoke-markdown-modes.mjs && node scripts/test-photo-codec.mjs && node scripts/smoke-photo-tools.mjs && node scripts/smoke-photo-view.mjs && node scripts/smoke-pen-width.mjs",
-    "build:local": "npm run build && electron-builder --config electron-builder.local.cjs --mac --arm64 --dir --publish never"
+    "build:local": "npm run build && electron-builder --config electron-builder.local.cjs --mac zip --arm64 --publish never"
   },
   "dependencies": {
     "electron-updater": "^6.8.11",
@@ -59,17 +59,17 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.5"
   },
-  "productName": "Folio Local",
+  "productName": "Doko",
   "description": "PDF, Markdown, and photo-folder reader",
   "license": "MIT",
-  "homepage": "https://github.com/roqusanalytics/folio",
+  "homepage": "https://github.com/roqusanalytics/doko",
   "bugs": {
-    "url": "https://github.com/roqusanalytics/folio/issues"
+    "url": "https://github.com/roqusanalytics/doko/issues"
   },
   "main": "electron/main.cjs",
   "build": {
     "appId": "app.folio.local",
-    "productName": "Folio Local",
+    "productName": "Doko",
     "electronLanguages": [
       "en-US"
     ],
@@ -96,11 +96,11 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Folio Local",
-      "artifactName": "Folio-Setup.exe"
+      "shortcutName": "Doko",
+      "artifactName": "Doko-Setup.exe"
     },
     "portable": {
-      "artifactName": "Folio-Portable.exe"
+      "artifactName": "Doko-Portable.exe"
     },
     "fileAssociations": [
       {
@@ -138,7 +138,7 @@
       {
         "provider": "github",
         "owner": "roqusanalytics",
-        "repo": "folio",
+        "repo": "doko",
         "releaseType": "release"
       }
     ],
@@ -194,10 +194,10 @@
       ],
       "identity": "-",
       "hardenedRuntime": false,
-      "artifactName": "Folio-mac.${ext}"
+      "artifactName": "Doko-mac.${ext}"
     },
     "dmg": {
-      "artifactName": "Folio-mac.dmg"
+      "artifactName": "Doko-mac.dmg"
     },
     "linux": {
       "target": [
@@ -231,17 +231,17 @@
       ]
     },
     "appImage": {
-      "artifactName": "Folio-linux-x86_64.AppImage"
+      "artifactName": "Doko-linux-x86_64.AppImage"
     },
     "deb": {
-      "artifactName": "Folio-linux-amd64.deb",
+      "artifactName": "Doko-linux-amd64.deb",
       "afterInstall": "build/linux/after-install.tpl",
       "afterRemove": "build/linux/after-remove.tpl"
     }
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/roqusanalytics/folio.git"
+    "url": "https://github.com/roqusanalytics/doko.git"
   },
   "author": "Forward Future",
   "desktopName": "folio-local.desktop",

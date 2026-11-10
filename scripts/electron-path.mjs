@@ -1,7 +1,7 @@
 // The Electron binary a test script launches; `env` is the environment the script gives the app.
 //
 // macOS decides whether an app gets a Dock icon from the Info.plist of the bundle its binary sits in, as the process
-// starts and before any of Folio's code runs. Launched from the ordinary Electron.app, a hidden run made the Dock open
+// starts and before any of Doko's code runs. Launched from the ordinary Electron.app, a hidden run made the Dock open
 // a slot for an icon for about a second, until main.cjs took it away. So on macOS hidden runs start a copy of
 // Electron.app whose Info.plist says it is an agent app (LSUIElement), which never has a Dock icon. The copy is kept
 // beside the electron package and made again when the Electron version changes.

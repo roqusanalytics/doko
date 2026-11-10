@@ -49,7 +49,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
     });
     return () => { cancelled = true; };
   }, [desktop]);
-  return <Modal title="About Folio" onClose={onClose}>
+  return <Modal title="About Doko" onClose={onClose}>
     <dl className="info-list">
       <div><dt>Version</dt><dd>{info?.version ?? (desktop ? "Loading..." : "Browser edition")}</dd></div>
       <div><dt>Edition</dt><dd>{EDITIONS[info?.mode ?? ""] ?? (desktop ? "Development" : "Web")}</dd></div>
@@ -189,7 +189,7 @@ export function OpenUrlDialog({ initial = "", onSubmit, onClose }: { initial?: s
           if (url) onSubmit(url);
         }}
       >
-        <p>Paste a link to a PDF or a webpage. Webpages become a PDF you can highlight and mark up. You can also drop or paste a link anywhere in Folio.</p>
+        <p>Paste a link to a PDF or a webpage. Webpages become a PDF you can highlight and mark up. You can also drop or paste a link anywhere in Doko.</p>
         <input type="url" autoFocus value={value} onChange={(e) => setValue(e.target.value)} placeholder="https://example.com/article" aria-label="PDF URL" />
         {value.trim() && !url && <p className="form-error">Enter an http:// or https:// address.</p>}
         <div className="form-actions">

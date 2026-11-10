@@ -1,11 +1,11 @@
-// The first half of Folio's built-in Word converter (convert.cjs prints the result): turns a .docx into an HTML page.
+// The first half of Doko's built-in Word converter (convert.cjs prints the result): turns a .docx into an HTML page.
 // It runs in a utility process of its own, so a document built to exhaust memory or stall the parser (a small file
-// can unpack into gigabytes) takes down only this process, not Folio.
+// can unpack into gigabytes) takes down only this process, not Doko.
 const fs = require("node:fs");
 const { boundedParts } = require("./docx-parts.cjs");
 const { readRegular } = require("./document-files.cjs");
 
-// Folio's own layout: a printed page with Word's usual defaults.
+// Doko's own layout: a printed page with Word's usual defaults.
 const DOCUMENT_CSS = `
 @page { margin: 1in; }
 body { font-family: Calibri, Carlito, "Segoe UI", Arial, sans-serif; font-size: 11pt; line-height: 1.4; color: #000; margin: 0; overflow-wrap: break-word; }

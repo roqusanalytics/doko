@@ -32,7 +32,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          title="Latest Folio release is incomplete for some platforms"
+          title="Latest Doko release is incomplete for some platforms"
           body="$(cat result.txt)
 
           Found by the daily Release check workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}.

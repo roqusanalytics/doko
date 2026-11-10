@@ -1,4 +1,4 @@
-// Minimal bridge between the Folio page and the desktop shell.
+// Minimal bridge between the Doko page and the desktop shell.
 const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("folioDesktop", {

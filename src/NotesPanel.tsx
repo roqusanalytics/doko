@@ -93,7 +93,7 @@ export function NotesPanel({ state, onExport, persisted, photo, onReveal, onNote
       {other > 0 && <p className="notes-foot">Plus {other} drawing{other === 1 ? "" : "s"} on the pages.</p>}
       <p className="notes-foot">
         {keys(photo ? "Document notes and bookmarks are saved on this computer. Use Save PNG to keep an image copy." : persisted ? "Saved automatically on this computer. Ctrl+S saves a PDF copy that includes them."
-          : "Password-protected documents aren't saved in Folio. Use Ctrl+S to keep a copy with your highlights.")}
+          : "Password-protected documents aren't saved in Doko. Use Ctrl+S to keep a copy with your highlights.")}
       </p>
     </div>
   );

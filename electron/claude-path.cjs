@@ -15,7 +15,7 @@ const isFile = (file) => { try { return fs.statSync(file).isFile(); } catch { re
 /**
  * Searches absolute folders only (never the current folder, which `where.exe` checks first), with Claude Code's default
  * install location first. Only native executables on Windows: .cmd/.bat shims would need a shell, so for an npm shim
- * Folio runs the claude.exe it points to instead.
+ * Doko runs the claude.exe it points to instead.
  */
 function findClaude({ platform, home, envPath, extraFolders = installFolders(platform, home) }) {
   const dirs = [path.join(home, ".local", "bin"), ...String(envPath ?? "").split(path.delimiter), ...extraFolders]

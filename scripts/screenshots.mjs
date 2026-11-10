@@ -1,6 +1,6 @@
 // Takes the README screenshots in docs/screenshots: launches the built app on the sample document and captures
-// highlights and notes (light theme), Ask AI, and search (dark theme). The Ask AI shot asks Claude Code a
-// real question, so it needs Claude Code installed and signed in; it's skipped otherwise. Run `npm run build` first.
+// highlights and notes (light theme), Ask AI with a local demo response, and search (dark theme).
+// No provider sign-in or network request is needed. Run `npm run build` first.
 import assert from "node:assert/strict";
 import { electronPath } from "./electron-path.mjs";
 import { readerPage } from "./reader-page.mjs";
@@ -49,7 +49,7 @@ try {
   await pageText();
   await theme("light");
 
-  await highlight("A short tour of Folio", "yellow");
+  await highlight("A short tour of Doko", "yellow");
   await highlight("page. The sidebar on the left", "green");
   await highlight("Drag a PDF file anywhere", "pink");
   await page.getByRole("tab", { name: /Notes/ }).click();
@@ -58,20 +58,25 @@ try {
   await page.locator(".page").first().click({ position: { x: 20, y: 20 } });
   await shot("highlights-and-notes");
 
-  const status = await page.evaluate(() => window.folioDesktop.ai.status());
-  if (status.claude?.loggedIn) {
-    await page.evaluate(() => localStorage.setItem("folio:ai-provider", "claude"));
-    await page.getByRole("tab", { name: /Pages/ }).click();
-    await page.getByRole("button", { name: "Ask AI", exact: true }).click();
-    await page.locator('[aria-label="Ask AI"] textarea').fill("What can I do with this document in Folio? Keep it short.");
-    await page.keyboard.press("Enter");
-    await page.locator('[aria-label="Stop"]').waitFor({ timeout: 30_000 });
-    await page.locator('[aria-label="Stop"]').waitFor({ state: "detached", timeout: 180_000 });
-    await shot("ask-ai");
-    await page.getByLabel("Close Ask AI").click();
-  } else {
-    console.log("skipped ask-ai: Claude Code isn't signed in");
-  }
+  // Reuse the smoke-test stream fixture so these captures never send document data to a provider.
+  await app.evaluate(({ ipcMain }, answer) => {
+    for (const name of ["folio:ai-status", "folio:ai-chatgpt-models", "folio:ai-ask"]) ipcMain.removeHandler(name);
+    ipcMain.handle("folio:ai-status", () => ({ chatgpt: { connected: true, welcomeSeen: true }, claude: { installed: false } }));
+    ipcMain.handle("folio:ai-chatgpt-models", () => ({ ok: true, models: [{ id: "demo", name: "Demo" }] }));
+    ipcMain.handle("folio:ai-ask", (event, { id }) => {
+      event.sender.send("folio:ai-event", { id, type: "delta", text: answer });
+      event.sender.send("folio:ai-event", { id, type: "done" });
+      return true;
+    });
+  }, "This sample is a tour of Doko's reading tools.\n\n- **Navigate:** scroll, use thumbnails or the outline, and adjust zoom. (p. 1)\n- **Highlight and annotate:** add color, notes, drawings, text, and a signature. (p. 2)\n- **Ask AI:** explore the document with page citations. (p. 3)\n- **Save or print:** keep a copy with your annotations. (p. 4)");
+  await page.evaluate(() => localStorage.setItem("folio:ai-provider", "chatgpt"));
+  await page.getByRole("tab", { name: /Pages/ }).click();
+  await page.getByRole("button", { name: "Ask AI", exact: true }).click();
+  await page.locator('[aria-label="Ask AI"] textarea').fill("What can I do with this document in Doko? Keep it short.");
+  await page.keyboard.press("Enter");
+  await page.getByTitle("Copy response as Markdown").waitFor();
+  await shot("ask-ai");
+  await page.getByLabel("Close Ask AI").click();
 
   await theme("dark");
   await page.keyboard.press("ControlOrMeta+f");

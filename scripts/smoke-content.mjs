@@ -149,10 +149,10 @@ try {
   console.log("ok  file identity, independent identical files, close Cancel/Discard/Save and reopen");
 
   await edit("# Local changes\n");
-  writeFileSync(first, "\ufeff# Changed outside Folio\r\n");
+  writeFileSync(first, "\ufeff# Changed outside Doko\r\n");
   await save();
   await page.getByRole("button", { name: "Reload from disk", exact: true }).waitFor();
-  assert.equal(readFileSync(first, "utf8"), "\ufeff# Changed outside Folio\r\n", "conflict overwrote external edits");
+  assert.equal(readFileSync(first, "utf8"), "\ufeff# Changed outside Doko\r\n", "conflict overwrote external edits");
   assert.equal(await editorText(), "# Local changes\n");
   await page.getByRole("button", { name: "Reload from disk", exact: true }).click();
   const reload = page.getByRole("dialog", { name: "Reload from disk", exact: true });
@@ -160,12 +160,12 @@ try {
   assert.equal(await editorText(), "# Local changes\n");
   await page.getByRole("button", { name: "Reload from disk", exact: true }).click();
   await reload.getByRole("button", { name: "Discard and reload", exact: true }).click();
-  await assertEventually(async () => await editorText() === "# Changed outside Folio\n", "reload did not replace the source");
+  await assertEventually(async () => await editorText() === "# Changed outside Doko\n", "reload did not replace the source");
   await editor().focus();
   await page.keyboard.press("ControlOrMeta+z");
-  assert.equal(await editorText(), "# Changed outside Folio\n", "Undo after reload resurrected discarded local text");
+  assert.equal(await editorText(), "# Changed outside Doko\n", "Undo after reload resurrected discarded local text");
   await page.keyboard.press("ControlOrMeta+Shift+z");
-  assert.equal(await editorText(), "# Changed outside Folio\n", "Redo after reload changed the external version");
+  assert.equal(await editorText(), "# Changed outside Doko\n", "Redo after reload changed the external version");
   await edit("");
   await save();
   await diskIs(first, "\ufeff");
@@ -292,7 +292,7 @@ try {
   await close("Photos");
   await page.getByRole("button", { name: /Try a sample/ }).click();
   await page.locator(".textLayer span:not(.markedContent)").first().waitFor({ timeout: 30_000 });
-  assert.match(await page.locator(".textLayer").first().innerText(), /A short tour of Folio/);
+  assert.match(await page.locator(".textLayer").first().innerText(), /A short tour of Doko/);
   await assertHidden(app);
   assert.deepEqual(errors, []);
   console.log(`PASS content (${process.platform}): responsive themes, PDF regression and hidden window`);

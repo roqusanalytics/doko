@@ -8,7 +8,7 @@ set -euo pipefail
 export -n APT_SIGNING_KEY
 repo=$(cd "$(dirname "$0")/.." && pwd)
 keyring="$repo/build/linux/folio-archive-keyring.gpg"
-deb=Folio-linux-amd64.deb
+deb=Doko-linux-amd64.deb
 product=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["build"]["productName"])' "$repo/package.json")
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -36,9 +36,10 @@ if [[ $# == 0 ]]; then
   cp "$artifacts/$deb" "$metadata/"
   (cd "$metadata" && dpkg-scanpackages --multiversion . /dev/null > Packages)
   gzip -9nc "$metadata/Packages" > "$metadata/Packages.gz"
+  # Keep the installed repository identity: changing Origin/Label blocks unattended apt updates.
   (cd "$metadata" && apt-ftparchive \
-    -o APT::FTPArchive::Release::Origin="$product" \
-    -o APT::FTPArchive::Release::Label="$product" \
+    -o APT::FTPArchive::Release::Origin="Folio Local" \
+    -o APT::FTPArchive::Release::Label="Folio Local" \
     -o APT::FTPArchive::Release::Suite="stable" \
     -o APT::FTPArchive::Release::Codename="stable" \
     -o APT::FTPArchive::Release::Architectures="amd64" \

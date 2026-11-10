@@ -1,5 +1,5 @@
-// Word documents (.doc, .docx) are converted to PDF before Folio opens them. The best converter on the computer
-// wins: Microsoft Word (Windows), then LibreOffice (any platform), then Folio's own, which lays the text, tables,
+// Word documents (.doc, .docx) are converted to PDF before Doko opens them. The best converter on the computer
+// wins: Microsoft Word (Windows), then LibreOffice (any platform), then Doko's own, which lays the text, tables,
 // and images out in a hidden window and prints them (.docx everywhere; .doc on macOS, through textutil).
 const { app, BrowserWindow, session, utilityProcess } = require("electron");
 const { execFile } = require("node:child_process");
@@ -87,7 +87,7 @@ async function withLibreOffice(soffice, source, dir) {
 }
 
 // The built-in converter reads a .docx in a utility process (docx-worker.cjs) and stops it if it takes too long or
-// grows past this: a few hundred kilobytes of .docx can unpack into more than Folio's memory.
+// grows past this: a few hundred kilobytes of .docx can unpack into more than Doko's memory.
 const WORKER_MEMORY_LIMIT = 768 * 1024 ** 2;
 
 function runWorker(script, serviceName, data) {
@@ -160,7 +160,7 @@ async function builtIn(source, dir, title) {
   await fs.promises.mkdir(htmlDir);
   const htmlFile = path.join(htmlDir, "document.html");
   if (/\.docx$/i.test(source)) {
-    await runWorker("docx-worker.cjs", "Folio Word converter", { source, output: htmlFile, title });
+    await runWorker("docx-worker.cjs", "Doko Word converter", { source, output: htmlFile, title });
   } else if (process.platform === "darwin") {
     await run("/usr/bin/textutil", ["-format", "doc", "-convert", "html", "-output", htmlFile, source]);
     const text = (await readRegular(htmlFile, MAX_HTML_BYTES)).toString("utf8");
@@ -197,7 +197,7 @@ async function convertStaged(source, dir, title, log) {
   }
   if (!only || only === "builtin") {
     try { return await builtIn(source, dir, title); }
-    catch (error) { fail("Folio", error); }
+    catch (error) { fail("Doko", error); }
   }
   throw Object.assign(new Error(failures.join("\n")), { userMessage: "The document may be damaged or protected with a password." });
 }
@@ -217,7 +217,7 @@ async function convertDocument(file, log) {
       try {
         const ready = path.join(dir, "publish.pdf");
         await fs.promises.writeFile(ready, data, { flag: "wx", mode: 0o600 });
-        const { index } = await runWorker("word-publish.cjs", "Folio Word export", { location: staged.location, ready });
+        const { index } = await runWorker("word-publish.cjs", "Doko Word export", { location: staged.location, ready });
         if (index) {
           const name = pdfName(staged.location.name, index);
           await rememberPdf(profile, staged, index, data).catch((error) => log(error.message));

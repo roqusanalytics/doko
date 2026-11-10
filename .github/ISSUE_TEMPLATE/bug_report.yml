@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in Folio is broken, crashes, or behaves wrongly.
+description: Something in Doko is broken, crashes, or behaves wrongly.
 labels: [bug]
 body:
   - type: markdown
@@ -8,8 +8,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: Folio version
-      description: Shown in About Folio.
+      label: Doko version
+      description: Shown in About Doko.
       placeholder: "1.10.2"
     validations:
       required: true

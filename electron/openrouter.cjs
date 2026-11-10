@@ -117,7 +117,7 @@ function createOpenRouter({ net, safeStorage, file, writeAtomic }) {
     ask: async ({ model, document, messages }, emit, signal) => {
       if (!validModel(model)) throw new Error("Choose an OpenRouter model in Settings.");
       const passage = messages.at(-1)?.context;
-      if (document.truncated && !passage) throw new Error("This document exceeds Folio’s whole-document limit. Select a passage and ask again.");
+      if (document.truncated && !passage) throw new Error("This document exceeds Doko’s whole-document limit. Select a passage and ask again.");
       const { instructions, input } = chatRequest(model, passage
         ? { name: document.name, text: `[Page ${passage.page}]\n${passage.text}`, truncated: true } : document, messages);
       // Small-context endpoints can otherwise silently drop the middle of the document.

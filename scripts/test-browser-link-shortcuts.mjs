@@ -26,7 +26,7 @@ try {
   await page.waitForFunction(() => document.querySelector('[aria-label="Page number"]').value === "2");
   assert.equal(await page.locator(".link-return").count(), 0);
 
-  // Put Folio between real browser-history entries in both directions. Observe the event
+  // Put Doko between real browser-history entries in both directions. Observe the event
   // after dispatch as well: headless Chromium doesn't implement every browser accelerator.
   await tab.evaluate(async () => {
     for (const where of ["before", "reader", "after"]) history.pushState(null, "", "?location=" + where);

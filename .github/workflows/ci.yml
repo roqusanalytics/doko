@@ -46,7 +46,7 @@ jobs:
           # Exercise the native save ACL regression instead of skipping its fixture.
           sudo apt-get update -qq
           sudo apt-get install -y acl
-          # Ubuntu 24.04 restricts the user namespaces Chromium's sandbox needs; installed Folio packages
+          # Ubuntu 24.04 restricts the user namespaces Chromium's sandbox needs; installed Doko packages
           # ship an AppArmor profile for this, but the development Electron binary doesn't.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           npx --no-install playwright-core install ffmpeg

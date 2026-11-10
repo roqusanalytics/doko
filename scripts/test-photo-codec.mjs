@@ -14,7 +14,7 @@ const temp = mkdtempSync(path.join(tmpdir(), "folio-photo-codec-"));
 const env = { ...process.env, FOLIO_TEST_USER_DATA: temp, FOLIO_TEST_HIDDEN: "1" };
 delete env.ELECTRON_RUN_AS_NODE;
 const asset = readdirSync(path.join(root, "dist/assets")).find(name => /^documentExport-.*\.js$/.test(name));
-assert.ok(asset, "Build Folio before running the photo codec test");
+assert.ok(asset, "Build Doko before running the photo codec test");
 const app = await electron.launch({ executablePath: electronPath(env), env, args: [root, "--mute-audio",
   ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
 try {

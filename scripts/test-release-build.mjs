@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { RELEASE_ARTIFACTS, RELEASES_REPO } from "./check-release.mjs";
+import { checkRelease, RELEASE_ARTIFACTS, RELEASES_REPO } from "./check-release.mjs";
 import { artifactIds, releaseBump, releaseFiles, selectBuild, selectCI, successfulAttempt, successfulCI, verifyReleaseTag, SOURCE_REPO } from "./release-build.mjs";
 
 const tag = "v1.2.3";
@@ -40,7 +40,7 @@ test("an older successful CI run cannot hide a newer run or rerun", () => {
 });
 
 test("normal and resumed publication execute the CI gate and recheck it after download", (t) => {
-  const folder = mkdtempSync(path.join(tmpdir(), "folio-publisher-test-"));
+  const folder = mkdtempSync(path.join(tmpdir(), "doko-publisher-test-"));
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   const source = readFileSync(new URL("./release.mjs", import.meta.url), "utf8")
     .replace('from "node:child_process"', 'from "./mock-process.mjs"')
@@ -106,8 +106,39 @@ test("normal and resumed publication execute the CI gate and recheck it after do
 });
 
 test("the fork builds and publishes in its own repository", () => {
-  assert.equal(SOURCE_REPO, "roqusanalytics/folio");
+  assert.equal(SOURCE_REPO, "roqusanalytics/doko");
   assert.equal(RELEASES_REPO, SOURCE_REPO);
+});
+
+test("published releases require their era's assets and matching update feeds", async (t) => {
+  for (const [version, prefix, missing, stale, valid] of [
+    ["1.17.4", "Folio", null, false, true],
+    ["1.18.0", "Folio", null, false, true],
+    ["1.18.1", "Doko", null, false, true],
+    ["1.19.0", "Doko", null, false, true],
+    ["2.0.0", "Doko", null, false, true],
+    ["1.18.1", "Folio", null, false, false],
+    ["1.18.1", "Doko", "Doko-mac.zip", false, false],
+    ["1.18.1", "Doko", null, true, false],
+  ]) {
+    await t.test(`${version} ${prefix} missing=${missing} stale=${stale}`, async (t) => {
+      const manifest = Object.values(RELEASE_ARTIFACTS).flat().map(asset => ({
+        ...asset, name: asset.name.replace(/^Doko-/, `${prefix}-`),
+      }));
+      t.mock.method(globalThis, "fetch", async (url) => {
+        if (url.startsWith("https://api.github.com/")) {
+          assert.equal(url, `https://api.github.com/repos/${SOURCE_REPO}/releases/latest`);
+          return { ok: true, json: async () => ({ tag_name: `v${version}`, assets: manifest
+            .filter(asset => asset.name !== missing).map(asset => ({ ...asset, browser_download_url: `https://downloads.example/${asset.name}` })) }) };
+        }
+        const feed = manifest.find(asset => url.endsWith(`/${asset.name}`));
+        return { text: async () => `${feed.feed === "apt" ? "Version" : "version"}: ${stale ? "1.0.0" : version}\n` };
+      });
+      const result = await checkRelease();
+      assert.equal(result.tag, `v${version}`);
+      assert.equal(result.problems.length === 0, valid, result.problems.join("\n"));
+    });
+  }
 });
 
 test("release bump is read with or without notes", () => {
@@ -162,17 +193,17 @@ test("archives must be unexpired and belong to the same run and SHA", () => {
 });
 
 test("only manifest files from the correct platform directory can be published", (t) => {
-  const folder = mkdtempSync(path.join(tmpdir(), "folio-release-test-"));
+  const folder = mkdtempSync(path.join(tmpdir(), "doko-release-test-"));
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   for (const [group, assets] of Object.entries(RELEASE_ARTIFACTS)) {
     mkdirSync(path.join(folder, group));
     for (const { name } of assets) writeFileSync(path.join(folder, group, name), "");
   }
-  const mac = path.join(folder, "folio-macos");
-  const win = path.join(folder, "folio-windows");
+  const mac = path.join(folder, "doko-macos");
+  const win = path.join(folder, "doko-windows");
   const files = releaseFiles(folder);
-  assert.ok(files.includes(path.join(mac, "Folio-mac.zip.blockmap")));
-  assert.ok(files.includes(path.join(mac, "Folio-mac.dmg.blockmap")));
+  assert.ok(files.includes(path.join(mac, "Doko-mac.zip.blockmap")));
+  assert.ok(files.includes(path.join(mac, "Doko-mac.dmg.blockmap")));
   writeFileSync(path.join(mac, "unrelated.exe"), "");
   assert.throws(() => releaseFiles(folder));
   rmSync(path.join(mac, "unrelated.exe"));

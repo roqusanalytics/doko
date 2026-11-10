@@ -279,7 +279,7 @@ export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, language
     window.clearTimeout(timer);
     cache.clear();
     pending.clear();
-    // A language change replaces only the text Folio added to the open document.
+    // A language change replaces only the text Doko added to the open document.
     // In one-page scrolling mode some rendered layers are detached from the viewer.
     for (const view of viewer.getCachedPageViews() as Set<PDFPageView>) {
       view.textLayer?.div.querySelectorAll(".ocr-word, .ocr-break").forEach(node => node.remove());

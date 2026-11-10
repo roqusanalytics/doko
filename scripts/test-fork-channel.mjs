@@ -7,6 +7,25 @@ import { test } from "node:test";
 
 const repo = path.resolve(import.meta.dirname, "..");
 
+test("Doko keeps installed application identities and uses the renamed fork", () => {
+  const pkg = JSON.parse(readFileSync(path.join(repo, "package.json"), "utf8"));
+  assert.equal(pkg.name, "folio-local");
+  assert.equal(pkg.productName, "Doko");
+  assert.equal(pkg.build.productName, "Doko");
+  assert.equal(pkg.build.appId, "app.folio.local");
+  assert.equal(pkg.build.linux.executableName, "folio-local");
+  assert.equal(pkg.desktopName, "folio-local.desktop");
+  assert.equal(pkg.build.nsis.shortcutName, "Doko");
+  assert.equal(pkg.folioLocal, true);
+  assert.equal(pkg.build.publish[0].owner, "roqusanalytics");
+  assert.equal(pkg.build.publish[0].repo, "doko");
+  const main = readFileSync(path.join(repo, "electron/main.cjs"), "utf8");
+  assert.ok(main.includes('app.setName("Folio Local")'), "Keep the credential-store identity stable");
+  const apt = readFileSync(path.join(repo, "scripts/apt-repo.sh"), "utf8");
+  assert.ok(apt.includes('Release::Origin="Folio Local"'));
+  assert.ok(apt.includes('Release::Label="Folio Local"'));
+});
+
 test("Linux installer keeps the fork's apt source and trust separate", () => {
   const install = readFileSync(path.join(repo, "build/linux/after-install.tpl"), "utf8");
   const remove = readFileSync(path.join(repo, "build/linux/after-remove.tpl"), "utf8");
@@ -17,7 +36,7 @@ test("Linux installer keeps the fork's apt source and trust separate", () => {
     assert.ok(!script.includes("/etc/apt/sources.list.d/folio.list"));
     assert.ok(!script.includes("Forward-Future"));
   }
-  assert.ok(install.includes("https://github.com/roqusanalytics/folio/releases/latest/download"));
+  assert.ok(install.includes("https://github.com/roqusanalytics/doko/releases/latest/download"));
   assert.ok(install.includes("folio-local.list.disabled"));
 });
 

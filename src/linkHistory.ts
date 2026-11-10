@@ -13,7 +13,7 @@ export interface HistoryState { back: boolean; forward: boolean }
 type HistoryChange = (state: HistoryState, followed?: { from: number; to: number }) => void;
 
 /** PDF.js calls this only after resolving a valid link. Keep its history inside this reader,
- * rather than using the browser's joint history across Folio's document iframes. */
+ * rather than using the browser's joint history across Doko's document iframes. */
 export class LinkHistory {
   private viewer: PDFViewer;
   private changed: HistoryChange;

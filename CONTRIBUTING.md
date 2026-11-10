@@ -1,4 +1,4 @@
-# Contributing to Folio
+# Contributing to Doko
 
 Thanks for helping. Bug reports, ideas, and pull requests are all welcome.
 
@@ -11,17 +11,17 @@ smaller one, or build the idea differently ourselves.
   help on their pull request instead of opening a second one.
 - **Bug fixes** are the most welcome. A small fix for an obvious bug can go straight to a pull request; for anything
   larger, open an issue first so we agree on what's broken.
-- **New features and changes to how Folio behaves** need an issue first, and a maintainer agreeing to the idea and its
+- **New features and changes to how Doko behaves** need an issue first, and a maintainer agreeing to the idea and its
   scope, before you build them. Link that comment in your pull request. Unrequested features, rewrites, and unrelated
   cleanup are usually closed.
 
-Folio aims to stay simple, fast, and private: no telemetry or Folio accounts. Network access is limited to updates,
+Doko aims to stay simple, fast, and private: no telemetry or Doko accounts. Network access is limited to updates,
 links you open, language packs you request, and AI providers you choose to connect or ask.
 
 ## Reporting bugs
 
-[Open an issue](https://github.com/roqusanalytics/folio/issues/new/choose) with your Folio version (shown in **About
-Folio**), your operating system, what you did, what you expected, and what happened. If a specific PDF triggers the
+[Open an issue](https://github.com/roqusanalytics/doko/issues/new/choose) with your Doko version (shown in **About
+Doko**), your operating system, what you did, what you expected, and what happened. If a specific PDF triggers the
 problem and you can share it, attach it, or describe how to make one. Keep each issue to one problem. For security
 issues, follow [SECURITY.md](SECURITY.md) instead.
 
@@ -43,7 +43,7 @@ everything that one fix needs; put cleanups and second fixes in their own pull r
 Say how you reproduced the problem, how you checked the fix, and what you saw. Name the operating system you tested
 on and anything you couldn't check. "Build passes" alone isn't enough.
 
-Folio runs on Windows, macOS, and Linux. If your change touches window chrome, file opening, shortcuts, menus,
+Doko runs on Windows, macOS, and Linux. If your change touches window chrome, file opening, shortcuts, menus,
 printing, the clipboard, or updates, say which platforms you tried, and read the platform notes in
 [AGENTS.md](AGENTS.md#keeping-every-platform-working).
 
@@ -67,7 +67,7 @@ By contributing, you agree that your contributions are licensed under the projec
 ## Releasing
 
 Maintainers publish releases with the GitHub CLI logged in to an account that can write to
-[roqusanalytics/folio](https://github.com/roqusanalytics/folio). Commit everything, then run:
+[roqusanalytics/doko](https://github.com/roqusanalytics/doko). Commit everything, then run:
 
 ```sh
 npm run release                                  # 1.0.0 -> 1.0.1

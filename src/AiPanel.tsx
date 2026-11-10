@@ -277,7 +277,7 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
       setBusy(null);
       setMessages((list) => {
         const next = list.slice();
-        next[next.length - 1] = { role: "assistant", content: "", error: { message: "Folio couldn't send that question." } };
+        next[next.length - 1] = { role: "assistant", content: "", error: { message: "Doko couldn't send that question." } };
         return next;
       });
     }
@@ -315,7 +315,7 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
 
       <div className="ai-body" ref={listRef}>
         {!ai ? (
-          <div className="ai-card"><p>Ask AI is available in the Folio desktop app.</p></div>
+          <div className="ai-card"><p>Ask AI is available in the Doko desktop app.</p></div>
         ) : !status ? (
           <p className="ai-checking">Checking connections…</p>
         ) : provider === "chatgpt" && !chatgptConnected ? (
@@ -327,13 +327,13 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
               {signingIn ? "Open the sign-in page again" : "Continue with ChatGPT"}
             </button>
             {signingIn && <p className="fine">Finish signing in in your browser, then come back here.</p>}
-            <p className="fine">When you ask, Folio sends your question and the document's text to OpenAI. Nothing is sent otherwise.</p>
+            <p className="fine">When you ask, Doko sends your question and the document's text to OpenAI. Nothing is sent otherwise.</p>
           </div>
         ) : provider === "claude" && !(status.claude.installed && status.claude.loggedIn) ? (
           <div className="ai-card">
             <h3>Use your Claude subscription</h3>
             {!status.claude.installed ? (
-              <p>Folio uses Claude Code, Anthropic's official app, signed in with your own Claude Pro or Max account. Install Claude Code, sign in once, then check again.</p>
+              <p>Doko uses Claude Code, Anthropic's official app, signed in with your own Claude Pro or Max account. Install Claude Code, sign in once, then check again.</p>
             ) : (
               <p>Claude Code is installed but not signed in. Open a terminal, run <code>claude</code>, and sign in with your Claude account.</p>
             )}
@@ -341,7 +341,7 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
               {!status.claude.installed && <a className="btn ghost" href={CLAUDE_CODE_URL} target="_blank" rel="noreferrer">Get Claude Code</a>}
               <button className="btn primary" onClick={async () => setStatus({ ...status, claude: await ai.recheckClaude() })}>Check again</button>
             </div>
-            <p className="fine">Folio never sees your Claude password or tokens. When you ask, it sends your question and the document's text to Anthropic through Claude Code.</p>
+            <p className="fine">Doko never sees your Claude password or tokens. When you ask, it sends your question and the document's text to Anthropic through Claude Code.</p>
           </div>
         ) : provider === "openrouter" && !connected.openrouter ? (
           <div className="ai-card">
@@ -353,7 +353,7 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
           <>
             {provider === "chatgpt" && !status.chatgpt.welcomeSeen && (
               <div className="ai-card ai-welcome">
-                <p><strong>You're connected{status.chatgpt.email ? ` as ${status.chatgpt.email}` : ""}.</strong> Questions you ask in Folio use your ChatGPT plan. You can manage usage in ChatGPT settings.</p>
+                <p><strong>You're connected{status.chatgpt.email ? ` as ${status.chatgpt.email}` : ""}.</strong> Questions you ask in Doko use your ChatGPT plan. You can manage usage in ChatGPT settings.</p>
                 <div className="ai-card-actions">
                   <a className="btn ghost" href={USAGE_URL} target="_blank" rel="noreferrer">Manage usage</a>
                   <button className="btn primary" onClick={async () => { await ai.chatgptWelcomeSeen(); setStatus(await ai.status()); }}>Got it</button>

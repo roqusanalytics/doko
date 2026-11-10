@@ -1,4 +1,4 @@
-// Checks that a published Folio release is complete for every platform: all installers are attached, and every
+// Checks that a published Doko release is complete for every platform: all installers are attached, and every
 // update feed (Windows, macOS, Linux AppImage, and the apt repository) offers that same version.
 //
 //   node scripts/check-release.mjs            # the latest release
@@ -8,26 +8,26 @@
 // publishing and by the daily "Release check" workflow.
 import { pathToFileURL } from "node:url";
 
-export const RELEASES_REPO = "roqusanalytics/folio";
+export const RELEASES_REPO = "roqusanalytics/doko";
 
 /** The files produced by each release job, and the update feeds whose versions must match the release. */
 export const RELEASE_ARTIFACTS = {
-  "folio-windows": [
-    { name: "Folio-Setup.exe" }, { name: "Folio-Setup.exe.blockmap" }, { name: "Folio-Portable.exe" },
+  "doko-windows": [
+    { name: "Doko-Setup.exe" }, { name: "Doko-Setup.exe.blockmap" }, { name: "Doko-Portable.exe" },
     { name: "latest.yml", feed: "yaml" },
   ],
-  "folio-macos": [
-    { name: "Folio-mac.dmg" }, { name: "Folio-mac.dmg.blockmap" }, { name: "Folio-mac.zip" },
-    { name: "Folio-mac.zip.blockmap" }, { name: "latest-mac.yml", feed: "yaml" },
+  "doko-macos": [
+    { name: "Doko-mac.dmg" }, { name: "Doko-mac.dmg.blockmap" }, { name: "Doko-mac.zip" },
+    { name: "Doko-mac.zip.blockmap" }, { name: "latest-mac.yml", feed: "yaml" },
   ],
-  "folio-linux": [
-    { name: "Folio-linux-x86_64.AppImage" }, { name: "Folio-linux-amd64.deb" }, { name: "latest-linux.yml", feed: "yaml" },
+  "doko-linux": [
+    { name: "Doko-linux-x86_64.AppImage" }, { name: "Doko-linux-amd64.deb" }, { name: "latest-linux.yml", feed: "yaml" },
     { name: "Packages", feed: "apt" }, { name: "Packages.gz" }, { name: "Release" }, { name: "InRelease" }, { name: "Release.gpg" },
   ],
 };
 export const REQUIRED_ASSETS = Object.values(RELEASE_ARTIFACTS).flat();
 
-const headers = { Accept: "application/vnd.github+json", "User-Agent": "folio-release-check" };
+const headers = { Accept: "application/vnd.github+json", "User-Agent": "doko-release-check" };
 if (process.env.GITHUB_TOKEN || process.env.GH_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN || process.env.GH_TOKEN}`;
 
 export async function checkRelease(tag = "latest") {
@@ -39,8 +39,14 @@ export async function checkRelease(tag = "latest") {
   const release = await response.json();
   const version = release.tag_name.replace(/^v/, "");
   const assets = new Map(release.assets.map((a) => [a.name, a]));
+  const [major, minor, patch] = version.split(".").map(Number);
+  // v1.18.0 was the last Folio release; keep checking those historical assets after the repository rename.
+  const legacy = major < 1 || (major === 1 && (minor < 18 || (minor === 18 && patch === 0)));
+  const requiredAssets = legacy
+    ? REQUIRED_ASSETS.map(asset => ({ ...asset, name: asset.name.replace(/^Doko-/, "Folio-") }))
+    : REQUIRED_ASSETS;
   const problems = [];
-  for (const required of REQUIRED_ASSETS) {
+  for (const required of requiredAssets) {
     const asset = assets.get(required.name);
     if (!asset) {
       problems.push(`${required.name} is missing.`);

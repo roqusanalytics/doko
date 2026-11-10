@@ -1,9 +1,9 @@
-# Folio
+# Doko
 
 A fast, clean PDF reader for Windows, macOS, and Linux. Read, highlight, annotate, sign, and ask AI about your
-documents. Free and open source, with no Folio account required.
+documents. Free and open source, with no Doko account required.
 
-![Folio with the Ask AI panel open, answering a question about the document with page citations](docs/screenshots/ask-ai.png)
+![Doko with the Ask AI panel open, answering a question about the document with page citations](docs/screenshots/ask-ai.png)
 
 | Highlights and notes | Search |
 | --- | --- |
@@ -13,26 +13,33 @@ documents. Free and open source, with no Folio account required.
 
 | Platform | Download | Updates |
 | --- | --- | --- |
-| **Windows** 10/11 (64-bit) | [Folio-Setup.exe](https://github.com/roqusanalytics/folio/releases/latest/download/Folio-Setup.exe) | Automatic |
-| **macOS** 12 or later (Apple Silicon and Intel) | [Folio-mac.dmg](https://github.com/roqusanalytics/folio/releases/latest/download/Folio-mac.dmg) | Folio tells you when a new version is out |
-| **Linux**: Ubuntu, Debian, and derivatives (64-bit) | [Folio-linux-amd64.deb](https://github.com/roqusanalytics/folio/releases/latest/download/Folio-linux-amd64.deb) | Automatic, with your system updates (apt) |
-| **Linux**: other distributions (64-bit) | [Folio-linux-x86_64.AppImage](https://github.com/roqusanalytics/folio/releases/latest/download/Folio-linux-x86_64.AppImage) | Automatic |
+| **Windows** 10/11 (64-bit) | [Doko for Windows](https://github.com/roqusanalytics/doko/releases/latest) | Automatic |
+| **macOS** 12 or later (Apple Silicon and Intel) | [Doko for macOS](https://github.com/roqusanalytics/doko/releases/latest) | Doko tells you when a new version is out |
+| **Linux**: Ubuntu, Debian, and derivatives (64-bit) | [Doko for Debian/Ubuntu](https://github.com/roqusanalytics/doko/releases/latest) | Automatic, with your system updates (apt) |
+| **Linux**: other distributions (64-bit) | [Doko for Linux](https://github.com/roqusanalytics/doko/releases/latest) | Automatic |
 
-[All releases](https://github.com/roqusanalytics/folio/releases) · [Changelog](CHANGELOG.md) · Prefer not to
-install on Windows? **Folio-Portable.exe** on the release page runs as-is (it doesn't auto-update).
+[All releases](https://github.com/roqusanalytics/doko/releases) · [Changelog](CHANGELOG.md) · Prefer not to
+install on Windows? [Doko portable](https://github.com/roqusanalytics/doko/releases/latest) runs as-is (it doesn't auto-update).
 
-Folio's builds aren't signed with paid developer certificates yet, so the first launch needs one extra step:
+Choose the installer for your platform from the latest release. Until the first Doko release, the available builds
+are still named `Folio-*`; new releases use `Doko-*`. Use the downloaded filename in the Linux commands below.
+
+Doko's builds aren't signed with paid developer certificates yet, so the first launch needs one extra step:
 
 - **Windows:** if SmartScreen warns, choose **More info → Run anyway**.
-- **macOS:** open the DMG and drag Folio to Applications. The first time you open it, macOS says it can't verify the
+- **macOS:** open the DMG and drag Doko to Applications. The first time you open it, macOS says it can't verify the
   developer: click **Done**, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
-- **Linux (.deb):** `sudo apt install ./Folio-linux-amd64.deb`, then open Folio from your applications menu. The
-  package adds Folio's signed apt repository, so new versions arrive with your regular system updates (or
+- **Linux (.deb):** `sudo apt install ./Doko-linux-amd64.deb`, then open the reader from your applications menu. The
+  package adds Doko's signed apt repository, so new versions arrive with your regular system updates (or
   `sudo apt update && sudo apt upgrade`). Copies installed from a .deb before 1.9 need the new .deb installed once.
-- **Linux (AppImage):** make it executable (`chmod +x Folio-linux-x86_64.AppImage`) and run it. AppImages need FUSE 2:
+- **Linux (AppImage):** make it executable (`chmod +x Doko-linux-x86_64.AppImage`) and run it. AppImages need FUSE 2:
   `sudo apt install libfuse2t64` on Ubuntu 24.04 or later, `libfuse2` on older releases.
 
-Or build Folio yourself from source (below).
+Or build Doko yourself from source (below).
+
+## Compatibility with existing installs
+
+Doko is the rebranded continuation of [Forward-Future/folio](https://github.com/Forward-Future/folio). Existing installs and update data keep their original identifiers: `FOLIO_*` environment variables, `app.folio.local`, the internal `Folio Local` credential-store name and profile, Linux `folio-local` package/executable/apt paths and key filenames, and the Windows `FolioLocal` ProgID. User data also remains in the existing `%APPDATA%\Folio Local`, `~/Library/Application Support/Folio Local`, and `~/.config/Folio Local` folders. This keeps current installs and their updates working; new Doko installs use `/Applications/Doko.app` on macOS.
 
 ## Features
 
@@ -41,19 +48,19 @@ Or build Folio yourself from source (below).
 - **Document tabs.** Pick or drop several PDFs together, or choose **More → New tab**. The tab strip appears beneath
   the toolbar when two or more tabs are open. Each document keeps its page, zoom, and edits when you switch.
 - **PDF URLs:** choose **Open from URL** (`Ctrl+Shift+O`), or drop a link or paste it with `Ctrl+V` outside a text
-  field to fill it in, then press **Open**. Folio downloads and opens the PDF, follows redirects, and uses the server's
-  filename when available. Folio asks once more before opening an address on your computer or local network.
-- **Webpage to PDF:** use the same URL workflow for a webpage. Folio converts it into a PDF with selectable text,
+  field to fill it in, then press **Open**. Doko downloads and opens the PDF, follows redirects, and uses the server's
+  filename when available. Doko asks once more before opening an address on your computer or local network.
+- **Webpage to PDF:** use the same URL workflow for a webpage. Doko converts it into a PDF with selectable text,
   ready for highlights, notes, and Ask AI. The conversion preserves the site's on-screen layout, backgrounds,
   transparency, colors, and images instead of switching to its print styles.
-- **Word documents to PDF:** open a `.docx` or `.doc` file the same ways as a PDF (**Open with → Folio**, the file
-  picker, or drag and drop). Folio opens the PDF and saves a private copy beside the original when possible
+- **Word documents to PDF:** open a `.docx` or `.doc` file the same ways as a PDF (**Open with → Doko**, the file
+  picker, or drag and drop). Doko opens the PDF and saves a private copy beside the original when possible
   ("Report.docx" gets "Report.pdf"). Occupied names get a number. Reopening reuses a copy only if both files still
-  match Folio's conversion record. Opening a symbolic link, or a file on a separate volume on macOS, skips the
-  automatic save. Folio converts with
+  match Doko's conversion record. Opening a symbolic link, or a file on a separate volume on macOS, skips the
+  automatic save. Doko converts with
   Microsoft Word on Windows when it's installed, otherwise with LibreOffice, otherwise with its own converter for
   `.docx` (text, headings, lists, tables, and images, in a simpler layout). `.doc` files need Word or LibreOffice,
-  except on macOS. Installing Folio adds it to **Open with** for Word documents without making it their default app.
+  except on macOS. Installing Doko adds it to **Open with** for Word documents without making it their default app.
 - **Password-protected PDFs:** enter the password to read and annotate a protected document. These documents are not
   kept in the recent library, and their annotations and AI conversations are not persisted locally between sessions.
 - **Sample document:** try the built-in tour from the home screen without finding a PDF first.
@@ -72,7 +79,7 @@ URL opening, webpage conversion, and Word conversion require the desktop app. Fa
   you want more reading space.
 - **Personal bookmarks:** click the ribbon beside a page number in **Pages** to save or remove a bookmark without
   leaving your current page. Turn on **Bookmarked** at the top of the sidebar to see just your saved pages,
-  then select a thumbnail to jump to it. These bookmarks are included in Markdown and JSON exports. Folio remembers them locally
+  then select a thumbnail to jump to it. These bookmarks are included in Markdown and JSON exports. Doko remembers them locally
   when you reopen a PDF, except for password-protected documents.
 - **Reorder pages** from either sidebar tab. Drag thumbnails or enter a new position, then save and open the reordered PDF copy.
 - **Export selected pages** from the Pages sidebar. Ctrl-click thumbnails (⌘-click on macOS) to select individual pages, or Shift-click for a range. Right-click a selected thumbnail to save those pages in document order as a new PDF.
@@ -101,9 +108,9 @@ The editor works with unsigned, unencrypted PDFs.
 
 ### Highlight, draw, and take notes
 
-- **Select text in scans.** Folio recognizes English by default. In **Settings → General → Reading → Scan languages**, search
+- **Select text in scans.** Doko recognizes English by default. In **Settings → General → Reading → Scan languages**, search
   for a language by its English or local name. Select the languages in your document. The dropdown shows the total
-  size of any packs to download. Folio keeps them on this device for offline use and re-reads open scans.
+  size of any packs to download. Doko keeps them on this device for offline use and re-reads open scans.
   The page you jump to gets priority. A message above the page controls shows when text is still being prepared.
   Once it clears, drag across the words to copy, highlight, or ask about a passage. Recognition runs offline.
 - **One-click highlights:** select text, then choose yellow, green, blue, pink, or red from the selection toolbar;
@@ -139,13 +146,13 @@ Choose **Sign** in the toolbar to add a signature.
 - **Capture on paper:** sign with dark ink on white paper, then use your camera or upload a PNG, JPEG, or WebP photo.
 - **Clean up the image:** crop to the signature and adjust ink sensitivity to remove the paper background. Capture
   and image processing stay on your device.
-- **Suggested placement:** Folio checks the current page for empty PDF signature fields and likely signature labels,
+- **Suggested placement:** Doko checks the current page for empty PDF signature fields and likely signature labels,
   then offers places to sign. Detection is a suggestion, not a guarantee that every field will be found.
 - **Preview and position:** review the actual page, pick a suggestion or place the signature manually, and adjust its
   width before approving.
 - **Explicit approval:** nothing is added until you click **Approve and add signature**. Signatures are visual stamps,
   not certificate-based digital signatures. Use **Save a copy** to keep a signed PDF; placed signatures are not part
-  of Folio's automatic annotation restoration.
+  of Doko's automatic annotation restoration.
 - **Optional reuse:** choose to remember a signature on this computer; remove the saved image in
   **Settings → Storage → Signature → Forget**.
 
@@ -191,7 +198,7 @@ Ask AI is optional and desktop-only. See [Using Ask AI](#using-ask-ai) for setup
 
 - **Save a copy** (`Ctrl+S`) exports a PDF with page annotations, including highlights and attached notes, drawings,
   text boxes, and visual signatures. Your original file is not overwritten. Whole-document notes and AI chat history
-  stay in Folio; copy notes as Markdown when you want to share them.
+  stay in Doko; copy notes as Markdown when you want to share them.
 - **Print** (`Ctrl+P`, or `⌘P` on macOS) previews each page at its own proportions and prints the annotated PDF. On desktop, choose **Advanced** for [poster, booklet, or multiple pages per sheet](docs/printing.md).
 - **Document info** shows available metadata: filename, title, author, subject, page count and size, file size,
   creation/modification dates, generating application, producer, and PDF version.
@@ -205,7 +212,7 @@ Ask AI is optional and desktop-only. See [Using Ask AI](#using-ask-ai) for setup
 
 Open **⋯ → Settings** or press `Ctrl+,`. **General** contains appearance, reading, and update preferences.
 Use **Ask AI** to connect providers and **Storage** to manage saved annotations, conversations, and signatures.
-**About Folio** shows the version, installed/portable edition, and installation location, with a shortcut to open that folder.
+**About Doko** shows the version, installed/portable edition, and installation location, with a shortcut to open that folder.
 
 <p>
   <a href="docs/screenshots/openrouter-setup.png"><img src="docs/screenshots/openrouter-setup.png" width="395" alt="Ask AI settings with OpenRouter selected and a field for an API key"></a>
@@ -217,7 +224,7 @@ Use **Ask AI** to connect providers and **Storage** to manage saved annotations,
 - **Installed Windows:** updates download in the background and install silently on exit, or when you choose
   **Restart and update**, without repeating the Setup wizard.
 - **Linux AppImage:** downloads updates and replaces the AppImage. **Linux .deb:** updates through the signed apt
-  repository and your system updater; Folio's toggle does not disable apt updates.
+  repository and your system updater; Doko's toggle does not disable apt updates.
 - **macOS:** current unsigned builds notify you and offer the download; self-installing updates require a signed
   build. **Windows portable:** download a replacement manually.
 - **Visible update status:** checking, download progress, update-ready prompts, and errors are shown in the app.
@@ -251,14 +258,14 @@ On macOS, use `⌘` wherever this table says `Ctrl`. Press `?` with a document o
   signature-label detection, and whole-document AI questions use the PDF’s embedded text.
 - Ask AI uses extracted text, not page images, and includes up to about 400,000 characters of document text. Long
   documents may be truncated; AI answers can be wrong, so check the cited pages.
-- Folio opens PDFs up to 300 MiB and 10,000 pages. Webpage conversion uses a separate session, so pages behind a
+- Doko opens PDFs up to 300 MiB and 10,000 pages. Webpage conversion uses a separate session, so pages behind a
   login may not load. Desktop URL imports need a direct connection or an HTTP(S) system proxy that accepts
   numeric-address tunnels. Local-network access requires approval for the requested origin.
 - On upgrading from 1.10.8 or earlier, Recent keeps the stored PDFs and rebuilds their previews when opened.
   Notes and chat on files up to 2 MiB keep their existing content identity. Larger files had only a partial hash,
-  so Folio keeps those legacy records on disk without attaching them to a potentially different document.
+  so Doko keeps those legacy records on disk without attaching them to a potentially different document.
 - Automatic local saving is not cloud sync or a replacement for exporting a PDF copy. Password-protected documents
-  are not saved in Folio between sessions.
+  are not saved in Doko between sessions.
 
 ## Using Ask AI
 
@@ -267,19 +274,19 @@ Then pick a provider at the top of the panel:
 
 - **ChatGPT:** click **Continue with ChatGPT** and sign in in your browser. Questions use your ChatGPT plan (Go, Plus,
   or Pro), and usage counts toward that plan's limits; manage it in
-  [ChatGPT settings](https://chatgpt.com/settings/usage). Sign out, or change the default provider, in Folio's **Settings**.
+  [ChatGPT settings](https://chatgpt.com/settings/usage). Sign out, or change the default provider, in Doko's **Settings**.
 - **Claude:** install [Claude Code](https://claude.com/claude-code), run `claude` once in a terminal, and sign in with
-  your Claude account (Pro or Max). Then click **Check again** in Folio. Questions use your Claude subscription.
+  your Claude account (Pro or Max). Then click **Check again** in Doko. Questions use your Claude subscription.
 - **OpenRouter:** under **Settings → Ask AI**, choose OpenRouter and verify your [OpenRouter API key](https://openrouter.ai/settings/keys).
   Search the text models or enter a model ID. OpenRouter bills your key. Reopen this section to check the connection,
   replace the key, or remove it. If a model's context is too small for a document, choose a larger model or ask about
-  a selected passage. For passage questions Folio sends the selected passage, page number, filename and conversation.
+  a selected passage. For passage questions Doko sends the selected passage, page number, filename and conversation.
 
 Ask AI is available in the desktop app only, not the browser version.
 
 ## Privacy
 
-Folio requires no Folio account, has no analytics or telemetry, and never uploads your documents on its own. It makes
+Doko requires no account, has no analytics or telemetry, and never uploads your documents on its own. It makes
 network requests only to:
 
 - check GitHub for updates (installed copies; can be turned off in **Settings**),
@@ -292,16 +299,16 @@ network requests only to:
   you selected, and the conversation go to the provider you chose: OpenAI for ChatGPT, or Anthropic through your
   installed Claude Code, or OpenRouter and the provider serving your chosen OpenRouter model. Their privacy terms apply to that data.
 
-Folio stores an OpenRouter key only with operating-system credential protection. If secure storage is unavailable,
-enable or unlock your system key store to connect. For ChatGPT, Folio stores its sign-in tokens in its data folder (below, under `ai`), encrypted with the system's
+Doko stores an OpenRouter key only with operating-system credential protection. If secure storage is unavailable,
+enable or unlock your system key store to connect. For ChatGPT, Doko stores its sign-in tokens in its data folder (below, under `ai`), encrypted with the system's
 credential protection (Windows data protection, the macOS Keychain, or the Linux secret store; if a Linux desktop has
-no secret store, you sign in again each time Folio starts), and never exposes them to the page. For Claude, Folio runs your own Claude Code with every tool disabled;
+no secret store, you sign in again each time Doko starts), and never exposes them to the page. For Claude, Doko runs your own Claude Code with every tool disabled;
 it never sees or stores your Claude credentials. The question's context is written to a temporary file for Claude Code
 and deleted as soon as the answer finishes. Each document's Ask AI conversation is saved with it on this computer (except for password-protected documents) and
 is there when you reopen the document; the **+** button in the panel starts over and deletes it.
 
-Stored locally in your user profile (`%APPDATA%\Folio` on Windows, `~/Library/Application Support/Folio` on macOS,
-`~/.config/Folio` on Linux): recently opened PDFs and their thumbnails (up to 8,
+Stored locally in your user profile (`%APPDATA%\Folio Local` on Windows, `~/Library/Application Support/Folio Local` on macOS,
+`~/.config/Folio Local` on Linux): recently opened PDFs and their thumbnails (up to 8,
 removable from the home screen with **Clear all**; password-protected PDFs are never kept), highlights, notes, and
 Ask AI conversations for each document (except password-protected ones), reading positions, preferences, and, only if you choose to remember
 it, your signature image. Apart from provider credentials, this data isn't encrypted, so anyone with access to your
@@ -317,9 +324,9 @@ npm run app        # build and run the desktop app
 npm run smoke      # end-to-end check: launches the built app and exercises the basics
 npm run dev        # browser version with hot reload at http://localhost:5173
 
-npm run dist:win   # on Windows: release/Folio-Setup.exe and release/Folio-Portable.exe
-npm run dist:mac   # on macOS: release/Folio-mac.dmg (universal: Apple Silicon and Intel)
-npm run dist:linux # on Linux: release/Folio-linux-x86_64.AppImage and release/Folio-linux-amd64.deb
+npm run dist:win   # on Windows: release/Doko-Setup.exe and release/Doko-Portable.exe
+npm run dist:mac   # on macOS: release/Doko-mac.dmg (universal: Apple Silicon and Intel)
+npm run dist:linux # on Linux: release/Doko-linux-x86_64.AppImage and release/Doko-linux-amd64.deb
 ```
 
 Each platform's installers are built on that platform; GitHub Actions builds all three for every release. If your
@@ -336,9 +343,9 @@ the previous/next buttons and arrow keys. Refresh updates the folder listing. HE
 In the browser edition, only selected images are available and Markdown saving downloads a copy.
 
 After `npm ci` and `npm run build`, `npm run test:content` exercises the new disk and desktop flows.
-`npm run build:local` prepares an Apple Silicon `Folio Local.app` under the system temporary folder's
-`folio-local-build/`, without publishing. Building outside synced folders avoids Finder metadata breaking codesigning.
-It uses its own profile and the roqusanalytics/folio update feed; the original Folio installation stays independent.
+`npm run build:local` prepares an Apple Silicon `Doko.app` and update-ready `Doko-mac.zip` under the system temporary
+folder's `doko-local-build/`, without publishing. The ZIP target also embeds the updater configuration. Building outside synced folders avoids Finder metadata breaking codesigning.
+It uses the existing fork profile and the roqusanalytics/doko update feed; the original upstream Folio profile stays independent.
 Public releases still follow the existing three-platform release procedure.
 
 ### How it's put together
@@ -362,5 +369,5 @@ privately, see [SECURITY.md](SECURITY.md).
 
 ## License
 
-[MIT](LICENSE). Folio includes third-party software under its own licenses; see
+[MIT](LICENSE). Doko is based on [Forward-Future/folio](https://github.com/Forward-Future/folio) and includes third-party software under its own licenses; see
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

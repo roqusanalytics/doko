@@ -1,4 +1,4 @@
-// The Copy buttons write through the browser clipboard API. Electron grants Folio's
+// The Copy buttons write through the browser clipboard API. Electron grants Doko's
 // own page clipboard-sanitized-write (see the permission handler in electron/main.cjs),
 // but a write can still be refused, and a refused write used to be swallowed so the
 // button claimed success. These report whether the write really happened.

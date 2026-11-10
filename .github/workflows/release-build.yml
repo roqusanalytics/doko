@@ -72,7 +72,7 @@ jobs:
               -c.win.azureSignOptions.publisherName="$AZURE_SIGNING_PUBLISHER")
           fi
           npx electron-builder --win nsis portable "${extra[@]}" --publish never
-      - name: Old Folio cannot reopen during a Windows update
+      - name: Previous app cannot reopen during a Windows update
         shell: pwsh
         run: |
           $nsis = node -e "require('app-builder-lib/out/toolsets/windows').getMakeNsisPath().then(x => console.log(JSON.stringify(x)))" | ConvertFrom-Json
@@ -85,19 +85,19 @@ jobs:
       - name: Packaged app starts (Windows)
         shell: pwsh
         run: |
-          $p = Start-Process -FilePath "release/win-unpacked/Folio Local.exe" -PassThru
+          $p = Start-Process -FilePath "release/win-unpacked/Doko.exe" -PassThru
           Start-Sleep -Seconds 20
-          if ($p.HasExited) { throw "Folio exited with code $($p.ExitCode)" }
+          if ($p.HasExited) { throw "Doko exited with code $($p.ExitCode)" }
           Stop-Process -Id $p.Id -Force
       - uses: actions/upload-artifact@v7
         with:
-          name: folio-windows
+          name: doko-windows
           overwrite: true
           if-no-files-found: error
           path: |
-            release/Folio-Setup.exe
-            release/Folio-Setup.exe.blockmap
-            release/Folio-Portable.exe
+            release/Doko-Setup.exe
+            release/Doko-Setup.exe.blockmap
+            release/Doko-Portable.exe
             release/latest.yml
 
   macos:
@@ -129,22 +129,22 @@ jobs:
           npx electron-builder --mac "${extra[@]}" --publish never
       - name: Packaged app starts (macOS)
         run: |
-          codesign --verify --deep --verbose=2 "release/mac-universal/Folio Local.app"
-          "release/mac-universal/Folio Local.app/Contents/MacOS/Folio Local" > app.log 2>&1 &
+          codesign --verify --deep --verbose=2 "release/mac-universal/Doko.app"
+          "release/mac-universal/Doko.app/Contents/MacOS/Doko" > app.log 2>&1 &
           pid=$!
           sleep 20
           if ! kill -0 "$pid"; then cat app.log; exit 1; fi
           kill "$pid"
       - uses: actions/upload-artifact@v7
         with:
-          name: folio-macos
+          name: doko-macos
           overwrite: true
           if-no-files-found: error
           path: |
-            release/Folio-mac.dmg
-            release/Folio-mac.dmg.blockmap
-            release/Folio-mac.zip
-            release/Folio-mac.zip.blockmap
+            release/Doko-mac.dmg
+            release/Doko-mac.dmg.blockmap
+            release/Doko-mac.zip
+            release/Doko-mac.zip.blockmap
             release/latest-mac.yml
 
   linux:
@@ -172,12 +172,12 @@ jobs:
           pkill -f linux-unpacked/folio-local
       - uses: actions/upload-artifact@v7
         with:
-          name: folio-linux
+          name: doko-linux
           overwrite: true
           if-no-files-found: error
           path: |
-            release/Folio-linux-x86_64.AppImage
-            release/Folio-linux-amd64.deb
+            release/Doko-linux-x86_64.AppImage
+            release/Doko-linux-amd64.deb
             release/latest-linux.yml
             release/Packages
             release/Packages.gz
