@@ -1,0 +1,30 @@
+{
+  "name": "Doko",
+  "logo_wordmark": "doko",
+  "selected_route": 50,
+  "status": "selected",
+  "provenance": "Approved image-gen concept; deterministic vector trace",
+  "palette": {
+    "ink": "#1A1A1A",
+    "paper": "#F7F5F3",
+    "mint": "#C5E1CB"
+  },
+  "logo_dimensions": [
+    1045,
+    311
+  ],
+  "mark_dimensions": [
+    337,
+    311
+  ],
+  "application_icon": {
+    "background": "#C5E1CB",
+    "symbol": "#1A1A1A"
+  },
+  "application_accent": {
+    "fill": "#C5E1CB",
+    "foreground": "#1A1A1A",
+    "light_text": "#305D40",
+    "dark_text": "#C5E1CB"
+  }
+}

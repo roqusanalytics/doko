@@ -3,8 +3,8 @@
 .document-export-name { font-weight: 600; overflow-wrap: anywhere; }
 .document-export fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 16px; min-width: 0; }
 .document-export label { display: grid; gap: 8px; font-weight: 500; }
-.document-export .select-trigger { width: 100%; max-width: 100%; min-height: 40px; padding: 8px; color: inherit; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; }
-.document-export input[type="range"] { width: 100%; accent-color: var(--accent); }
-.document-export-notice { padding: 12px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; }
-.document-export-result { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--line-strong); border-radius: 8px; }
+.document-export .select-trigger { width: 100%; max-width: 100%; min-height: 40px; padding: 8px; color: inherit; background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.document-export input[type="range"] { width: 100%; accent-color: var(--accent-text); }
+.document-export-notice { padding: 12px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.document-export-result { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--line-strong); border-radius: var(--radius); }
 .document-export .form-actions { flex-wrap: wrap; }

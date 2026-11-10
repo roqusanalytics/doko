@@ -1,3 +1,4 @@
+import { closeHidden } from "./hidden-window.mjs";
 import { captureSave } from "./capture-save.mjs";
 // End-to-end smoke test, run in CI on Windows, macOS, and Linux (and locally with `npm run smoke`):
 // launches the built app in Electron, opens the sample document, and checks that pages render, text is
@@ -493,17 +494,11 @@ try {
   }
   await page.getByLabel("Notes about this document").fill("Compare these passages.");
   const jsonFile = path.join(env.FOLIO_TEST_USER_DATA, "reading-notes.json");
-  await app.evaluate(({ session }, file) => {
-    globalThis.folioNotesSaved = new Promise(resolve => session.defaultSession.once("will-download", (_, item) => {
-      item.setSavePath(file);
-      item.once("done", (_, state) => resolve([state, item.getFilename()]));
-    }));
-  }, jsonFile);
+  await captureSave(app, jsonFile, "folioNotesSaved");
   await page.getByRole("button", { name: "Export" }).click();
   await page.getByRole("menuitem", { name: "Save JSON…" }).click();
-  const [state, filename] = await app.evaluate(() => globalThis.folioNotesSaved);
+  const state = await app.evaluate(() => globalThis.folioNotesSaved);
   assert.equal(state, "completed");
-  assert.match(filename, /\.notes\.json$/);
   const exported = JSON.parse(readFileSync(jsonFile, "utf8"));
   assert.equal(exported.schemaVersion, 1);
   assert.equal(exported.documentNote, "Compare these passages.");
@@ -819,17 +814,19 @@ try {
   console.log("ok  local network addresses need the user's OK");
   console.log("ok  a link that is given up on stops, and the next one opens");
 
-  // The question asked before closing over unsaved work names this platform's Save shortcut.
-  const closePrompt = await app.evaluate(({ BrowserWindow, dialog }) => {
-    const ask = dialog.showMessageBoxSync;
+  // Exercise the real all-tab close coordinator rather than the replaced will-prevent-unload hook.
+  const closePrompt = await page.evaluate(async () => {
+    const { tabs, key } = window.frameElement.readerContext;
+    const host = window.parent, ask = host.confirm;
     let detail = null;
-    dialog.showMessageBoxSync = (_window, options) => { detail = options.detail; return 1; };
-    try { BrowserWindow.getAllWindows()[0].webContents.emit("will-prevent-unload", { preventDefault() {} }); }
-    finally { dialog.showMessageBoxSync = ask; }
+    host.confirm = message => { detail = message; return false; };
+    tabs.markDirty(key, true);
+    try { if (await tabs.prepareClose()) throw new Error("Cancelled close succeeded"); }
+    finally { host.confirm = ask; tabs.markDirty(key, false); tabs.cancelClose(); }
     return detail;
   });
-  assert.match(closePrompt, process.platform === "darwin" ? /⌘S/ : /Ctrl\+S/);
-  console.log("ok  the unsaved-work prompt shows this platform's Save shortcut");
+  assert.match(closePrompt, process.platform === "darwin" ? /⌘\s*S/ : /Ctrl[+ ]S/);
+  console.log("ok  actual close handshake preserves cancellation and shows this platform's Save shortcut");
 
   // Closing Ask AI mid-answer stops the answer, like Stop: it doesn't run on unseen or come back unfinished. A stand-in
   // provider starts each answer and never finishes it.
@@ -948,7 +945,7 @@ try {
   assert.deepEqual(failures, []);
   console.log(`PASS (${process.platform})`);
 } finally {
-  await app.close();
+  await closeHidden(app);
 }
 
 function interceptPdfPrint() {

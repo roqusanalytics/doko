@@ -6,7 +6,7 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { electronPath } from "./electron-path.mjs";
 import { readerPage } from "./reader-page.mjs";
-import { assertHidden } from "./hidden-window.mjs";
+import { assertHidden, closeHidden } from "./hidden-window.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "folio-markdown-modes-"));
@@ -91,6 +91,8 @@ try {
   await renderedSectionVisible(9);
   console.log("ok  default full-width read-only View, duplicate/level/setext headings, fenced-code exclusion and keyboard minimap navigation");
 
+  assert.equal(await page.evaluate(() => performance.getEntriesByType("resource").some(entry => /markdownEditor-.*\.js/.test(entry.name))), false, "read-only Markdown downloaded the editor chunk");
+  assert.equal(await page.locator(".cm-editor").count(), 0, "read-only Markdown created CodeMirror before source was requested");
   await source();
   await fullWidth(page.locator(".markdown-source"));
   await navigation().getByRole("button", { name: "Opening", exact: true }).click();
@@ -185,7 +187,7 @@ try {
   await app.windows()[0]?.screenshot({ path: path.join(shots, "markdown-modes-failure.png") }).catch(() => {});
   throw error;
 } finally {
-  await app.close();
+  await closeHidden(app);
   rmSync(temp, { recursive: true, force: true });
 }
 

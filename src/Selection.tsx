@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { SelectMenu } from "./SelectMenu";
+import type { TextMarkupStyle } from "./textMarkup";
 import { Icon } from "./icons";
 import { keys } from "./platform";
 import { copyText } from "./clipboard";
@@ -15,7 +17,7 @@ export interface SelectionInfo {
   bottom: number;
 }
 
-const POPOVER_H = 86;
+const POPOVER_H = 122;
 
 /** Tracks the reader's text selection inside the document (hidden while the mouse is still dragging). */
 export function useTextSelection(container: HTMLElement | null, enabled: boolean, pdf: PDFDocumentProxy | undefined) {
@@ -83,7 +85,7 @@ interface PopoverProps {
   colors: { name: string; hex: string }[];
   current: string;
   /** Highlights the selection in a color, with the note typed so far (may be empty). */
-  onHighlight: (hex: string, note: string) => void;
+  onHighlight: (hex: string, note: string, style?: "Highlight" | TextMarkupStyle) => void;
   onAsk: () => void;
   /** The note field took focus (which clears the page selection): keep the popover open. */
   onPin: () => void;
@@ -92,6 +94,7 @@ interface PopoverProps {
 
 /** Shown as soon as text is selected: one-click colors, plus a note field that's ready to type in. */
 export function SelectionPopover({ info, stageWidth, colors, current, onHighlight, onAsk, onPin, onDismiss }: PopoverProps) {
+  const [style, setStyle] = useState<"Highlight" | TextMarkupStyle>("Highlight");
   const [copy, setCopy] = useState<"idle" | "done" | "failed">("idle");
   const [note, setNote] = useState("");
   const width = 30 * colors.length + 210;
@@ -104,6 +107,7 @@ export function SelectionPopover({ info, stageWidth, colors, current, onHighligh
       // Keep the text selection alive while clicking buttons (but let the note field take focus).
       onMouseDown={(e) => { if (!(e.target as HTMLElement).closest("input")) e.preventDefault(); }}
     >
+      <SelectMenu label="Text marking style" value={style} onChange={value=>setStyle(value as typeof style)} options={[{value:"Highlight",label:"Highlight"},{value:"Underline",label:"Underline"},{value:"StrikeOut",label:"Strike through"}]} />
       <div className="pop-row" role="toolbar" aria-label="Highlight">
         {colors.map((c) => (
           <button
@@ -112,7 +116,7 @@ export function SelectionPopover({ info, stageWidth, colors, current, onHighligh
             style={{ "--swatch": c.hex } as React.CSSProperties}
             title={`Highlight ${c.name.toLowerCase()}${c.hex === current ? " (H)" : ""}`}
             aria-label={`Highlight ${c.name.toLowerCase()}`}
-            onClick={() => onHighlight(c.hex, note.trim())}
+            onClick={() => onHighlight(c.hex, note.trim(), style)}
           />
         ))}
         <span className="divider" />
@@ -140,7 +144,7 @@ export function SelectionPopover({ info, stageWidth, colors, current, onHighligh
         onFocus={onPin}
         onChange={(e) => setNote(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") { e.preventDefault(); onHighlight(current, note.trim()); }
+          if (e.key === "Enter") { e.preventDefault(); onHighlight(current, note.trim(), style); }
           if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onDismiss(); }
         }}
       />

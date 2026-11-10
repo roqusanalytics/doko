@@ -1,3 +1,4 @@
+import { closeHidden } from "./hidden-window.mjs";
 import { captureSave } from "./capture-save.mjs";
 // Ink widths must follow the current document's zoom after a photo switch.
 import { _electron as electron } from 'playwright-core';
@@ -78,5 +79,5 @@ try {
 } finally {
   // The isolated fixture intentionally has unsaved strokes; closing must not open a native dialog.
   await app.evaluate(({ dialog }) => { dialog.showMessageBoxSync = () => 0; }).catch(() => {});
-  await app.close(); rmSync(temp, { recursive: true, force: true });
+  await closeHidden(app); rmSync(temp, { recursive: true, force: true });
 }

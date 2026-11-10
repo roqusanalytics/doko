@@ -1,6 +1,6 @@
 // Doko desktop shell: one window, PDFs (and Word documents, converted) opened from Explorer / "Open with",
 // files served over app://.
-const { app, BrowserWindow, protocol, net, ipcMain, dialog, shell, screen, session, Menu } = require("electron");
+const { app, BrowserWindow, protocol, net, ipcMain, dialog, shell, screen, session, Menu, nativeTheme } = require("electron");
 const crypto = require("node:crypto");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -101,6 +101,85 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 let win = null;
+const CLOSE_TIMEOUT_MS = 15000;
+let closeRequest = null;
+let closeApproved = false;
+let closeAction = "close";
+
+async function requestClose(action) {
+  if (!win || win.isDestroyed()) {
+    if (action === "quit") app.quit();
+    return;
+  }
+  if (closeRequest) {
+    if (action === "update" || (action === "quit" && closeAction === "close")) closeAction = action;
+    return;
+  }
+  closeAction = action;
+  const target = win;
+  const result = await new Promise(resolve => {
+    const id = crypto.randomUUID();
+    const timer = setTimeout(() => finish("timeout"), CLOSE_TIMEOUT_MS);
+    let finished = false;
+    const finish = result => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      closeRequest = null;
+      resolve(result);
+    };
+    closeRequest = { id, target, finish };
+    if (target.webContents.isCrashed()) {
+      void dialog.showMessageBox(target, {
+        type: "warning", title: "Close Doko?", buttons: ["Keep open", "Close Doko"], defaultId: 0, cancelId: 0,
+        message: "The reader stopped. Unsaved changes may have been lost.",
+        detail: "Closing Doko cannot save changes from the stopped reader. Close anyway?",
+      }).then(({ response }) => finish(response === 1 ? "ready" : "cancelled"), () => finish("error"));
+    } else {
+      try { target.webContents.send("folio:prepare-close", id); }
+      catch { finish("error"); }
+    }
+  });
+  if (target.isDestroyed()) return;
+  if (result !== "ready") {
+    target.webContents.send("folio:close-cancelled");
+    if (result !== "cancelled") void dialog.showMessageBox(target, {
+      type: "warning", title: "Doko is still open", buttons: ["OK"],
+      message: "Couldn't finish saving your changes.",
+      detail: result === "timeout" ? "Saving took too long. Your window is still open. Check each tab, then try closing again."
+        : "Your window is still open. Resolve the saving error in each tab, then try again.",
+    }).catch(() => {});
+    return;
+  }
+  closeApproved = true;
+  if (closeAction === "update" && updateReady) {
+    try { autoUpdater.quitAndInstall(true, true); }
+    catch (error) {
+      closeApproved = false;
+      target.webContents.send("folio:close-cancelled");
+      setUpdateStatus({ state: "error", message: "Couldn't restart Doko to install the update. Try again." });
+    }
+  }
+  else if (closeAction === "quit") app.quit();
+  else target.close();
+}
+
+let windowTheme = "dark";
+let windowTransparencyRequested = false;
+const WINDOWS_MATERIAL = process.platform === "win32" && Number(require("node:os").release().split(".")[2]) >= 22621;
+function applyWindowTransparency() {
+  if (!win || win.isDestroyed()) return false;
+  let enabled = windowTransparencyRequested && (IS_MAC || WINDOWS_MATERIAL)
+    && !nativeTheme.prefersReducedTransparency && !nativeTheme.shouldUseHighContrastColors;
+  try {
+    if (IS_MAC) win.setVibrancy(enabled ? "sidebar" : null);
+    else if (WINDOWS_MATERIAL) win.setBackgroundMaterial(enabled ? "acrylic" : "none");
+  } catch { enabled = false; }
+  win.setBackgroundColor(enabled ? "#00000000" : TITLEBAR[windowTheme].color);
+  win.webContents.send("folio:window-transparency", enabled);
+  return enabled;
+}
+nativeTheme.on("updated", () => applyWindowTransparency());
 const OPENABLE = /\.(pdf|docx?|md|markdown|jpe?g|png|webp|gif|bmp|avif)$/i;
 const pendingFiles = filesFromArgs(process.argv);
 let rendererReady = false;
@@ -287,6 +366,10 @@ function setupAutoUpdate() {
     setUpdateStatus({ state: "ready", version: info.version });
   });
   autoUpdater.on("error", (err) => {
+    if (closeAction === "update") {
+      closeApproved = false;
+      win?.webContents.send("folio:close-cancelled");
+    }
     logUpdate(`error: ${err?.stack || err}`);
     setUpdateStatus({ state: "error", message: String(err?.message || err).split("\n")[0] });
   });
@@ -308,7 +391,7 @@ function createWindow() {
         y: Math.max(area.y, Math.min(bounds.y, area.y + area.height - Math.min(bounds.height, area.height))) }, maximized: saved.maximized === true };
     }
   } catch {}
-  const theme = "dark"; // the page reports its real theme on load via folio:theme
+  const theme = windowTheme; // the page reports its real theme on load via folio:theme
   win = new BrowserWindow({
     width: 1360,
     height: 900,
@@ -322,7 +405,8 @@ function createWindow() {
     titleBarStyle: "hidden",
     // macOS keeps its traffic lights (inset into the top bar); Windows and Linux draw their window
     // buttons as an overlay on the right.
-    ...(IS_MAC ? { trafficLightPosition: { x: 18, y: 18 } } : { titleBarOverlay: TITLEBAR[theme] }),
+    // Seed a translucent compositor before the saved preference toggles vibrancy at runtime.
+    ...(IS_MAC ? { trafficLightPosition: { x: 18, y: 18 }, vibrancy: "sidebar" } : { titleBarOverlay: TITLEBAR[theme] }),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -332,6 +416,8 @@ function createWindow() {
       ...(TEST_HIDDEN ? { backgroundThrottling: false } : {}),
     },
   });
+
+  applyWindowTransparency();
 
   const cameraOwner = win.webContents;
   const trustedCameraOrigin = isAppUrl;
@@ -375,7 +461,10 @@ function createWindow() {
   const scheduleWindowSave = () => { clearTimeout(windowTimer); windowTimer = setTimeout(saveWindow, 300); };
   win.on("resize", scheduleWindowSave);
   win.on("move", scheduleWindowSave);
-  win.on("close", saveWindow);
+  win.on("close", event => {
+    saveWindow();
+    if (!closeApproved) { event.preventDefault(); void requestClose("close"); }
+  });
   // Native menu accelerators (especially Cmd+W on macOS) run before a DOM keydown.
   win.webContents.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown" || input.alt) return;
@@ -407,21 +496,34 @@ function createWindow() {
     }
   });
 
-  // The page blocks unload while annotations are unsaved; ask instead of silently refusing to close.
-  win.webContents.on("will-prevent-unload", (e) => {
-    const choice = dialog.showMessageBoxSync(win, {
-      type: "question",
-      buttons: ["Close without saving", "Cancel"],
-      defaultId: 1,
-      cancelId: 1,
-      title: "Unsaved changes",
-      message: "One or more tabs have unsaved changes.",
-      detail: `Press ${IS_MAC ? "⌘S" : "Ctrl+S"} in each marked tab to save before closing Doko.`,
-    });
-    if (choice === 0) e.preventDefault();
+  // The shared handshake already saved every reader and obtained discard consent where needed.
+  win.webContents.on("will-prevent-unload", event => {
+    if (closeApproved) event.preventDefault();
+  });
+  let recoveryAttempts = 0;
+  win.webContents.on("render-process-gone", (_event, details) => {
+    if (closeApproved || !win || win.isDestroyed()) return;
+    const target = win;
+    rendererReady = false;
+    closeApproved = false;
+    closeRequest?.finish("error");
+    try {
+      fs.appendFileSync(path.join(app.getPath("userData"), "recovery.log"),
+        `${new Date().toISOString()} renderer stopped: ${details.reason}, exit ${details.exitCode}\n`);
+    } catch {}
+    const canReload = recoveryAttempts++ === 0;
+    void dialog.showMessageBox(target, {
+      type: "error", title: "Doko reader stopped",
+      message: "The reader stopped unexpectedly. Unsaved changes may have been lost.",
+      detail: canReload ? "Reload Doko to reopen the last saved document. Other saved documents remain in your library."
+        : "Recovery stopped after another failure. Restart Doko to try again.",
+      buttons: canReload ? ["Reload Doko", "Keep open"] : ["Keep open"], defaultId: canReload ? 1 : 0, cancelId: canReload ? 1 : 0,
+    }).then(({ response }) => {
+      if (canReload && response === 0 && !target.isDestroyed()) target.webContents.reload();
+    }).catch(() => {});
   });
 
-  win.on("closed", () => { clearTimeout(windowTimer); contentFiles.clear(); saveFiles.clear(); fileMenuState = { kind: "none", busy: false }; updateFileMenu(); win = null; rendererReady = false; });
+  win.on("closed", () => { clearTimeout(windowTimer); contentFiles.clear(); saveFiles.clear(); fileMenuState = { kind: "none", busy: false }; updateFileMenu(); win = null; rendererReady = false; closeApproved = false; closeRequest?.finish("cancelled"); });
 }
 
 const MAX_URL_PDF_BYTES = MAX_DOCUMENT_BYTES;
@@ -590,6 +692,8 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     app.setAboutPanelOptions({ applicationName: "Doko" });
+    // Refresh the running Dock icon after an in-place app update.
+    if (IS_MAC && !TEST_HIDDEN) app.dock.setIcon(path.join(__dirname, "icon.png"));
     protocol.handle("app", async (req) => {
       const { host, pathname } = new URL(req.url);
       if (host !== "folio") return new Response("Not found", { status: 404 });
@@ -611,6 +715,11 @@ if (!app.requestSingleInstanceLock()) {
       if (isTrustedSender(event)) listener(event, ...args);
     });
 
+    on("folio:prepared-close", (event, id, result) => {
+      if (event.senderFrame !== win?.webContents.mainFrame || id !== closeRequest?.id
+        || !["ready", "cancelled", "error"].includes(result)) return;
+      closeRequest.finish(result);
+    });
     updateFileMenu();
     handle("folio:save-file", (_event, request) => saveFiles.save(request));
     on("folio:file-menu", (_event, state) => {
@@ -686,12 +795,19 @@ if (!app.requestSingleInstanceLock()) {
     handle("folio:set-auto-update-setting", (_event, enabled) => saveUpdatePreference(enabled));
     on("folio:check-update", () => void checkForUpdates(true));
     on("folio:install-update", () => {
-      if (updateReady) autoUpdater.quitAndInstall(true, true);
+      if (updateReady) void requestClose("update");
+    });
+    handle("folio:set-window-transparency", (_event, enabled) => {
+      if (typeof enabled !== "boolean") throw new TypeError("Window transparency must be a boolean");
+      windowTransparencyRequested = enabled;
+      return applyWindowTransparency();
     });
     on("folio:theme", (_e, theme) => {
       if (win && Object.hasOwn(TITLEBAR, theme)) {
         if (!IS_MAC) win.setTitleBarOverlay(TITLEBAR[theme]);
-        win.setBackgroundColor(TITLEBAR[theme].color);
+        windowTheme = theme;
+        nativeTheme.themeSource = theme;
+        applyWindowTransparency();
       }
     });
 
@@ -699,6 +815,9 @@ if (!app.requestSingleInstanceLock()) {
     setupAutoUpdate();
   });
 
+  app.on("before-quit", event => {
+    if (win && !closeApproved) { event.preventDefault(); void requestClose("quit"); }
+  });
   // macOS apps stay running with no windows; clicking the Dock icon opens a new one.
   app.on("window-all-closed", () => { if (!IS_MAC) app.quit(); });
   app.on("activate", () => { if (app.isReady() && !win) createWindow(); });

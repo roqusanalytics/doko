@@ -67,6 +67,21 @@ Doko is the rebranded continuation of [Forward-Future/folio](https://github.com/
 
 URL opening, webpage conversion, and Word conversion require the desktop app. Failed downloads leave your current document open.
 
+### Edit photos and PDF copies
+
+- **Photos → Image → Crop, resize and adjust:** drag a crop region, choose its aspect ratio, rotate or flip,
+  enter exact pixel dimensions with proportional sizing, and adjust brightness, contrast and saturation.
+  Preview changes, Undo or Reset, then Apply. **Save PNG** saves a separate edited image; existing marks become part of its pixels.
+- **Pages → Organize pages** (also in **More**): insert a PDF or blank page before/after selected thumbnails,
+  rotate or delete multiple pages, Undo, then Apply. Original files stay unchanged. Imported document-level bookmarks
+  and accessibility tags stay in the source. PDFs with imported form fields or unsupported page structures show an explanation.
+- **Selected text → Text marking style:** choose Highlight, Underline or Strike through. The latter two are real PDF annotations.
+- **More → Redact content:** mark areas and explicitly confirm a sanitized copy. Every page becomes a flat image at
+  144 DPI; searchable text, forms, links, metadata and attachments are removed from the copy. Use an unsigned, unencrypted PDF.
+- **More → Protect PDF copy:** set and confirm an opening password, then save an AES-256 encrypted copy. Passwords are not saved in preferences.
+- **Undo edit** reverses the latest applied document operation while preserving newer document notes and surviving page bookmarks.
+  Finish content editing before using it. Original source files are changed only through an explicit native save choice.
+
 ### Read and navigate
 
 - **Back and Forward:** after following an internal link or an outline entry, choose **More → Back** to return to

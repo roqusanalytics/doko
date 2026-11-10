@@ -4,7 +4,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { checkDiskPath, readRegular, sameFile, MAX_DOCUMENT_BYTES } = require('./document-files.cjs');
 const { createSaveTemp, copySaveTemp } = require('./save-metadata.cjs');
-const FORMATS = new Set(['pdf', 'png', 'jpg', 'webp', 'html', 'txt', 'md', 'zip']);
+const FORMATS = new Set(['pdf', 'png', 'jpg', 'webp', 'html', 'txt', 'md', 'json', 'zip']);
 const conflict = () => Object.assign(new Error('The file changed on disk. Save a copy instead.'), { conflict: true });
 const digest = data => crypto.createHash('sha256').update(data).digest('hex');
 async function snapshot(file) {
@@ -15,7 +15,8 @@ async function snapshot(file) {
   if (!sameFile(before, stat) || before.ctimeNs !== stat.ctimeNs) throw conflict();
   return { stat, digest: digest(data) };
 }
-const unchanged = (a, b) => sameFile(a.stat, b.stat) && a.stat.ctimeNs === b.stat.ctimeNs && a.digest === b.digest;
+// Sync providers can update metadata without editing content; keep identity and byte checks.
+const unchanged = (a, b) => sameFile(a.stat, b.stat) && a.digest === b.digest;
 function createSaveFiles({ chooseSavePath }) {
   const records = new Map();
   let busy = false;
@@ -32,6 +33,7 @@ function createSaveFiles({ chooseSavePath }) {
           || !(request.data instanceof Uint8Array) || (!request.data.byteLength && !['txt', 'md'].includes(request.format)) || request.data.byteLength > MAX_DOCUMENT_BYTES
           || request.saveAs !== undefined && typeof request.saveAs !== 'boolean'
           || request.id !== undefined && typeof request.id !== 'string') throw new Error('Invalid file save request.');
+        const submittedDigest = digest(request.data);
         const previous = request.id === undefined ? null : records.get(request.id);
         if (request.id !== undefined && !previous) throw new Error('This save location is no longer available.');
         if (previous && previous.format !== request.format) throw new Error('Choose Save As for another file format.');
@@ -56,7 +58,10 @@ function createSaveFiles({ chooseSavePath }) {
         ({ temp, handle } = pending);
         await handle.writeFile(request.data); await pending.verify(); await handle.sync(); await handle.close(); handle = null;
         if (!sameFile(directory, await fsp.lstat(root, { bigint: true }))) throw conflict();
-        if (expected) { if (!unchanged(expected, await snapshot(file))) throw conflict(); }
+        if (expected) {
+          const current = await snapshot(file);
+          if (!unchanged(expected, current) || expected.stat.ctimeNs !== current.stat.ctimeNs) throw conflict();
+        }
         else { try { await fsp.lstat(file); throw conflict(); } catch (error) { if (error.code !== 'ENOENT') throw error; } }
         if (expected) await fsp.rename(temp, file);
         else {
@@ -69,6 +74,7 @@ function createSaveFiles({ chooseSavePath }) {
         }
         temp = null;
         const source = await snapshot(file);
+        if (source.digest !== submittedDigest) throw conflict();
         const id = previous && !request.saveAs ? request.id : crypto.randomUUID();
         records.set(id, { file, directory, source, format: request.format });
         return { ok: true, id, name: path.basename(file) };

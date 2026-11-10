@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { SelectMenu } from "./SelectMenu";
 import { Modal } from "./Dialogs";
+import { WINDOW_TRANSPARENCY_KEY, saveWindowTransparency } from "./appearance";
+import { readSetting } from "./preferences";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { CLAUDE_CODE_URL, PROVIDERS, savedProvider, saveAiPreference, signInChatGPT, USAGE_URL, type AiProvider } from "./ai";
 import { OpenRouterSettings } from "./OpenRouterSettings";
@@ -207,6 +209,15 @@ export function SettingsDialog({ initialSection = "General", theme, onTheme, nig
   const [error, setError] = useState<string | null>(null);
   const [section, setSection] = useState<"General" | "Ask AI" | "Storage">(initialSection);
 
+  const [windowTransparency, setWindowTransparency] = useState(() => readSetting(WINDOW_TRANSPARENCY_KEY) === "true");
+  useEffect(() => {
+    const update = (event: StorageEvent) => {
+      if (event.key === WINDOW_TRANSPARENCY_KEY || event.key === null) setWindowTransparency(readSetting(WINDOW_TRANSPARENCY_KEY) === "true");
+    };
+    window.addEventListener("storage", update);
+    return () => window.removeEventListener("storage", update);
+  }, []);
+
   // Ask AI
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   const [provider, setProvider] = useState(savedProvider);
@@ -236,6 +247,12 @@ export function SettingsDialog({ initialSection = "General", theme, onTheme, nig
           <Row label="Theme">
             <Choice label="Theme" value={theme === "dark" ? "dark" : "light"} onChange={onTheme}
               options={[{ id: "light", name: "Light" }, { id: "dark", name: "Dark" }]} />
+          </Row>
+          <Row label="Window transparency" hint="Translucent sidebar and navigation. Documents stay opaque. Uses the system backdrop where supported; accessibility settings take priority.">
+            <Switch label="Window transparency" checked={windowTransparency} onChange={enabled => {
+              if (saveWindowTransparency(enabled)) { setWindowTransparency(enabled); setError(null); }
+              else setError("Couldn't save this preference. Try again.");
+            }} />
           </Row>
           <AppearanceSettings dark={theme === "dark"} />
           <Row label="PDF dark mode" hint="Dims bright pages for night reading. Images keep their colors.">
@@ -317,7 +334,7 @@ export function SettingsDialog({ initialSection = "General", theme, onTheme, nig
           </Row>
         </Section>}
 
-        {error && <p className="form-error">{error}</p>}
+        {error && <p className="form-error" role="alert">{error}</p>}
       </div>
     </Modal>
   );

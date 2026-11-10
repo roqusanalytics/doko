@@ -1,3 +1,4 @@
+import { nativeAppearanceTheme } from "./appearance";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
@@ -111,7 +112,7 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
   useEffect(() => { tabs.markDirty(tabKey, dirty); }, [tabs, tabKey, dirty]);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    if (tabs.active === tabKey) window.folioDesktop?.setTheme(theme);
+    if (tabs.active === tabKey) window.folioDesktop?.setTheme(nativeAppearanceTheme(theme));
   }, [theme, tabs.active, tabKey, tabs]);
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {

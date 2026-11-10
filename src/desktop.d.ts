@@ -13,7 +13,7 @@ interface UpdateStatus {
 
 // Present only when Doko runs as the desktop app (see electron/preload.cjs).
 type FileCommand = "save" | "save-as" | "export" | "compress" | "print" | "properties" | "recent" | "hand";
-type FileSaveFormat = "pdf" | "png" | "jpg" | "webp" | "html" | "txt" | "md" | "zip";
+type FileSaveFormat = "pdf" | "png" | "jpg" | "webp" | "html" | "txt" | "md" | "zip" | "json";
 type FileSaveResult = { ok?: boolean; cancelled?: boolean; id?: string; name?: string; error?: string; conflict?: boolean };
 interface FolioDesktop {
   saveFile(request: { name: string; data: Uint8Array; format: FileSaveFormat; id?: string; saveAs?: boolean }): Promise<FileSaveResult>;
@@ -55,6 +55,11 @@ interface FolioDesktop {
   downloadOcrModel(code: string): Promise<Uint8Array<ArrayBuffer>>;
   openInstallation(): Promise<string>;
   setTheme(theme: string): void;
+  /** Returns whether a native translucent material is active; accessibility preferences take priority. */
+  setWindowTransparency(enabled: boolean): Promise<boolean>;
+  onWindowTransparency(callback: (enabled: boolean) => void): () => void;
+  onCloseCancelled(callback: () => void): () => void;
+  onPrepareClose(callback: () => Promise<boolean>): () => void;
   installUpdate(): void;
   onUpdateStatus(callback: (status: UpdateStatus) => void): () => void;
   checkForUpdates(): void;

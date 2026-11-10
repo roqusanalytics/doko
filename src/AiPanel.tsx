@@ -58,6 +58,8 @@ function documentText(pdf: PDFDocumentProxy) {
 
 // ── Panel ─────────────────────────────────────────────────────────────────────────────────
 // Keep partial replies and provider errors when the panel closes. Protected documents are session-only.
+const closingChats = new Map<string, () => void>();
+export function stopAiForClose(id: string) { closingChats.get(id)?.(); }
 const conversations = new Map<string, { messages: Message[]; generation: number; persist: boolean }>();
 let lastChatClear = 0;
 export function forgetClearedChats(generation: number) {
@@ -69,6 +71,11 @@ export function forgetClearedChats(generation: number) {
 
 function rememberChat(id: string, persist: boolean, messages: Message[], generation: number) {
   if (!persist || generation >= lastChatClear) conversations.set(id, { messages, generation, persist });
+}
+
+export async function flushAiHistory(id: string) {
+  const chat = conversations.get(id);
+  if (chat?.persist) await saveAiHistory(id, storedMessages(chat.messages), chat.generation);
 }
 
 function CopyResponse({ text }: { text: string }) {
@@ -128,9 +135,10 @@ interface Props {
   onGoToPage: (n: number) => void;
   onSettings: () => void;
   onClose: () => void;
+  onSaveError?: (failed: boolean) => void;
 }
 
-export function AiPanel({ pdf, docId, persist, docName, context, onClearContext, onGoToPage, onSettings, onClose }: Props) {
+export function AiPanel({ pdf, docId, persist, docName, context, onClearContext, onGoToPage, onSettings, onClose, onSaveError }: Props) {
   const ai = window.folioDesktop?.ai;
   const [status, setStatus] = useState<AiStatus | null>(null);
   const provider = useSyncExternalStore(subscribeAiPreferences, savedProvider);
@@ -144,6 +152,8 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
   const [busy, setBusy] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
+  const [storageError, setStorageError] = useState<"read" | "save" | null>(null);
+  const [storageRetry, setStorageRetry] = useState(0);
   const [confirmNew, setConfirmNew] = useState(false);
   const busyRef = useRef<string | null>(null);
   const preparing = useRef<string | null>(null);
@@ -155,6 +165,7 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
   // The panel is mounted per document (keyed by docId in App), so this conversation always belongs to docId.
   const [generation, setGeneration] = useState<number | null>(() => conversations.get(docId)?.generation ?? (persist ? null : 0));
   const loaded = generation !== null;
+  useEffect(() => { onSaveError?.(storageError === "save"); }, [storageError, onSaveError]);
   useEffect(() => {
     if (loaded) return;
     let cancelled = false;
@@ -162,15 +173,24 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
       if (cancelled) return;
       setMessages(messages);
       setGeneration(generation);
+      setStorageError(null);
+    }).catch(() => {
+      if (!cancelled) setStorageError("read");
     });
     return () => { cancelled = true; };
-  }, [docId, loaded]);
+  }, [docId, loaded, storageRetry]);
   useEffect(() => {
     if (generation === null) return;
     rememberChat(docId, persist, messages, generation);
     // Save once an answer has finished (not on every streamed word).
-    if (persist && !busy) void saveAiHistory(docId, storedMessages(messages), generation);
-  }, [docId, messages, busy, generation, persist]);
+    let cancelled = false;
+    if (persist && !busy) void saveAiHistory(docId, storedMessages(messages), generation).then(() => {
+      if (!cancelled) setStorageError(null);
+    }).catch(() => {
+      if (!cancelled) setStorageError("save");
+    });
+    return () => { cancelled = true; };
+  }, [docId, messages, busy, generation, persist, storageRetry]);
   useEffect(() => {
     let current = true;
     void ai?.status().then(value => { if (current) setStatus(value); }).catch(() => { if (current) setSetupError("Couldn't check AI connections."); });
@@ -230,6 +250,16 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
   // Otherwise it keeps running unseen, holds one of the two answers allowed at a time, and comes back never finishing.
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  useEffect(() => {
+    closingChats.set(docId, () => {
+      const request = busyRef.current;
+      preparing.current = null; busyRef.current = null;
+      if (request) void ai?.cancel(request).catch(() => {});
+      setBusy(null);
+      if (generation !== null) rememberChat(docId, persist, messagesRef.current, generation);
+    });
+    return () => { closingChats.delete(docId); };
+  }, [ai, docId, persist, generation]);
   useEffect(() => () => {
     preparing.current = null;
     const id = busyRef.current;
@@ -241,7 +271,8 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
     const kept = last?.role === "assistant" && !last.content && !last.error ? list.slice(0, -1) : list;
     if (generation !== null) {
       rememberChat(docId, persist, kept, generation);
-      if (persist) void saveAiHistory(docId, storedMessages(kept), generation);
+      // The cached conversation survives a failed save and is retried when the panel reopens.
+      if (persist) void saveAiHistory(docId, storedMessages(kept), generation).catch(() => {});
     }
   }, [ai, docId, persist, generation]);
   const stop = () => {
@@ -304,7 +335,7 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
           onChange={value => saveAiPreference("folio:ai-provider", value)}
           options={Object.entries(PROVIDERS).map(([value, label]) => ({ value, label }))} />}
         <div className="ai-head-actions">
-          <button ref={newConversationRef} className="pill-btn" title="New conversation" aria-label="New conversation" disabled={!messages.length || !!busy} onClick={() => setConfirmNew(true)}>
+          <button ref={newConversationRef} className="pill-btn" title="New conversation" aria-label="New conversation" disabled={!loaded || !messages.length || !!busy} onClick={() => setConfirmNew(true)}>
             <Icon name="plus" size={15} />
           </button>
           <button className="pill-btn" title="Close" aria-label="Close Ask AI" onClick={onClose}>
@@ -360,7 +391,7 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
                 </div>
               </div>
             )}
-            {messages.length === 0 && (
+            {loaded && messages.length === 0 && (
               <div className="ai-empty">
                 <p>Ask anything about <strong>{docName.replace(/\.pdf$/i, "")}</strong>, or select text in the document and choose <em>Ask AI</em>.</p>
                 <div className="suggestions">
@@ -402,6 +433,15 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
             ))}
           </>
         )}
+        {!loaded && !storageError && <p className="ai-checking">Loading conversation…</p>}
+        {storageError && <div className="msg-error" role="alert">
+          <p>{storageError === "read" ? "Couldn't load this conversation. Try again before asking a question."
+            : "Couldn't save this conversation. Your messages are still available here."}</p>
+          <button className="btn ghost" disabled={!!busy} onClick={() => {
+            setStorageError(null);
+            setStorageRetry(value => value + 1);
+          }}>Retry</button>
+        </div>}
         {setupError && <div className="msg-error"><p>{setupError}</p></div>}
       </div>
 

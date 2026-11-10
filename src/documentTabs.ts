@@ -1,3 +1,4 @@
+import { keys } from "./platform";
 import { activeDocument, setActiveDocument } from "./session";
 import { getRecent } from "./recent";
 
@@ -13,6 +14,7 @@ export type OpenSource =
 interface Reader {
   open(source: OpenSource): void;
   flush(): Promise<void>;
+  suspend?(): Promise<OpenSource | undefined>;
   canClose?(): Promise<boolean>;
 }
 
@@ -29,6 +31,8 @@ interface Tab {
   reader?: Reader;
   source?: OpenSource;
   closing?: boolean;
+  suspending?: boolean;
+  suspendTimer?: number;
 }
 
 /** pdf.js installs editing, selection and clipboard handlers on its window. Give each live
@@ -39,6 +43,8 @@ export class DocumentTabs {
   private listeners = new Set<() => void>();
   private revision = 0;
   private linkHintSeen = false;
+  private preparingClose?: Promise<boolean>;
+  private closeCancelled = false;
   active = 0;
   keyboardFocus?: number;
   constructor(private root: HTMLElement) {}
@@ -73,7 +79,10 @@ export class DocumentTabs {
     const next = this.entry(key);
     if (!next) return;
     if (key !== this.active && document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    const previous = this.entry(this.active);
     this.active = key;
+    window.clearTimeout(next.suspendTimer);
+    if (previous && previous !== next) previous.suspendTimer = window.setTimeout(() => { void this.suspend(previous); }, 30_000);
     this.keyboardFocus = focusTab ? key : undefined;
     for (const tab of this.entries) if (tab.frame) {
       tab.frame.inert = tab !== next;
@@ -93,6 +102,21 @@ export class DocumentTabs {
     next.frame.focus({ preventScroll: true });
     if (!next.content) setActiveDocument(next.contentId ?? null);
     this.changed();
+  }
+  private async suspend(tab: Tab) {
+    if (tab.key === this.active || tab.dirty || tab.closing || tab.suspending || !tab.reader?.suspend) return;
+    const reader = tab.reader;
+    tab.suspending = true;
+    try {
+      const source = await reader.suspend!();
+      if (!source || tab.key === this.active || tab.dirty || tab.closing || tab.reader !== reader || !this.entries.includes(tab)) return;
+      tab.source = source;
+      tab.reader = undefined;
+      tab.frame?.disposeReader?.();
+      tab.frame?.remove();
+      tab.frame = undefined;
+    } catch { /* Keep the live reader when storage or flushing fails. */ }
+    finally { tab.suspending = false; }
   }
   library() {
     const blank = this.entries.find(tab => !tab.name && !tab.closing) ?? this.create();
@@ -189,23 +213,74 @@ export class DocumentTabs {
     const tab = this.entry(key);
     if (tab && !tab.contentId) { tab.name = ""; if (tab.frame) tab.frame.title = "Library"; this.changed(); }
   }
+  private async canClose(tab: Tab) {
+    if (tab.dirty && tab.reader?.canClose) this.select(tab.key);
+    return tab.reader?.canClose ? tab.reader.canClose()
+      : !tab.dirty || window.confirm(`Close “${tab.name}” and discard its unsaved changes? ${keys("Press Ctrl S to save a copy first.")}`);
+  }
+  prepareClose(): Promise<boolean> {
+    if (this.preparingClose) return this.preparingClose;
+    this.closeCancelled = false;
+    this.preparingClose = (async () => {
+      const tabs = [...this.entries];
+      for (const tab of tabs) if (!await this.canClose(tab) || this.closeCancelled) return false;
+      this.setClosingBusy(true);
+      for (const tab of tabs) {
+        try { await tab.reader?.flush(); if (this.closeCancelled) return false; }
+        catch (error) { this.select(tab.key); throw error; }
+      }
+      return tabs.length === this.entries.length && tabs.every(tab => this.entries.includes(tab));
+    })().then(ready => {
+      if (!ready) this.cancelClose();
+      return ready;
+    }, error => { this.cancelClose(); throw error; }).finally(() => { this.preparingClose = undefined; });
+    return this.preparingClose;
+  }
+  private setClosingBusy(busy: boolean) {
+    this.root.inert = busy;
+    // Inert does not cross an iframe's document boundary, including its focused text fields.
+    for (const tab of this.entries) {
+      const document = tab.frame?.contentDocument;
+      if (document) document.documentElement.inert = busy;
+    }
+  }
+  cancelClose() {
+    this.closeCancelled = true;
+    this.setClosingBusy(false);
+  }
+  readerFailed(key: number) {
+    const tab = this.entry(key);
+    if (tab) tab.reader = { open(source) { tab.source = source; }, flush: async () => {}, canClose: async () =>
+      window.confirm("This reader stopped. Unsaved changes may have been lost. Close this tab without reopening the saved document?") };
+  }
+  async recover(key: number) {
+    const tab = this.entry(key);
+    if (!tab) return;
+    const recent = tab.contentId ? await getRecent(tab.contentId) : undefined;
+    if (tab.contentId && !recent) throw new Error("The saved document isn't available. Close this tab and open the file again.");
+    tab.reader = undefined;
+    tab.dirty = false;
+    tab.source = tab.content ? { kind: "content", name: tab.content.name, document: tab.content }
+      : recent ? { kind: "blob", name: recent.name, blob: recent.data, recentId: recent.id } : tab.source;
+    tab.frame?.disposeReader?.();
+    tab.frame?.remove();
+    tab.frame = undefined;
+    this.select(key);
+  }
   async close(key: number) {
     const tab = this.entry(key);
     if (!tab || tab.closing) return;
-    if (tab.dirty && tab.reader?.canClose) this.select(key);
     tab.closing = true;
-    if (tab.reader?.canClose ? !await tab.reader.canClose() : tab.dirty && !window.confirm(`Close “${tab.name}” and discard its unsaved changes?`)) {
-      tab.closing = false;
-      return;
-    }
     try {
+      if (!await this.canClose(tab)) { tab.closing = false; return; }
       await tab.reader?.flush();
     } catch {
       tab.closing = false;
       this.select(key);
-      tab.reader?.open({ kind: "error", name: tab.name, message: "Couldn't finish saving your notes. The tab is still open." });
+      tab.reader?.open({ kind: "error", name: tab.name, message: "Couldn't finish saving your changes. The tab is still open." });
       return;
     }
+    window.clearTimeout(tab.suspendTimer);
     const index = this.entries.indexOf(tab);
     this.entries.splice(index, 1);
     tab.frame?.disposeReader?.();
@@ -226,7 +301,10 @@ export class DocumentTabs {
     const initial = this.revision;
     const desktop = window.folioDesktop;
     desktop?.content.onOpen(document => this.open([{ kind: "content", name: document.name, document }]));
+    desktop?.onPrepareClose(() => this.prepareClose());
+    desktop?.onCloseCancelled(() => this.cancelClose());
     desktop?.onTabCommand(command => {
+      if (this.root.inert) return;
       if (command === "new") this.library();
       else if (command === "close") void this.close(this.active);
       else this.cycle(command === "next" ? 1 : -1);

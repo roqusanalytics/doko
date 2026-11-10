@@ -16,6 +16,8 @@ try {
   const colors = [...APPEARANCE_PRESETS.map(preset => preset.color), "#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#757575", "#767676", "#777777", "#ff00ff", "#ffff00"];
   for (const color of colors) for (const dark of [false, true]) {
     const palette = appearancePalette(color, dark);
+    assert.equal(palette["--accent"], "#c5e1cb", "custom appearances must retain the Mint brand accent");
+    assert.equal(palette["--accent-foreground"], "#1a1a1a", "Mint controls need dark foreground text");
     for (const surface of ["--bg", "--stage", "--surface", "--surface-2"]) {
       for (const text of ["--text", "--text-2", "--text-3", "--accent-text"]) {
         const a = luminance(palette[surface]), b = luminance(palette[text]);

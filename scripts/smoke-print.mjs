@@ -1,3 +1,4 @@
+import { closeHidden } from "./hidden-window.mjs";
 import { _electron as electron } from "playwright-core";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -132,4 +133,4 @@ try {
   assert.equal(await page.getByRole("dialog", { name: "Print", exact: true }).count(), 0);
   assert.deepEqual(errors, []);
   console.log("ok print dialog, ranges, input shortcuts, DPI/overlap controls and limits, grayscale/toner, focus trap, cancellation during preparation, native handoff; Multiple: 2 sheets, Booklet: 2 sheets in both orientations with matching duplex, Poster: 4 tiles at 600 dpi; no print job sent");
-} finally { await app.close(); }
+} finally { await closeHidden(app); }

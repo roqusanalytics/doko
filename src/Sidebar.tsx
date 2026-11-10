@@ -18,6 +18,7 @@ interface Props {
   onSaveOrder: () => Promise<void>;
   onExportPages: (pages: number[]) => Promise<void>;
   onOpenCopy?: () => void;
+  onOrganize?: () => void;
   tab: SidebarTab;
   onTab: (tab: SidebarTab) => void;
   notes: ReactNode;
@@ -26,7 +27,7 @@ interface Props {
 
 export type SidebarTab = "pages" | "outline" | "notes";
 
-export function Sidebar({ pdf, page, rotation, onSelectPage, onSelectDest, order, onOrder, onSaveOrder, onOpenCopy, onExportPages,
+export function Sidebar({ pdf, page, rotation, onSelectPage, onSelectDest, order, onOrder, onSaveOrder, onOpenCopy, onOrganize, onExportPages,
   tab, onTab: setTab, notes, noteCount, bookmarkedPages, onToggleBookmark }: Props) {
   const [outline, setOutline] = useState<OutlineItem[] | null>(null);
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
@@ -44,13 +45,13 @@ export function Sidebar({ pdf, page, rotation, onSelectPage, onSelectDest, order
     <aside className={`sidebar tab-${tab}`}>
       <div className="sidebar-tabs" role="tablist">
         <button role="tab" aria-selected={tab === "pages"} className={tab === "pages" ? "on" : ""} onClick={() => setTab("pages")}>
-          Pages
+          <span className="button-label">Pages</span>
         </button>
         <button role="tab" aria-selected={tab === "outline"} className={tab === "outline" ? "on" : ""} onClick={() => setTab("outline")}>
-          Outline
+          <span className="button-label">Outline</span>
         </button>
         <button role="tab" aria-selected={tab === "notes"} className={tab === "notes" ? "on" : ""} onClick={() => setTab("notes")}>
-          Notes{noteCount > 0 && <span className="tab-count">{noteCount}</span>}
+          <span className="button-label">Notes</span>{noteCount > 0 && <span className="tab-count">{noteCount}</span>}
         </button>
       </div>
       {tab === "pages" && (
@@ -79,11 +80,12 @@ export function Sidebar({ pdf, page, rotation, onSelectPage, onSelectDest, order
           </ul>
         )}
       </div>
-      {tab !== "notes" && pdf.numPages > 1 && (
+      {tab !== "notes" && (pdf.numPages > 1 || onOrganize) && (
         <div className="organize-actions">
-          <button className="link small" onClick={() => onOrder(Array.from({ length: pdf.numPages }, (_, i) => i + 1))}>
+          {pdf.numPages > 1 && <button className="link small" onClick={() => onOrder(Array.from({ length: pdf.numPages }, (_, i) => i + 1))}>
             <Icon name="grid" size={14} /> Reorder pages
-          </button>
+          </button>}
+          {onOrganize && <button className="link small" onClick={onOrganize}><Icon name="grid" size={14}/> Organize pages</button>}
         </div>
       )}
     </aside>
@@ -130,6 +132,7 @@ function PageOrganizer({ pdf, page, rotation, onSelect, order, onOrder, onSave, 
   onOrder: Props["onOrder"];
   onSave: Props["onSaveOrder"];
   onOpenCopy?: () => void;
+  onOrganize?: () => void;
 }) {
   const [selected, setSelected] = useState(page);
   const [saving, setSaving] = useState(false);

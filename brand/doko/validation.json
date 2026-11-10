@@ -1,0 +1,27 @@
+{
+  "source_crop": [
+    248,
+    216,
+    1293,
+    527
+  ],
+  "vector_foreground_iou": 0.99254,
+  "mark_components": 3,
+  "logo_dimensions": [
+    1045,
+    311
+  ],
+  "icon_sizes": [
+    16,
+    24,
+    32,
+    48,
+    64,
+    128,
+    180,
+    192,
+    256,
+    512,
+    1024
+  ]
+}

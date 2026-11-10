@@ -7,7 +7,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { electronPath } from "./electron-path.mjs";
 import { readerPage } from "./reader-page.mjs";
-import { assertHidden } from "./hidden-window.mjs";
+import { assertHidden, closeHidden } from "./hidden-window.mjs";
 
 if (process.platform !== "darwin") {
   console.log("SKIP native macOS Trash smoke: requires macOS");
@@ -87,7 +87,7 @@ try {
   assert.deepEqual(errors, []);
   console.log("PASS macOS Trash: real native move, bounded recovery, clean IPC error and hidden window");
 } finally {
-  if (app) await app.close();
+  if (app) await closeHidden(app);
   // Exact UUID names only; never list or empty the user's Trash.
   for (const file of trashPaths) {
     if (existsSync(file)) {
