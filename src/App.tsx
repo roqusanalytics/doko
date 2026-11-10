@@ -24,7 +24,7 @@ import { Icon, type IconName } from "./icons";
 import { Welcome } from "./Welcome";
 import { Sidebar, type SidebarTab } from "./Sidebar";
 import { MarkupController, type Mark, type MarkupState } from "./markup";
-import { HighlightMenu, NoteBox, SelectionPopover, useTextSelection, type SelectionInfo } from "./Selection";
+import { HighlightMenu, NoteBox, SelectionPopover, textMarkupQuads, useTextSelection, type SelectionInfo } from "./Selection";
 import { NotesPanel } from "./NotesPanel";
 import { notesJson, notesMarkdown } from "./noteExport";
 import { copyText } from "./clipboard";
@@ -44,7 +44,7 @@ import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { saveVersion, type PdfChange } from "./versionHistory";
 import { SettingsDialog } from "./SettingsDialog";
 import { ChangelogDialog } from "./ChangelogDialog";
-import type { TextMarkupStyle, TextMarkupQuad } from "./textMarkup";
+import type { TextMarkupStyle } from "./textMarkup";
 const PhotoEditDialog = lazy(() => import("./PhotoEditDialog"));
 const PdfPagesDialog = lazy(() => import("./PdfPagesDialog"));
 const PdfProtectDialog = lazy(() => import("./PdfProtectDialog"));
@@ -1392,20 +1392,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const decorateText = async (style:TextMarkupStyle, color:string, note:string) => {
     const source=docRef.current, info=pinned ?? selection;
     if (!source || !info || fileBusy) return;
-    const rects=[...info.range.getClientRects()].filter(rect=>rect.width>0 && rect.height>0);
-    const quads:TextMarkupQuad[]=[];
-    for(let index=0;index<source.pdf.numPages;index++) {
-      const view=viewerRef.current!.getPageView(index), layer=view?.div.querySelector('.textLayer') as HTMLElement|null;
-      if(!layer) continue;
-      const box=layer.getBoundingClientRect();
-      const seen=new Set<string>();
-      for(const rect of rects) {
-        if(rect.left<box.left-1 || rect.right>box.right+1 || rect.top<box.top-1 || rect.bottom>box.bottom+1) continue;
-        const key=[rect.left,rect.top,rect.right,rect.bottom].map(n=>n.toFixed(1)).join(); if(seen.has(key)) continue;seen.add(key);
-        const points=[[rect.left,rect.top],[rect.right,rect.top],[rect.left,rect.bottom],[rect.right,rect.bottom]].flatMap(([x,y])=>view.viewport.convertToPdfPoint(x-box.left,y-box.top));
-        quads.push({page:index+1,points});
-      }
-    }
+    const quads = textMarkupQuads(info.range, viewerRef.current!, source.pdf.numPages);
     setFileBusy(true);
     try {
       if(source.password || await source.pdf.getPermissions() || (await source.pdf.getSignatures())?.length) throw new Error("Text marking requires an unsigned, unencrypted PDF.");
