@@ -1,27 +1,11 @@
 import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, Ref } from "react";
-import { basicSetup } from "codemirror";
-import { EditorState, type Extension } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { markdown } from "@codemirror/lang-markdown";
-import { pythonLanguage } from "@codemirror/lang-python";
-import { tags } from "@lezer/highlight";
+import type { Extension } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
 import { markdownSections } from "./markdownSections";
 import "./markdown-pane.css";
 
 export interface MarkdownEditorHandle { focus(): void }
-
-const highlighting = HighlightStyle.define([
-  { tag: tags.heading, class: "md-token-heading" },
-  { tag: tags.strong, class: "md-token-strong" },
-  { tag: tags.emphasis, class: "md-token-emphasis" },
-  { tag: [tags.link, tags.url], class: "md-token-link" },
-  { tag: [tags.keyword, tags.operatorKeyword], class: "md-token-keyword" },
-  { tag: [tags.string, tags.number, tags.bool], class: "md-token-literal" },
-  { tag: [tags.comment, tags.meta], class: "md-token-comment" },
-  { tag: tags.monospace, class: "md-token-code" },
-]);
 
 export default function MarkdownPane({ text, onChange, renderPreview, editorRef }: {
   text: string;
@@ -30,6 +14,13 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef 
   editorRef: Ref<MarkdownEditorHandle>;
 }) {
   const [mode, setMode] = useState<"view" | "source">("view");
+  const [requested, setRequested] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const modules = useRef<typeof import("./markdownEditor") | null>(null);
+  const latestText = useRef(text);
+  latestText.current = text;
   const [active, setActive] = useState(0);
   const [label, setLabel] = useState<{ index: number; top: number; left: number } | null>(null);
   const host = useRef<HTMLDivElement>(null);
@@ -72,8 +63,15 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef 
   };
 
   useEffect(() => {
-    if (!host.current) return;
-    extensions.current = [
+    if (!requested) return;
+    let disposed = false;
+    let view: EditorView | undefined;
+    setLoadError(false);
+    void import("./markdownEditor").then(loaded => {
+      if (disposed || !host.current) return;
+      modules.current = loaded;
+      const { basicSetup, markdown, pythonLanguage, syntaxHighlighting, highlighting, EditorState, EditorView } = loaded;
+      extensions.current = [
       basicSetup,
       markdown({ codeLanguages: info => /^(python|py)(?:\s|$)/i.test(info) ? pythonLanguage : null }),
       syntaxHighlighting(highlighting),
@@ -85,18 +83,21 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef 
       }),
       EditorView.domEventHandlers({ scroll: (_event, current) => { sourceSection(current); } }),
     ];
-    const view = new EditorView({
+    view = new EditorView({
       parent: host.current,
-      state: EditorState.create({ doc: text, extensions: extensions.current }),
+      state: EditorState.create({ doc: latestText.current, extensions: extensions.current }),
     });
     editor.current = view;
-    return () => { editor.current = null; view.destroy(); };
-  }, []);
+    setReady(true);
+    if (currentMode.current === "source") sourceSection(view);
+    }).catch(() => { if (!disposed) setLoadError(true); });
+    return () => { disposed = true; editor.current = null; view?.destroy(); };
+  }, [requested, attempt]);
 
   useEffect(() => {
     const view = editor.current;
     // Reloading a document must discard undo entries from its previous contents.
-    if (view && text !== view.state.doc.toString()) view.setState(EditorState.create({ doc: text, extensions: extensions.current }));
+    if (view && text !== view.state.doc.toString()) view.setState(modules.current!.EditorState.create({ doc: text, extensions: extensions.current }));
   }, [text]);
 
   useLayoutEffect(() => {
@@ -117,7 +118,7 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef 
       const view = editor.current;
       if (!view) return;
       const line = view.state.doc.line(Math.min(section.line, view.state.doc.lines));
-      view.dispatch({ selection: { anchor: line.from }, effects: EditorView.scrollIntoView(line.from, { y: "start", yMargin: 24 }) });
+      view.dispatch({ selection: { anchor: line.from }, effects: modules.current!.EditorView.scrollIntoView(line.from, { y: "start", yMargin: 24 }) });
       view.focus();
     } else {
       const root = rendered.current;
@@ -133,7 +134,7 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef 
   return <div className="markdown-pane" data-mode={mode} data-sections={sections.length > 0}>
     <div className="markdown-mode-bar" role="group" aria-label="Markdown mode">
       <button className="markdown-mode-button" aria-pressed={mode === "view"} onClick={() => setMode("view")}>View</button>
-      <button className="markdown-mode-button" aria-pressed={mode === "source"} onClick={() => setMode("source")}>View source</button>
+      <button className="markdown-mode-button" aria-pressed={mode === "source"} onClick={() => { setRequested(true); setMode("source"); }}>View source</button>
     </div>
     <div className="markdown-pane-body">
       {sections.length > 0 && <nav className="markdown-section-rail" aria-label="Document sections" onScroll={() => setLabel(null)} onKeyDown={event => {
@@ -153,7 +154,11 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef 
       <div ref={rendered} className="markdown-rendered" hidden={mode !== "view"} tabIndex={0} aria-label="Markdown document" onScroll={previewSection}>
         {mode === "view" && renderPreview(headingIds)}
       </div>
-      <div ref={host} className="markdown-source" hidden={mode !== "source"} />
+      <div className="markdown-source" hidden={mode !== "source"}>
+        {loadError && <div role="alert">Couldn't load the editor. <button onClick={() => setAttempt(value => value + 1)}>Retry</button></div>}
+        {!ready && !loadError && <div role="status">Loading editor…</div>}
+        <div ref={host} style={{ height: "100%" }} />
+      </div>
     </div>
     {label && sections[label.index] && <span id="markdown-section-label" role="tooltip" className="markdown-section-label" style={{ top: label.top, left: label.left }}>{sections[label.index].title}</span>}
   </div>;

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { electronPath } from "./electron-path.mjs";
 import { readerPage } from "./reader-page.mjs";
-import { assertHidden } from "./hidden-window.mjs";
+import { assertHidden, closeHidden } from "./hidden-window.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 // The installed archive can run in the same hidden harness without opening the user's app.
@@ -273,7 +273,10 @@ try {
       await page.keyboard.press("Escape");
       await page.waitForFunction(theme => document.documentElement.dataset.theme === theme, theme);
       assert.ok(await position.isVisible());
-      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "gallery overflows the window");
+      const overflow = await page.evaluate(() => ({width:innerWidth,scroll:document.documentElement.scrollWidth,
+        elements:[...document.querySelectorAll('body *')].filter(element=>element.checkVisibility() && element.getBoundingClientRect().right>innerWidth+1).slice(0,16).map(element=>({tag:element.tagName,cls:element.className,right:element.getBoundingClientRect().right,width:element.getBoundingClientRect().width}))}));
+      if(overflow.scroll>overflow.width) await page.screenshot({path:path.join(shots,'content-overflow.png')});
+      assert.ok(overflow.scroll <= overflow.width, `gallery overflows the window: ${JSON.stringify(overflow)}`);
       await page.screenshot({ path: path.join(shots, `content-gallery-${width}-${theme}.png`) });
     }
   }
@@ -318,7 +321,7 @@ try {
       for (const window of BrowserWindow.getAllWindows()) window.destroy();
     }
   }).catch(() => {});
-  await app.close();
+  await closeHidden(app);
   rmSync(temp, { recursive: true, force: true });
 }
 

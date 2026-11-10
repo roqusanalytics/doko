@@ -6,3 +6,6 @@ release
 release-test
 release-*/
 dev-app-update.yml
+
+reports/
+brand/*.zip

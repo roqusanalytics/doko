@@ -174,6 +174,161 @@ test('empty text exports are valid documents', async t => {
   assert.equal((await fs.stat(file)).size, 0);
 });
 
+test('JSON exports use native file validation and conflict protection', async t => {
+  const root = await temporary(t), file = path.join(root, 'notes.json');
+  const files = createSaveFiles({ chooseSavePath: async () => file });
+  const json = request({ name: 'notes.json', format: 'json', data: new TextEncoder().encode('{"notes":[]}') });
+  const saved = await files.save(json);
+  assert.equal(saved.ok, true);
+  assert.equal(await fs.readFile(file, 'utf8'), '{"notes":[]}');
+  await fs.writeFile(file, '{"external":true}');
+  assert.deepEqual(await files.save({ ...json, id: saved.id }), { conflict: true });
+  assert.equal(await fs.readFile(file, 'utf8'), '{"external":true}');
+  assert.ok((await files.save({ ...json, name: 'notes.pdf' })).error);
+});
+
+test('Markdown copies work without hard links and preserve racing destinations', async t => {
+  const root = await temporary(t), original = path.join(root, 'original.md'), file = path.join(root, 'copy.md');
+  await fs.writeFile(original, '\ufeff# Original\r\n');
+  const content = createContentFiles({ chooseSavePath: async () => file });
+  const opened = await content.open(original), link = fs.link;
+  try {
+    fs.link = async () => { throw Object.assign(new Error('unsupported'), { code: 'ENOTSUP' }); };
+    assert.equal((await content.save(opened.id, '# Copy\n', true)).ok, true);
+    assert.equal(await fs.readFile(file, 'utf8'), '\ufeff# Copy\r\n');
+    assert.equal(await fs.readFile(original, 'utf8'), '\ufeff# Original\r\n');
+    await fs.unlink(file);
+    const second = createContentFiles({ chooseSavePath: async () => file });
+    const source = await second.open(original);
+    fs.link = async () => { await fs.writeFile(file, 'external'); throw Object.assign(new Error('unsupported'), { code: 'ENOTSUP' }); };
+    assert.ok((await second.save(source.id, 'copy', true)).error);
+    assert.equal(await fs.readFile(file, 'utf8'), 'external');
+    assert.equal((await second.open(original)).id, source.id, 'failed copy retains its original capability');
+  } finally { fs.link = link; }
+  assert.equal((await fs.readdir(root)).some(name => name.startsWith('.folio-')), false);
+});
+
+test('saves do not report success or advance their baseline after a post-commit content change', async t => {
+  for (const markdown of [false, true]) {
+    const root = await temporary(t), file = path.join(root, markdown ? 'notes.md' : 'copy.pdf');
+    const files = markdown ? createContentFiles() : createSaveFiles({ chooseSavePath: async () => file });
+    if (markdown) await fs.writeFile(file, 'original');
+    const opened = markdown ? await files.open(file) : await files.save(request());
+    assert.ok(opened.id);
+    const save = () => markdown ? files.save(opened.id, 'submitted') : files.save(request({ id: opened.id }));
+    const rename = fs.rename;
+    try {
+      fs.rename = async (source, destination) => {
+        await rename(source, destination);
+        if (destination === file) await fs.writeFile(file, 'external');
+      };
+      assert.deepEqual(await save(), { conflict: true });
+    } finally { fs.rename = rename; }
+    assert.equal(await fs.readFile(file, 'utf8'), 'external');
+    assert.deepEqual(await save(), { conflict: true }, 'the unexpected bytes must not become a trusted save baseline');
+    if (markdown) assert.equal((await files.open(file)).text, 'original');
+    assert.equal((await fs.readdir(root)).some(name => name.startsWith('.folio-')), false);
+  }
+});
+
+test('new saves also verify final bytes after link and exclusive-copy publication', async t => {
+  for (const markdown of [false, true]) {
+    for (const fallback of [false, true]) {
+      const root = await temporary(t), file = path.join(root, markdown ? 'copy.md' : 'copy.pdf');
+      const original = path.join(root, 'original.md');
+      if (markdown) await fs.writeFile(original, 'original');
+      const files = markdown ? createContentFiles({ chooseSavePath: async () => file }) : createSaveFiles({ chooseSavePath: async () => file });
+      const opened = markdown ? await files.open(original) : null;
+      const link = fs.link, open = fs.open;
+      try {
+        fs.link = async (source, destination) => {
+          if (fallback) throw Object.assign(new Error('unsupported'), { code: 'ENOTSUP' });
+          await link(source, destination); await fs.writeFile(destination, 'external');
+        };
+        fs.open = async (...args) => {
+          const handle = await open(...args);
+          if (args[0] === file && args[1] === 'wx') {
+            const sync = handle.sync.bind(handle);
+            handle.sync = async () => { await sync(); await fs.writeFile(file, 'external'); };
+          }
+          return handle;
+        };
+        const result = markdown ? await files.save(opened.id, 'submitted', true) : await files.save(request());
+        assert.deepEqual(result, { conflict: true });
+        assert.equal(await fs.readFile(file, 'utf8'), 'external');
+        if (markdown) assert.equal((await files.open(original)).id, opened.id);
+      } finally { fs.link = link; fs.open = open; }
+      assert.equal((await fs.readdir(root)).some(name => name.startsWith('.folio-')), false);
+    }
+  }
+});
+
+test('metadata-only changes between saves preserve content-based conflict protection', async t => {
+  for (const markdown of [false, true]) {
+    const root = await temporary(t), file = path.join(root, markdown ? 'notes.md' : 'copy.pdf');
+    if (markdown) await fs.writeFile(file, 'original');
+    const files = markdown ? createContentFiles() : createSaveFiles({ chooseSavePath: async () => file });
+    const opened = markdown ? await files.open(file) : await files.save(request());
+    const lstat = fs.lstat;
+    try {
+      fs.lstat = async (...args) => {
+        const stat = await lstat(...args);
+        if (args[0] === file && args[1]?.bigint) stat.ctimeNs += 1n;
+        return stat;
+      };
+      const result = markdown ? await files.save(opened.id, 'submitted') : await files.save(request({ id: opened.id }));
+      assert.equal(result.ok, true);
+    } finally { fs.lstat = lstat; }
+    assert.deepEqual(await fs.readFile(file), markdown ? Buffer.from('submitted') : Buffer.from([1, 2, 3]));
+  }
+});
+
+test('save accepts timestamp-only updates but refuses same-byte inode replacements', async t => {
+  for (const markdown of [false, true]) {
+    const root = await temporary(t), file = path.join(root, markdown ? 'notes.md' : 'copy.pdf');
+    if (markdown) await fs.writeFile(file, 'original');
+    const files = markdown ? createContentFiles() : createSaveFiles({ chooseSavePath: async () => file });
+    const opened = markdown ? await files.open(file) : await files.save(request());
+    const save = () => markdown ? files.save(opened.id, 'submitted') : files.save(request({ id: opened.id }));
+    await fs.utimes(file, new Date(0), new Date(0));
+    assert.equal((await save()).ok, true);
+    const bytes = await fs.readFile(file), replacement = file + '.replacement';
+    await fs.writeFile(replacement, bytes);
+    await fs.rename(replacement, file);
+    assert.deepEqual(await save(), { conflict: true });
+    assert.deepEqual(await fs.readFile(file), bytes);
+  }
+});
+
+test('metadata changed during save still blocks publishing stale access metadata', async t => {
+  for (const markdown of [false, true]) {
+    const root = await temporary(t), file = path.join(root, markdown ? 'notes.md' : 'copy.pdf');
+    if (markdown) await fs.writeFile(file, 'original');
+    const files = markdown ? createContentFiles() : createSaveFiles({ chooseSavePath: async () => file });
+    const opened = markdown ? await files.open(file) : await files.save(request());
+    const bytes = await fs.readFile(file), lstat = fs.lstat, open = fs.open;
+    let writing = false;
+    try {
+      fs.open = async (...args) => {
+        const handle = await open(...args);
+        if (String(args[0]).includes('.folio-')) {
+          const sync = handle.sync.bind(handle);
+          handle.sync = async () => { await sync(); writing = true; };
+        }
+        return handle;
+      };
+      fs.lstat = async (...args) => {
+        const stat = await lstat(...args);
+        if (writing && args[0] === file && args[1]?.bigint) stat.ctimeNs += 1n;
+        return stat;
+      };
+      const result = markdown ? await files.save(opened.id, 'submitted') : await files.save(request({ id: opened.id }));
+      assert.deepEqual(result, { conflict: true });
+    } finally { fs.lstat = lstat; fs.open = open; }
+    assert.deepEqual(await fs.readFile(file), bytes);
+  }
+});
+
 test('new saves work without hard links and never overwrite a racing destination', async t => {
   const root = await temporary(t), file = path.join(root, 'copy.pdf');
   const files = createSaveFiles({ chooseSavePath: async () => file });

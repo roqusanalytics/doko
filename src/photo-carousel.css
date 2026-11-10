@@ -44,14 +44,14 @@
   min-width: 0;
   padding: 3px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius);
   text-align: left;
   color: var(--text-2);
   transition: background 160ms, border-color 160ms, transform 160ms;
 }
 .photo-carousel-thumbnail:hover { background: var(--hover); transform: translateY(-2px); }
 .photo-carousel-thumbnail[aria-current="true"] {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   color: var(--text);
   background: var(--accent-soft);
 }
@@ -61,7 +61,7 @@
   width: 80px;
   height: 60px;
   overflow: hidden;
-  border-radius: 5px;
+  border-radius: var(--radius);
   background: var(--stage);
 }
 .photo-carousel-image img {

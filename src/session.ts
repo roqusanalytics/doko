@@ -14,13 +14,13 @@ export const FIT_SCALES = ["auto", "page-width", "page-fit"];
 const pendingViews = new Map<string, ReadingView>();
 let saveTimer = 0;
 
-function flushViews() {
+export function flushViews() {
   window.clearTimeout(saveTimer);
   saveTimer = 0;
   for (const [id, view] of pendingViews) {
-    try { localStorage.setItem(`folio:content-view:${id}`, JSON.stringify(view)); } catch {}
+    try { localStorage.setItem(`folio:content-view:${id}`, JSON.stringify(view)); pendingViews.delete(id); } catch {}
   }
-  pendingViews.clear();
+  return pendingViews.size === 0;
 }
 
 window.addEventListener("pagehide", flushViews);

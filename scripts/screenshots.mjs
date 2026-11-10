@@ -1,3 +1,4 @@
+import { closeHidden } from "./hidden-window.mjs";
 // Takes the README screenshots in docs/screenshots: launches the built app on the sample document and captures
 // highlights and notes (light theme), Ask AI with a local demo response, and search (dark theme).
 // No provider sign-in or network request is needed. Run `npm run build` first.
@@ -84,5 +85,5 @@ try {
   await page.keyboard.press("Enter");
   await shot("search");
 } finally {
-  await app.close();
+  await closeHidden(app);
 }

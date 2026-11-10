@@ -9,7 +9,7 @@
   align-items: stretch;
   gap: 6px;
   padding: 6px 6px 8px 9px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   backdrop-filter: blur(16px) saturate(1.6);
   border: 1px solid var(--line);
@@ -23,20 +23,33 @@
     transform: translateY(4px) scale(0.98);
   }
 }
-.swatch-btn {
-  width: 22px;
-  height: 22px;
-  margin: 0 2px;
+.swatch-btn, .color-options > button[role="radio"] {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+}
+/* Preserve the existing compact popover footprint and its anchor calculations. */
+.selection-popover .swatch-btn { width: 26px; height: 26px; }
+.swatch-btn::before, .color-options > button[role="radio"]::before {
+  content: "";
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: var(--swatch);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
-  transition: transform 0.15s var(--ease), box-shadow 0.15s;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 25%, transparent);
 }
-.swatch-btn:hover {
-  transform: scale(1.15);
+.swatch-btn:not(:disabled):not(.on):hover, .color-options > button[role="radio"]:not(:disabled):not([aria-checked="true"]):hover {
+  background: var(--hover);
 }
-.swatch-btn.on {
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12), 0 0 0 2px var(--surface), 0 0 0 3.5px var(--text-3);
+.swatch-btn.on, .color-options > button[role="radio"][aria-checked="true"] {
+  background: var(--active);
+  border-color: transparent;
 }
 .pop-btn {
   display: flex;
@@ -44,7 +57,7 @@
   gap: 6px;
   height: 32px;
   padding: 0 10px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   font-size: 13px;
   font-weight: 540;
   color: var(--text-2);
@@ -63,7 +76,7 @@
   z-index: 13;
   width: 320px;
   padding: 12px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-lg);
@@ -88,14 +101,14 @@
   color: var(--text);
   background: var(--hover);
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 8px 10px;
   outline: none;
 }
 .note-box textarea:focus,
 .doc-note:focus,
 .mark-note:focus {
-  border-color: var(--accent);
+  border-color: transparent;
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 /* These grow with their text (see GrowingTextarea), so they never scroll. */
@@ -117,7 +130,12 @@
 .note-actions .btn {
   height: 30px;
   padding: 0 12px;
-  font-size: 12.5px;
+  font-size: 13px;
+}
+
+/* PDF.js editor layers use page-scale fonts; toolbar buttons must stay at UI scale. */
+.editToolbar button {
+  font: 13px/1.2 var(--font);
 }
 
 /* Highlights that carry a note, and the pulse when jumping to one from the Notes list. */
@@ -141,7 +159,7 @@
 .tab-count {
   margin-left: 4px;
   padding: 0 5px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   font-size: 10.5px;
   line-height: 16px;
   background: var(--accent-soft);
@@ -202,7 +220,7 @@
 .mark-card {
   position: relative;
   padding: 8px 8px 8px 11px;
-  border-radius: 9px;
+  border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--line);
@@ -214,7 +232,7 @@
   top: 8px;
   bottom: 8px;
   width: 3px;
-  border-radius: 0 3px 3px 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
   background: var(--mark);
 }
 .mark-quote {
@@ -257,7 +275,7 @@
   opacity: 0;
   transition: opacity 0.15s;
   background: var(--surface);
-  border-radius: 8px;
+  border-radius: var(--radius);
 }
 .mark-card:hover .mark-actions,
 .mark-card:focus-within .mark-actions {
@@ -325,7 +343,7 @@
 }
 .ai-card {
   padding: 14px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--line);
   font-size: 13px;
@@ -348,7 +366,7 @@
 .ai-card code {
   font-size: 12px;
   padding: 1px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius);
   background: var(--hover);
 }
 .ai-card.ai-welcome {
@@ -365,7 +383,7 @@
   display: inline-flex;
   align-items: center;
   text-decoration: none;
-  font-size: 12.5px;
+  font-size: 13px;
 }
 .btn.ghost {
   color: var(--text);
@@ -396,7 +414,7 @@
 }
 .suggestion {
   padding: 6px 11px;
-  border-radius: 9px;
+  border-radius: var(--radius);
   border: 1px solid var(--line-strong);
   font-size: 12.5px;
   color: var(--text);
@@ -422,7 +440,7 @@
   max-width: 100%;
   overflow-x: auto;
   padding: 8px;
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--hover);
   white-space: pre;
   overflow-wrap: normal;
@@ -455,27 +473,27 @@
 .msg code {
   font-size: 12.5px;
   padding: 1px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius);
   background: var(--hover);
 }
 .msg.user {
   align-self: flex-end;
   max-width: 88%;
   padding: 8px 12px;
-  border-radius: 12px 12px 4px 12px;
+  border-radius: var(--radius) var(--radius) var(--radius) var(--radius);
   background: var(--accent-soft);
 }
 .msg.user blockquote {
   margin: 0 0 6px;
   padding-left: 8px;
-  border-left: 2px solid var(--accent);
+  border-left: 2px solid var(--accent-text);
   font-size: 12px;
   color: var(--text-2);
 }
 .page-ref {
   display: inline;
   padding: 0 2px;
-  border-radius: 4px;
+  border-radius: var(--radius);
   color: var(--accent-text);
   font: inherit;
 }
@@ -484,7 +502,7 @@
 }
 .msg-error {
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   font-size: 13px;
   color: var(--text);
@@ -537,7 +555,7 @@
   align-items: flex-start;
   gap: 6px;
   padding: 6px 8px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--hover);
   font-size: 12px;
   line-height: 1.4;
@@ -554,12 +572,12 @@
   align-items: flex-end;
   gap: 6px;
   padding: 6px 6px 6px 10px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   border: 1px solid var(--line-strong);
   background: var(--surface);
 }
 .composer:focus-within {
-  border-color: var(--accent);
+  border-color: transparent;
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .composer textarea {
@@ -580,9 +598,9 @@
   flex: none;
   display: grid;
   place-items: center;
-  border-radius: 9px;
+  border-radius: var(--radius);
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-foreground);
 }
 .send-btn:disabled {
   opacity: 0.35;
@@ -601,7 +619,7 @@
   color: var(--text-2);
   background: transparent;
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 2px 4px;
 }
 .ai-meta a {
@@ -690,7 +708,7 @@
   width: 100%;
   height: 32px;
   padding: 0 10px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   border: 1px solid var(--line-strong);
   background: var(--hover);
   font: inherit;
@@ -699,7 +717,7 @@
   outline: none;
 }
 .pop-note:focus {
-  border-color: var(--accent);
+  border-color: transparent;
   box-shadow: 0 0 0 3px var(--accent-soft);
   background: var(--surface);
 }
@@ -762,7 +780,7 @@
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: var(--radius);
   box-shadow: 0 20px 60px -10px rgba(0, 0, 0, 0.7);
   cursor: zoom-in;
   background: #fff;
@@ -860,14 +878,14 @@
   display: flex;
   gap: 4px;
   padding: 3px;
-  border-radius: 9px;
+  border-radius: var(--radius);
   background: var(--surface-2);
   border: 1px solid var(--line);
 }
 .settings-nav button {
   flex: 1;
   padding: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: var(--text-2);
   font-size: 12.5px;
 }
@@ -878,7 +896,7 @@
   color: var(--text);
   background: var(--surface-2);
   border: 1px solid var(--line-strong);
-  border-radius: 7px;
+  border-radius: var(--radius);
   padding: 0 8px;
   font: inherit;
   font-size: 13px;
@@ -887,13 +905,13 @@
 .settings-hint { color: var(--text-2); font-size: 12.5px; line-height: 1.5; margin: 9px 0; }
 .router-settings label { font-size: 13.5px; }
 .router-settings .settings-label small { overflow-wrap: anywhere; }
-.router-settings .btn { height: 32px; padding: 0 12px; font-size: 12.5px; }
+.router-settings .btn { height: 32px; padding: 0 12px; font-size: 13px; }
 .router-key, .router-model-picker { display: grid; gap: 7px; padding: 10px 0; }
 .router-key > div { display: flex; align-items: center; gap: 8px; }
 .router-key input { flex: 1; }
 .router-key-actions { justify-content: flex-end; }
 .router-models { max-height: 170px; overflow-y: auto; }
-.router-models button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 8px; text-align: left; border-radius: 6px; }
+.router-models button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 8px; text-align: left; border-radius: var(--radius); }
 .router-models button:hover, .router-models button:focus-visible { background: var(--hover); }
 .router-models button span { display: grid; gap: 2px; overflow-wrap: anywhere; }
 .router-models small, .router-model-picker > small { font-size: 11.5px; color: var(--text-2); }
@@ -922,7 +940,7 @@
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--line-strong);
-  border-radius: 10px;
+  border-radius: var(--radius);
   box-shadow: var(--shadow-md);
 }
 .scan-picker-panel:popover-open { display: flex; flex-direction: column; gap: 4px; }
@@ -937,7 +955,7 @@
   color: var(--text);
   background: var(--surface-2);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius);
 }
 .scan-picker-options { overflow-y: auto; overscroll-behavior: contain; }
 .scan-picker-options label {
@@ -945,12 +963,12 @@
   align-items: center;
   gap: 8px;
   padding: 6px;
-  border-radius: 5px;
+  border-radius: var(--radius);
   font-size: 13px;
   cursor: pointer;
 }
 .scan-picker-options label:hover, .scan-picker-options label:focus-within { background: var(--hover); }
-.scan-picker-options input { accent-color: var(--accent); }
+.scan-picker-options input { accent-color: var(--accent-text); }
 .scan-picker-options small { margin-left: auto; color: var(--text-2); }
 .scan-pack-icon { display: inline-flex; margin-left: auto; color: var(--text-3); }
 .scan-picker-options small + .scan-pack-icon { margin-left: 0; }
@@ -969,7 +987,7 @@
   position: relative;
   width: 38px;
   height: 22px;
-  border-radius: 11px;
+  border-radius: var(--radius);
   background: var(--line-strong);
   transition: background 0.18s;
 }
@@ -988,6 +1006,7 @@
   background: var(--accent);
 }
 .switch.on span {
+  background: var(--accent-foreground);
   transform: translateX(16px);
 }
 .switch:disabled {
@@ -1069,6 +1088,49 @@
 .changelog code {
   font-size: 12px;
   padding: 1px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius);
   background: var(--hover);
+}
+
+/* Match the vendor selector scope so native PDF controls use the same UI states. */
+.annotationEditorLayer :is(.freeTextEditor, .inkEditor, .stampEditor, .highlightEditor, .signatureEditor) .editToolbar,
+.textLayer .editToolbar {
+  --editor-toolbar-bg-color: var(--surface);
+  --editor-toolbar-fg-color: var(--text);
+  --editor-toolbar-border-color: var(--line-strong);
+  --editor-toolbar-hover-bg-color: var(--hover);
+  --editor-toolbar-hover-fg-color: var(--text);
+  --editor-toolbar-focus-outline-color: var(--accent-text);
+  --selected-outline-color: var(--accent-text);
+  --hover-outline-color: var(--accent-text);
+  border-radius: var(--radius);
+
+  .buttons > :not(.divider), .buttons > :not(.divider):is(:hover, :focus-visible) {
+    border-radius: var(--radius);
+  }
+  .buttons > :not(.divider):focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: -2px;
+    background: var(--hover);
+    box-shadow: none;
+  }
+  .buttons .colorPicker .dropdown {
+    /* PDF.js toggles this class; its standalone viewer stylesheet omits the app utility. */
+    &.hidden { display: none; }
+    border-radius: var(--radius);
+    gap: 4px;
+    padding-block: 4px;
+  }
+  .buttons .colorPicker .dropdown button {
+    min-height: 28px;
+    border-radius: var(--radius);
+  }
+  .buttons .colorPicker .dropdown button:not([aria-selected="true"]):is(:hover, :focus-visible) { background: var(--hover); }
+  .buttons .colorPicker .dropdown button[aria-selected="true"] { background: var(--active); }
+  .buttons .colorPicker:has(.dropdown:not(.hidden)) { background: var(--active); }
+  .buttons .colorPicker .dropdown button:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: -2px;
+    box-shadow: none;
+  }
 }

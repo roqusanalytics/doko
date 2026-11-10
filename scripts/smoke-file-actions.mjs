@@ -8,7 +8,7 @@ import { PDFDocument, PDFName } from "pdf-lib";
 import { _electron as electron } from "playwright-core";
 import { electronPath } from "./electron-path.mjs";
 import { readerPage } from "./reader-page.mjs";
-import { assertHidden } from "./hidden-window.mjs";
+import { assertHidden, closeHidden } from "./hidden-window.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const temp = await realpath(mkdtempSync(path.join(tmpdir(), "folio-file-actions-")));
@@ -243,4 +243,4 @@ try {
   console.error("File action diagnostics:", await app.evaluate(() => globalThis.fileActionTest));
   console.error("Reader:", await readerPage(await app.firstWindow()).locator("body").innerText().catch(() => "unavailable"));
   throw error;
-} finally { await app.close(); rmSync(temp, { recursive: true, force: true }); }
+} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true }); }

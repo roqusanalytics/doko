@@ -7,7 +7,7 @@ import { PDFDocument, PDFName, PDFNumber, PDFString } from "pdf-lib";
 import { _electron as electron } from "playwright-core";
 import { electronPath } from "./electron-path.mjs";
 import { readerPage } from "./reader-page.mjs";
-import { assertHidden } from "./hidden-window.mjs";
+import { assertHidden, closeHidden } from "./hidden-window.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "folio-document-export-"));
@@ -89,4 +89,4 @@ try {
   assert.ok(result.images.every(image => image.name.includes("page-1")));
   await assertHidden(app);
   console.log("PASS document export: PDF forms/annotations, honest no-improvement, PNG/JPEG/WebP, transparency, corrupt/empty/oversize/multiple-page/invalid-page input, abort and unchanged originals");
-} finally { await app.close(); rmSync(temp, { recursive: true, force: true }); }
+} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true }); }

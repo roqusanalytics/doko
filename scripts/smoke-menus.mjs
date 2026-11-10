@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { electronPath } from "./electron-path.mjs";
 import { readerPage } from "./reader-page.mjs";
-import { assertHidden } from "./hidden-window.mjs";
+import { assertHidden, closeHidden } from "./hidden-window.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "folio-menus-"));
@@ -115,6 +115,6 @@ try {
   assert.deepEqual(errors, []);
   console.log("ok  menus: non-overlapping anchor, viewport flip/clamp, selection, focus, arrows/Home/End/Escape, one popup, outside dismissal, language empty/long/search states");
 } finally {
-  await app.close();
+  await closeHidden(app);
   rmSync(temp, { recursive: true, force: true });
 }

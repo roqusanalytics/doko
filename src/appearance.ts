@@ -1,5 +1,6 @@
 import { readSetting, writeSetting } from "./preferences";
 
+export const WINDOW_TRANSPARENCY_KEY = "folio:window-transparency";
 export const APPEARANCE_KEY = "folio:appearance";
 export const APPEARANCE_PRESETS = [
   { id: "default", name: "Paper", color: "#f5f4f1" },
@@ -53,17 +54,24 @@ export function appearancePalette(color: string, dark: boolean): Record<string, 
     "--text": pale ? "#000000" : "#ffffff", "--text-2": readable(pale ? "#383838" : "#ededed"),
     "--text-3": readable(pale ? "#494949" : "#dddddd"),
     "--line": pale ? "#00000020" : "#ffffff25", "--line-strong": pale ? "#00000040" : "#ffffff40",
-    "--hover": pale ? "#0000000e" : "#ffffff14", "--active": pale ? "#00000018" : "#ffffff20",
-    "--accent-text": readable(pale ? "#942c1c" : "#ffad9e"), "--accent": pale ? "#b53724" : "#f0664f",
-    "--accent-foreground": pale ? "#ffffff" : "#000000",
-    "--accent-soft": pale ? "#942c1c14" : "#ffad9e20",
+    "--hover": "#c5e1cb24", "--active": "color-mix(in srgb, var(--accent) 20%, var(--surface))",
+    "--accent-text": readable(pale ? "#305d40" : "#c5e1cb"), "--accent": "#c5e1cb",
+    "--accent-foreground": "#1a1a1a",
+    "--accent-soft": "#c5e1cb3d",
   };
+}
+
+export function nativeAppearanceTheme(theme: string): string {
+  const value = readSetting(APPEARANCE_KEY) || "default";
+  const color = appearanceColor(value);
+  return color && value !== "default" ? appearancePalette(color, !normalizeColor(value) && theme === "dark")["--appearance-scheme"] : theme;
 }
 
 const properties = Object.keys(appearancePalette("#ffffff", false));
 export function applyAppearance(value = readSetting(APPEARANCE_KEY) || "default") {
   const color = appearanceColor(value);
   const root = document.documentElement;
+  window.folioDesktop?.setTheme(nativeAppearanceTheme(root.dataset.theme || "light"));
   if (!color || value === "default") {
     properties.forEach(property => root.style.removeProperty(property));
     delete root.dataset.appearance;
@@ -81,10 +89,37 @@ export function saveAppearance(value: string): boolean {
   return saved;
 }
 
+function applyNativeMaterial(enabled: boolean) {
+  document.documentElement?.toggleAttribute("data-window-material", enabled);
+  document.querySelectorAll<HTMLIFrameElement>("iframe.document-reader").forEach(frame =>
+    frame.contentDocument?.documentElement?.toggleAttribute("data-window-material", enabled));
+}
+
+export function applyWindowTransparency(enabled = readSetting(WINDOW_TRANSPARENCY_KEY) === "true") {
+  document.documentElement.toggleAttribute("data-window-transparency", enabled);
+  if (window.frameElement?.classList.contains("document-reader")) {
+    document.documentElement.toggleAttribute("data-window-material", window.parent.document.documentElement.hasAttribute("data-window-material"));
+  } else {
+    void window.folioDesktop?.setWindowTransparency(enabled).then(applyNativeMaterial).catch(() => applyNativeMaterial(false));
+  }
+}
+
+export function saveWindowTransparency(enabled: boolean): boolean {
+  if (!writeSetting(WINDOW_TRANSPARENCY_KEY, String(enabled))) return false;
+  applyWindowTransparency(enabled);
+  return true;
+}
+
 export function initializeAppearance() {
   applyAppearance();
+  applyWindowTransparency();
+  if (!window.frameElement?.classList.contains("document-reader")) {
+    const unsubscribe = window.folioDesktop?.onWindowTransparency(applyNativeMaterial);
+    window.addEventListener("pagehide", () => unsubscribe?.(), { once: true });
+  }
   window.addEventListener("storage", event => {
     if (event.key === "folio:theme" && (event.newValue === "light" || event.newValue === "dark")) document.documentElement.dataset.theme = event.newValue;
+    if (event.key === WINDOW_TRANSPARENCY_KEY || event.key === null) applyWindowTransparency();
     if (event.key === APPEARANCE_KEY || event.key === null) applyAppearance();
   });
   // Existing reader theme controls also update their own React state and desktop chrome.

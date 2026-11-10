@@ -1,5 +1,5 @@
 import { AnnotationMode, OPS, type PDFPageProxy } from "pdfjs-dist";
-import type { Worker as OcrWorker } from "tesseract.js";
+import type { PageOcrWorker } from "./ocrWorker";
 import { SCAN_LANGUAGES, type ScanLanguage } from "./scanLanguage";
 import { installedScanLanguages, OCR_CACHE_PATH } from "./scanLanguagePacks";
 import type { EventBus, PDFPageView, PDFViewer } from "./viewer";
@@ -25,28 +25,20 @@ async function hasPageImage(page: PDFPageProxy) {
   return fnArray.some(op => IMAGE_OPS.has(op));
 }
 
-async function startWorker(languages: ScanLanguage[]) {
+async function startWorker(languages: ScanLanguage[], signal: AbortSignal) {
   if (languages.some(code => code !== "eng")) {
     const installed = await installedScanLanguages();
     const missing = SCAN_LANGUAGES.find(({ id }) => languages.includes(id) && !installed.has(id));
     if (missing) throw new MissingScanPack(`Download the ${missing.name} pack in Settings to read this scan.`);
   }
-  const { createWorker, OEM, PSM } = await import("tesseract.js");
+  const { startOcrWorker } = await import("./ocrWorker");
   const base = `${import.meta.env.BASE_URL}ocr`;
-  // Language initialization errors in Tesseract are delivered to errorHandler.
-  const worker = await new Promise<OcrWorker>((resolve, reject) => {
-    createWorker(languages, OEM.LSTM_ONLY, {
-      workerPath: `${base}/worker.min.js`, workerBlobURL: false, corePath: base, langPath: base,
-      cachePath: OCR_CACHE_PATH, cacheMethod: "readOnly", errorHandler: reject,
-    }).then(resolve, reject);
-  });
-  await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
-  return worker;
+  return startOcrWorker(base, languages, OCR_CACHE_PATH, signal);
 }
 
 class MissingScanPack extends Error {}
 
-async function readWords(page: PDFPageProxy, worker: OcrWorker, signal: AbortSignal): Promise<Word[]> {
+async function readWords(page: PDFPageProxy, worker: PageOcrWorker, signal: AbortSignal): Promise<Word[]> {
   signal.throwIfAborted();
   // Read at a consistent resolution even in fit-page mode. Bound both dimensions on oversized scans.
   const base = page.getViewport({ scale: 1 });
@@ -70,7 +62,7 @@ async function readWords(page: PDFPageProxy, worker: OcrWorker, signal: AbortSig
     signal.throwIfAborted();
     const bytes = new Uint8Array(await png.arrayBuffer());
     signal.throwIfAborted();
-    const { data } = await worker.recognize(bytes, {}, { blocks: true, text: false });
+    const { data } = await worker.recognize(bytes);
     signal.throwIfAborted();
     const ctx = canvas.getContext("2d")!;
     ctx.font = "100px sans-serif";
@@ -141,22 +133,21 @@ async function hasEmbeddedText(page: PDFPageProxy, signal: AbortSignal) {
   }
 }
 
-/** Prepare the document sequentially, giving the reader's current page and its successor the next turns. */
+/** Prepare only the current page and its successor; distant scans wait until the reader visits them. */
 export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, languages: ScanLanguage[], onStatus: (text: string | null) => void) {
   const pdf = viewer.pdfDocument!;
   const controller = new AbortController();
   const { signal } = controller;
-  const pending = new Set(Array.from({ length: pdf.numPages }, (_, i) => i + 1));
+  const pending = new Set<number>();
+  const prepared = new Set<number>();
   // Keep small documents ready for the entire session. On huge scans, evicted pages can be read again on demand.
   const cache = new Map<number, Word[]>();
-  const evicted = new Set<number>();
   const notices = new Map<number, "noWords" | "ocrError" | "layerError">();
-  let nextPage = viewer.currentPageNumber;
   let cachedWords = 0;
   let active = 0;
   let recognizing = false;
   let timer: number | undefined;
-  let worker: Promise<OcrWorker> | undefined;
+  let worker: Promise<PageOcrWorker> | undefined;
   let workerStartFailed = false;
   let missingPackMessage: string | undefined;
 
@@ -181,7 +172,14 @@ export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, language
       if (old === n || Math.abs(old - viewer.currentPageNumber) <= 1) continue;
       cache.delete(old);
       cachedWords -= entry.length;
-      evicted.add(old);
+      prepared.delete(old);
+    }
+  }
+
+  function queueVisible() {
+    pending.clear();
+    for (const n of [viewer.currentPageNumber, viewer.currentPageNumber + 1]) {
+      if (n <= pdf.numPages && n !== active && !prepared.has(n)) pending.add(n);
     }
   }
 
@@ -194,11 +192,9 @@ export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, language
   async function prepareNext() {
     timer = undefined;
     if (!pending.size || signal.aborted || window.frameElement?.hasAttribute("inert")) return;
-    // Start at the last jump, continue ahead of the reader, then wrap back to the beginning.
-    while (!pending.has(nextPage)) nextPage = nextPage % pdf.numPages + 1;
-    const n = nextPage;
-    nextPage = n % pdf.numPages + 1;
+    const n = pending.has(viewer.currentPageNumber) ? viewer.currentPageNumber : pending.values().next().value!;
     pending.delete(n);
+    prepared.add(n);
     active = n;
     const view: PDFPageView = viewer.getPageView(n - 1);
     let page: PDFPageProxy | undefined;
@@ -210,17 +206,20 @@ export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, language
       if (!(await hasPageImage(page))) return;
       signal.throwIfAborted();
       if (n !== viewer.currentPageNumber && pending.has(viewer.currentPageNumber)) {
-        pending.add(n);
+        prepared.delete(n);
         return;
       }
       recognizing = true;
       if (n === viewer.currentPageNumber) updateStatus();
-      worker ??= startWorker(languages).catch(error => {
+      worker ??= startWorker(languages, signal).catch(error => {
         workerStartFailed = true;
         missingPackMessage = error instanceof MissingScanPack ? error.message : undefined;
         throw error;
       });
-      const words = await readWords(page, await worker, signal);
+      const activeWorker = await worker;
+      let words: Word[];
+      try { words = await readWords(page, activeWorker, signal); }
+      catch (error) { if (activeWorker.stopped) workerStartFailed = true; throw error; }
       signal.throwIfAborted();
       if (words.length) {
         remember(n, words);
@@ -240,6 +239,7 @@ export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, language
         // Background renders aren't in the viewer's page buffer, so it won't release their images for us.
         if (!viewer.getCachedPageViews().has(view)) page?.cleanup();
         if (n === viewer.currentPageNumber) updateStatus();
+        queueVisible();
         schedule();
       }
     }
@@ -254,24 +254,26 @@ export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, language
     if (notices.get(n) === "layerError") notices.delete(n);
     const words = cache.get(n);
     if (words) addWords(view, words);
-    else if (evicted.delete(n)) pending.add(n);
-    else if (view.textLayer?.div.textContent.trim() && !view.textLayer.div.querySelector(".ocr-word")) pending.delete(n);
+    else if (view.textLayer?.div.textContent.trim() && !view.textLayer.div.querySelector(".ocr-word")) {
+      prepared.add(n);
+      pending.delete(n);
+    }
+    else if ((n === viewer.currentPageNumber || n === viewer.currentPageNumber + 1) && !prepared.has(n) && n !== active) pending.add(n);
     if (n === viewer.currentPageNumber) updateStatus();
     schedule();
   }, { signal });
   bus.on("pagechanging", ({ pageNumber }: { pageNumber: number }) => {
-    nextPage = pageNumber;
     if (notices.get(pageNumber) === "ocrError") {
       notices.delete(pageNumber);
       if (workerStartFailed) { worker = undefined; workerStartFailed = false; }
-      if (pageNumber !== active) pending.add(pageNumber);
+      prepared.delete(pageNumber);
     }
-    if (evicted.delete(pageNumber)) pending.add(pageNumber);
-    if (evicted.delete(pageNumber + 1)) pending.add(pageNumber + 1);
+    queueVisible();
     updateStatus();
     schedule();
   }, { signal });
   window.addEventListener("folio:tab-visibility", schedule, { signal });
+  queueVisible();
   updateStatus();
   schedule();
   return () => {
@@ -285,6 +287,5 @@ export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, language
       view.textLayer?.div.querySelectorAll(".ocr-word, .ocr-break").forEach(node => node.remove());
     }
     onStatus(null);
-    void worker?.then(w => w.terminate()).catch(() => {});
   };
 }

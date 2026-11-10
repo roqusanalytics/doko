@@ -11,3 +11,13 @@ export async function assertHidden(app) {
   });
   assert.deepEqual(visible, { onScreen: 0, dock: false }, "the test app appeared on the user's screen");
 }
+
+// Discard only isolated test windows; normal quit can wait on an invisible unsaved-work dialog.
+export async function closeHidden(app) {
+  await app.evaluate(({ BrowserWindow }) => {
+    if (!process.env.FOLIO_TEST_USER_DATA) throw new Error("Refusing to discard a non-test profile");
+    BrowserWindow.getAllWindows().forEach(window => window.destroy());
+  });
+  app.process().kill("SIGKILL");
+  await app.close();
+}

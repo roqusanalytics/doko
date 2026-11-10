@@ -84,11 +84,13 @@ export class MarkupController {
   #penWidth = 1;
   #syncTimer = 0;
   #saveTimer = 0;
+  #saveRevision = 0;
   #listener: (state: MarkupState) => void;
   /** True while Doko itself switches pdf.js modes for a one-click highlight. */
   quickHighlighting = false;
 
-  constructor(bus: EventBus, viewer: PDFViewer, listener: (state: MarkupState) => void) {
+  constructor(bus: EventBus, viewer: PDFViewer, listener: (state: MarkupState) => void,
+    private onSaveError: (error: string | null) => void = () => {}) {
     this.#bus = bus;
     this.#viewer = viewer;
     this.#listener = listener;
@@ -129,6 +131,8 @@ export class MarkupController {
     });
   }
 
+  get storageGeneration() { return this.#storageGeneration; }
+
   get state(): MarkupState {
     return { marks: this.#sorted(), note: this.#note, bookmarkedPages: this.#bookmarkedPages };
   }
@@ -154,13 +158,22 @@ export class MarkupController {
   }
 
   /** Loads saved markup for a newly opened document. Password-protected documents aren't persisted. */
-  async load(docId: string, persist: boolean | "reading", reading?: Pick<MarkupState, "note" | "bookmarkedPages">) {
+  async load(docId: string, persist: boolean | "reading", reading?: Pick<MarkupState, "note" | "bookmarkedPages">, signal?: AbortSignal) {
     const readingGeneration = this.#storageGeneration;
-    this.unload();
     const generation = this.#generation;
+    let record: Awaited<ReturnType<typeof getNotes>> | undefined;
+    let revision: number;
+    do {
+      this.sync();
+      revision = this.#saveRevision;
+      await this.flush();
+      record = persist ? await getNotes(docId) : undefined;
+      signal?.throwIfAborted();
+      if (generation !== this.#generation) throw new Error("Stored notes changed while opening this document. Try opening it again.");
+      this.sync();
+    } while (revision !== this.#saveRevision);
+    this.unload(false);
     this.#docId = docId;
-    const record = persist ? await getNotes(docId) : undefined;
-    if (generation !== this.#generation) return;
     const cleared = record && record.generation < this.#storageGeneration;
     if (cleared || (record && readingGeneration < record.generation)) reading = undefined;
     const saved = cleared ? undefined : record?.value;
@@ -180,11 +193,12 @@ export class MarkupController {
     for (const page of [...this.#pending.keys()]) if (this.#ui?.getLayer(page)) void this.#restorePage(page);
   }
 
-  unload() {
+  unload(save = true) {
     // Read the live editors first: an edit committed in place (retyping a text box, then Escape) fires no event
     // that schedules a sync, so it would otherwise be lost.
     this.sync();
-    this.flush();
+    if (save) void this.flush().catch(() => {});
+    this.onSaveError(null);
     this.#generation++;
     this.#persist = false;
     this.#ui = null;
@@ -203,6 +217,7 @@ export class MarkupController {
 
   clearSaved(generation: number) {
     if (generation <= this.#storageGeneration) return;
+    this.onSaveError(null);
     this.#storageGeneration = generation;
     if (!this.#persist) return;
     if (this.#persist === "reading") {
@@ -393,17 +408,26 @@ export class MarkupController {
   }
 
   #scheduleSave() {
+    this.#saveRevision++;
     if (!this.#persist) return;
     window.clearTimeout(this.#saveTimer);
-    this.#saveTimer = window.setTimeout(() => this.flush(), 400);
+    this.#saveTimer = window.setTimeout(() => { void this.flush().catch(() => {}); }, 400);
   }
 
-  flush() {
+  async flush() {
     window.clearTimeout(this.#saveTimer);
     if (!this.#persist || !this.#docId) return;
     const notes: DocNotes = { id: this.#docId, note: this.#note, marks: this.#persist === true ? [...this.#known.values()] : [],
       bookmarkedPages: this.#bookmarkedPages ?? [], updatedAt: Date.now() };
-    return saveNotes(notes, this.#storageGeneration);
+    const generation = this.#generation;
+    try {
+      await saveNotes(notes, this.#storageGeneration);
+      if (generation === this.#generation) this.onSaveError(null);
+    } catch {
+      const message = "Couldn't save your notes on this device. Keep this tab open and retry.";
+      if (generation === this.#generation) this.onSaveError(message);
+      throw new Error(message);
+    }
   }
 
   /**

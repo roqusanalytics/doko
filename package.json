@@ -8,19 +8,20 @@
     "predev": "npm run assets",
     "prebuild": "npm run assets",
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/check-build-artifacts.mjs",
     "preview": "vite preview",
     "app": "npm run build && electron .",
     "dist:win": "npm run build && electron-builder --win nsis portable",
     "release": "node scripts/release.mjs",
     "dist:mac": "npm run build && electron-builder --mac --publish never",
     "dist:linux": "npm run build && electron-builder --linux --publish never",
-    "smoke": "node scripts/smoke-test.mjs && node scripts/test-print.mjs && node scripts/smoke-print.mjs && node scripts/smoke-print-resolution.mjs && node scripts/smoke-content.mjs && node scripts/smoke-updates.mjs && node scripts/smoke-markdown-modes.mjs && node scripts/test-photo-codec.mjs && node scripts/smoke-photo-tools.mjs && node scripts/test-appearance.mjs && node scripts/smoke-photo-view.mjs && node scripts/smoke-pen-width.mjs && node scripts/smoke-menus.mjs && node scripts/smoke-appearance.mjs && node --test scripts/test-file-native.cjs && node scripts/test-document-export.mjs && node scripts/smoke-hand-tool.mjs && node scripts/smoke-file-actions.mjs && node scripts/smoke-trash.mjs",
+    "smoke": "node scripts/run-smoke.mjs",
     "test:reader-security": "node scripts/test-reader-security.mjs && node scripts/test-url-client-certificates.mjs",
     "test:chat-math": "node scripts/test-chat-math.mjs",
     "test:thumbnails": "node scripts/test-thumbnails.mjs",
     "test:content": "node --test scripts/test-content-files.cjs scripts/test-markdown-sections.mjs && node scripts/smoke-content.mjs && node scripts/smoke-markdown-modes.mjs && node scripts/test-photo-codec.mjs && node scripts/smoke-photo-tools.mjs && node scripts/smoke-photo-view.mjs && node scripts/smoke-pen-width.mjs",
-    "build:local": "npm run build && electron-builder --config electron-builder.local.cjs --mac zip --arm64 --publish never"
+    "build:local": "npm run build && electron-builder --config electron-builder.local.cjs --mac zip --arm64 --publish never",
+    "test:document-tools": "node scripts/test-text-markup.mjs && node scripts/test-pdf-pages.mjs && node scripts/test-pdf-security.mjs"
   },
   "dependencies": {
     "electron-updater": "^6.8.11",
@@ -39,7 +40,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "codemirror": "^6.0.2",
-    "electron": "^45.2.1",
+    "electron": "45.2.3",
     "electron-builder": "^26.18.0",
     "idb-keyval": "^6.3.0",
     "katex": "^0.19.1",
@@ -81,7 +82,9 @@
       "dist/**/*",
       "electron/**/*",
       "package.json",
-      "!node_modules/mammoth/mammoth.browser*.js"
+      "!node_modules/mammoth/mammoth.browser*.js",
+      "!dist/**/* [0-9]*.*",
+      "!dist/**/* [0-9]*/**/*"
     ],
     "win": {
       "target": [

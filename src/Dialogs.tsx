@@ -1,9 +1,26 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { PDFDocumentProxy } from "./pdf";
 import { Icon } from "./icons";
 import { keys } from "./platform";
 
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const controls = () => [...panel.current!.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]')].filter(element=>element.checkVisibility());
+    const available = controls();
+    const first = available.find(element=>element.matches("input,textarea")) ?? available[0];
+    if (!panel.current?.contains(document.activeElement)) first?.focus();
+    const trap = (event:KeyboardEvent) => {
+      if(event.key !== "Tab") return;
+      const available=controls(), first=available[0], last=available.at(-1);
+      if(!available.length) {event.preventDefault();return;}
+      if(event.shiftKey && (document.activeElement===first || !panel.current?.contains(document.activeElement))) {event.preventDefault();last?.focus();}
+      else if(!event.shiftKey && (document.activeElement===last || !panel.current?.contains(document.activeElement))) {event.preventDefault();first?.focus();}
+    };
+    document.addEventListener('keydown',trap);
+    return()=>{document.removeEventListener('keydown',trap); if(previous?.isConnected)previous.focus();};
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -12,7 +29,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={panel} className="modal" role="dialog" aria-modal="true" aria-label={title}>
         <div className="modal-head">
           <h2>{title}</h2>
           <button className="pill-btn" onClick={onClose} aria-label="Close">

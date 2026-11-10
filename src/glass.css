@@ -1,0 +1,170 @@
+/* Regular glass belongs to navigation and contextual controls, never document content. */
+:root {
+  --glass: color-mix(in srgb, var(--surface) 88%, transparent);
+  --glass-chrome: color-mix(in srgb, var(--bg) 94%, transparent);
+  --glass-filter: blur(24px) saturate(1.15);
+  --glass-shadow: 0 6px 22px -8px color-mix(in srgb, var(--text) 20%, transparent);
+}
+[data-theme="dark"] {
+  --glass: color-mix(in srgb, var(--surface) 92%, transparent);
+  --glass-chrome: color-mix(in srgb, var(--bg) 96%, transparent);
+  --glass-shadow: 0 8px 26px -8px rgba(0, 0, 0, .45);
+}
+.topbar {
+  background: var(--glass-chrome);
+  border-bottom-color: transparent;
+}
+/* One material per group: child buttons use fills rather than another glass layer. */
+.segmented {
+  background: var(--glass);
+  box-shadow: var(--glass-shadow);
+}
+.sidebar {
+  backdrop-filter: var(--glass-filter);
+  background: var(--glass-chrome);
+  border-right-color: transparent;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+:is(.pill, .color-pill, .searchbar, .menu, .selection-popover, .scan-picker-panel, .image-menu, .exit-focus) {
+  background: var(--glass);
+  backdrop-filter: var(--glass-filter);
+  border-color: transparent;
+  border-radius: var(--radius);
+  box-shadow: var(--glass-shadow);
+}
+:is(.ai-model, .print-dialog, .signature-field) .select-trigger,
+.ai-meta .ai-model {
+  border-color: transparent;
+}
+.annotationEditorLayer :is(.freeTextEditor, .inkEditor, .stampEditor, .highlightEditor, .signatureEditor) .editToolbar,
+.textLayer .editToolbar {
+  --editor-toolbar-bg-color: var(--glass);
+  --editor-toolbar-border-color: transparent;
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-shadow);
+
+  .buttons .colorPicker .dropdown {
+    background: var(--surface);
+    border-color: transparent;
+    box-shadow: var(--glass-shadow);
+  }
+}
+/* Solid fallbacks preserve contrast when the material is unavailable or unwanted. */
+@supports not (backdrop-filter: blur(1px)) {
+  :root { --glass: var(--surface); --glass-chrome: var(--bg); }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+  :root {
+    --glass: var(--surface);
+    --glass-chrome: var(--bg);
+    --glass-filter: none;
+  }
+  .exit-focus { opacity: 1; }
+}
+@media (forced-colors: active) {
+  .segmented button.on:not(:focus-visible), .icon-btn.on:not(:focus-visible), .sidebar-tabs button.on:not(:focus-visible) {
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
+  }
+}
+
+:root {
+  --object-selection: color-mix(in srgb, var(--accent) 24%, transparent);
+  --object-hover: color-mix(in srgb, var(--accent) 12%, transparent);
+  --danger: #b42318;
+  --danger-soft: #b423181f;
+}
+[data-theme="dark"] {
+  --danger: #ffaca4;
+  --danger-soft: #ff72662b;
+}
+/* Selection is a temporary UI surface; keep PDF geometry and resize hit targets intact. */
+.annotationEditorLayer, .drawLayer {
+  --outline-color: var(--accent-text);
+  --hover-outline-color: var(--accent-text);
+  --resizer-bg-color: var(--accent-text);
+  --resizer-border-radius: 50%;
+}
+.annotationEditorLayer :is(.freeTextEditor, .inkEditor, .stampEditor, .signatureEditor) {
+  border-radius: var(--radius);
+  &:is(.selectedEditor, :hover):not(.editing) {
+    border-color: transparent;
+    outline: none;
+    background: var(--object-hover);
+    &::before { border-color: transparent; border-radius: inherit; }
+  }
+  &.selectedEditor:not(.editing), &.freeTextEditor:focus-within {
+    border-color: transparent;
+    outline: none;
+    background: var(--object-selection);
+    &::before { border-color: transparent; border-radius: inherit; }
+  }
+  &:is(.selectedEditor, :hover, :focus-within):focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+.folio-content-target {
+  border-radius: var(--radius);
+  &:is(:hover, [aria-pressed="true"]) { outline: none; background: var(--object-hover); }
+  &[aria-pressed="true"] { background: var(--object-selection); }
+  &:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+}
+.folio-inline-text {
+  outline: none;
+  background: var(--object-selection);
+  box-shadow: none;
+  &:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+}
+/* Destructive actions are red in both pointer and keyboard states. */
+.annotationEditorLayer :is(.freeTextEditor, .inkEditor, .stampEditor, .highlightEditor, .signatureEditor) .editToolbar,
+.textLayer .editToolbar {
+  .buttons > .deleteButton:is(:hover, :focus-visible) {
+    --editor-toolbar-hover-fg-color: var(--danger);
+    background: var(--danger-soft);
+    color: var(--danger);
+    &::before { background-color: var(--danger); }
+  }
+  .buttons > .deleteButton:focus-visible { outline-color: var(--danger); }
+}
+.pop-btn.danger:is(:hover, :focus-visible) { background: var(--danger-soft); color: var(--danger); }
+.pop-btn.danger:focus-visible { outline-color: var(--danger); }
+@media (prefers-contrast: more), (forced-colors: active) {
+  .annotationEditorLayer :is(.freeTextEditor, .inkEditor, .stampEditor, .signatureEditor).selectedEditor:not(.editing),
+  .folio-content-target[aria-pressed="true"] {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+@media (forced-colors: active) {
+  :root { --accent-text: Highlight; --danger: ButtonText; --danger-soft: ButtonFace; }
+}
+
+/* Window material is revealed only through chrome; the reading canvas stays opaque. */
+:root { --glass-chrome: var(--bg); }
+.sidebar { backdrop-filter: none; }
+[data-theme="dark"] { --glass-chrome: var(--bg); }
+[data-window-transparency] { --glass-chrome: color-mix(in srgb, var(--bg) 22%, transparent); }
+[data-window-transparency] .sidebar { backdrop-filter: var(--glass-filter); }
+/* Selected controls need their own solid surface above variable native material. */
+[data-window-transparency] :is(.topbar .segmented button.on, .topbar .icon-btn.on, .sidebar-tabs button.on) {
+  background: color-mix(in srgb, var(--bg) 16%, #c5cec7);
+  color: var(--accent-foreground);
+}
+
+html[data-window-material], [data-window-material] body { background: transparent; }
+.document-tabs { background: var(--glass-chrome); }
+.segmented[role="toolbar"] { background: transparent; box-shadow: none; }
+/* Ease the label upward without moving the icon or the hit target. */
+.segmented button > span, .sidebar-tabs button > .button-label, .menu button > .menu-label, .select-trigger > span {
+  transition: transform .32s cubic-bezier(.22, 1, .36, 1);
+}
+.segmented button:not(:disabled):hover > span, .sidebar-tabs button:not(:disabled):hover > .button-label,
+.menu button:not(:disabled):hover > .menu-label, .select-trigger:not(:disabled):hover > span { transform: translateY(-1px); transition-duration: .24s; }
+@media (prefers-reduced-motion: reduce) {
+  .segmented button > span, .sidebar-tabs button > .button-label, .menu button > .menu-label, .select-trigger > span { transition: none; transform: none !important; }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+  [data-window-transparency] { --glass-chrome: var(--bg); }
+  html[data-window-material], [data-window-material] body { background: var(--bg); }
+}

@@ -1,0 +1,20 @@
+.modal:has(.pdf-pages) { width: min(760px, 100%); display: flex; flex-direction: column; max-height: calc(100dvh - 40px); overflow: hidden; }
+.modal:has(.pdf-pages) .modal-head { flex-shrink: 0; }
+.pdf-pages { display: grid; gap: 12px; min-width: 0; min-height: 0; overflow: auto; font-size: 12px; }
+.pdf-pages p { margin: 0; line-height: 1.5; }
+.pdf-pages-name { font-weight: 600; overflow-wrap: anywhere; }
+.pdf-pages-tools, .pdf-pages-selection { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pdf-pages-tools .btn, .pdf-pages-selection .btn, .pdf-pages-tools .select-trigger { min-height: 34px; padding: 7px 9px; font-size: 12px; border: 0; background: transparent; color: var(--text); border-radius: var(--radius); }
+.pdf-pages-tools button:hover:not(:disabled), .pdf-pages-selection button:hover:not(:disabled) { background: var(--surface-2); }
+.pdf-pages-tools button:disabled, .pdf-pages-selection button:disabled { opacity: .45; }
+.pdf-pages-tools button:focus-visible, .pdf-pages-page:focus-within { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.pdf-pages-selection { justify-content: space-between; }
+.pdf-pages-hint { color: var(--text-2); }
+.pdf-pages-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; overflow-y: auto; max-height: 42vh; padding: 4px; }
+.pdf-pages-page { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 4px; border-radius: var(--radius); cursor: pointer; min-width: 0; }
+.pdf-pages-page[data-selected] { background: var(--surface-2); outline: 2px solid var(--accent-text); outline-offset: -2px; }
+.pdf-pages-page > span { display: flex; align-items: center; gap: 6px; min-height: 26px; }
+.pdf-pages-page input { accent-color: var(--accent-text); margin: 0; }
+.pdf-pages-thumbnail { width: 100px; height: 132px; display: flex; align-items: center; justify-content: center; overflow: hidden; pointer-events: none; }
+.pdf-pages-thumbnail canvas { max-width: 100%; max-height: 132px; object-fit: contain; background: white; box-shadow: 0 1px 4px #0002; }
+.pdf-pages .form-actions { position: sticky; bottom: 0; background: var(--surface); padding: 10px 0; z-index: 1; flex-wrap: wrap; }

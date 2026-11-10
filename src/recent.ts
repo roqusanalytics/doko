@@ -13,6 +13,7 @@ export interface RecentFile {
 
 const DB_NAME = "folio";
 const STORE = "recent";
+const POSITIONS = "recentPositions";
 const LEGACY = "recentByName";
 const NOTES = "notes";
 const AI = "ai";
@@ -24,7 +25,13 @@ let connection: Promise<IDBDatabase> | null = null;
 export function openFolioDatabase(): Promise<IDBDatabase> {
   if (connection) return connection;
   connection = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 6);
+    const req = indexedDB.open(DB_NAME, 7);
+    let blocked = false;
+    req.onblocked = () => {
+      blocked = true;
+      connection = null;
+      reject(new Error("Close other Doko windows and retry to update local storage."));
+    };
     req.onupgradeneeded = event => {
       const database = req.result;
       // Older cards can pair one file's preview and position with another file's bytes.
@@ -32,16 +39,18 @@ export function openFolioDatabase(): Promise<IDBDatabase> {
         if (database.objectStoreNames.contains(STORE)) req.transaction!.objectStore(STORE).name = LEGACY;
         database.createObjectStore(STORE, { keyPath: "id" });
       }
+      if (!database.objectStoreNames.contains(POSITIONS)) database.createObjectStore(POSITIONS);
       if (!database.objectStoreNames.contains(NOTES)) database.createObjectStore(NOTES, { keyPath: "id" });
       if (!database.objectStoreNames.contains(AI)) database.createObjectStore(AI, { keyPath: "id" });
       if (event.oldVersion < 5) {
         database.createObjectStore("versions", { keyPath: "id" }).createIndex("byFamily", ["family", "number"], { unique: true });
         database.createObjectStore("versionPdfs");
       }
-      database.createObjectStore("clearGenerations");
+      if (!database.objectStoreNames.contains("clearGenerations")) database.createObjectStore("clearGenerations");
     };
     req.onsuccess = () => {
       const database = req.result;
+      if (blocked) { database.close(); return; }
       database.onversionchange = () => { database.close(); connection = null; };
       database.onclose = () => { connection = null; };
       // A migration that runs out of quota can retry next time. Notes and chat still work.
@@ -107,7 +116,8 @@ async function migrateRecent(database: IDBDatabase) {
 export async function listRecent(): Promise<RecentFile[]> {
   try {
     const all = await tx<RecentFile[]>("readonly", (s) => s.getAll());
-    return all.sort((a, b) => b.openedAt - a.openedAt);
+    const positions = await Promise.all(all.map(file => tx<number | undefined>("readonly", s => s.get(file.id), POSITIONS)));
+    return all.map((file, index) => ({ ...file, lastPage: positions[index] ?? file.lastPage })).sort((a, b) => b.openedAt - a.openedAt);
   } catch {
     return [];
   }
@@ -115,7 +125,9 @@ export async function listRecent(): Promise<RecentFile[]> {
 
 export async function getRecent(id: string): Promise<RecentFile | undefined> {
   try {
-    return await tx<RecentFile | undefined>("readonly", (s) => s.get(id));
+    const file = await tx<RecentFile | undefined>("readonly", (s) => s.get(id));
+    if (!file) return undefined;
+    return { ...file, lastPage: await tx<number | undefined>("readonly", s => s.get(id), POSITIONS) ?? file.lastPage };
   } catch {
     return undefined;
   }
@@ -123,13 +135,22 @@ export async function getRecent(id: string): Promise<RecentFile | undefined> {
 
 export async function saveRecent(file: RecentFile) {
   try {
-    await tx("readwrite", (store) => {
+    const database = await openFolioDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction([STORE, POSITIONS], "readwrite");
+      const store = transaction.objectStore(STORE);
+      const positions = transaction.objectStore(POSITIONS);
       store.put(file);
+      positions.put(file.lastPage, file.id);
       const all: IDBRequest<RecentFile[]> = store.getAll();
       all.onsuccess = () => {
-        for (const old of all.result.sort((a, b) => b.openedAt - a.openedAt).slice(MAX_RECENT)) store.delete(old.id);
+        for (const old of all.result.sort((a, b) => b.openedAt - a.openedAt).slice(MAX_RECENT)) {
+          store.delete(old.id);
+          positions.delete(old.id);
+        }
       };
-      return all;
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = () => reject(transaction.error);
     });
   } catch {
     /* storage may be unavailable (private mode); recent files are best-effort */
@@ -137,15 +158,14 @@ export async function saveRecent(file: RecentFile) {
 }
 
 export async function updateLastPage(id: string, lastPage: number) {
+  if (!Number.isInteger(lastPage) || lastPage < 1) return;
   try {
     const database = await openFolioDatabase();
     await new Promise<void>((resolve, reject) => {
-      const transaction = database.transaction(STORE, "readwrite");
-      const store = transaction.objectStore(STORE);
-      const request = store.get(id);
+      const transaction = database.transaction([STORE, POSITIONS], "readwrite");
+      const request = transaction.objectStore(STORE).getKey(id);
       request.onsuccess = () => {
-        const file = request.result as RecentFile | undefined;
-        if (file && file.lastPage !== lastPage) store.put({ ...file, lastPage });
+        if (request.result !== undefined) transaction.objectStore(POSITIONS).put(lastPage, id);
       };
       transaction.oncomplete = () => resolve();
       transaction.onabort = () => reject(transaction.error);
@@ -156,7 +176,7 @@ export async function updateLastPage(id: string, lastPage: number) {
 export async function clearRecent() {
   try {
     const db = await openFolioDatabase();
-    const stores = db.objectStoreNames.contains(LEGACY) ? [STORE, LEGACY] : [STORE];
+    const stores = db.objectStoreNames.contains(LEGACY) ? [STORE, POSITIONS, LEGACY] : [STORE, POSITIONS];
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(stores, "readwrite");
       for (const name of stores) transaction.objectStore(name).clear();
@@ -170,7 +190,14 @@ export async function clearRecent() {
 
 export async function removeRecent(id: string) {
   try {
-    await tx("readwrite", (s) => s.delete(id));
+    const db = await openFolioDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction([STORE, POSITIONS], "readwrite");
+      transaction.objectStore(STORE).delete(id);
+      transaction.objectStore(POSITIONS).delete(id);
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = () => reject(transaction.error);
+    });
   } catch {
     /* ignore */
   }
@@ -224,9 +251,13 @@ async function withGeneration<T>(category: StoredCategory, mode: IDBTransactionM
     const generations = transaction.objectStore("clearGenerations");
     const read = generations.get(category);
     let result: IDBRequest<T> | void;
-    read.onsuccess = () => { result = run(transaction.objectStore(category), read.result ?? 0, generations); };
+    let failure: unknown;
+    read.onsuccess = () => {
+      try { result = run(transaction.objectStore(category), read.result ?? 0, generations); }
+      catch (error) { failure = error; transaction.abort(); }
+    };
     transaction.oncomplete = () => resolve({ value: result?.result, generation: read.result ?? 0 });
-    transaction.onabort = () => reject(transaction.error ?? new Error("Stored data is unavailable."));
+    transaction.onabort = () => reject(failure ?? transaction.error ?? new Error("Stored data is unavailable."));
   });
 }
 
@@ -241,18 +272,15 @@ export async function clearStoredData(category: StoredCategory) {
 }
 
 async function readStored<T>(category: StoredCategory, id: string) {
-  try { return await withGeneration<T | undefined>(category, "readonly", store => store.get(id)); }
-  catch { return { value: undefined, generation: 0 }; }
+  return withGeneration<T | undefined>(category, "readonly", store => store.get(id));
 }
 
 async function saveStored(category: StoredCategory, id: string, value: unknown, generation: number) {
-  try {
-    await withGeneration(category, "readwrite", (store, current) => {
-      if (generation !== current) return;
-      if (value) store.put(value);
-      else store.delete(id);
-    });
-  } catch { /* Autosaves are best effort when storage is unavailable. */ }
+  await withGeneration(category, "readwrite", (store, current) => {
+    if (generation !== current) return;
+    if (value) store.put(value);
+    else store.delete(id);
+  });
 }
 
 export function getNotes(id: string) {
@@ -280,4 +308,31 @@ export async function getAiHistory(id: string) {
 
 export function saveAiHistory(id: string, messages: StoredAiMessage[], generation: number) {
   return saveStored(AI, id, messages.length ? { id, messages, updatedAt: Date.now() } : undefined, generation);
+}
+
+// The PDF already embeds annotations; only device-only reading details and chat follow its new hash.
+export async function copySavedPdfData(id: string, notes: Pick<DocNotes, "note" | "bookmarkedPages">, notesGeneration: number,
+  ai: Awaited<ReturnType<typeof getAiHistory>>) {
+  const database = await openFolioDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction([NOTES, AI, "clearGenerations"], "readwrite");
+    let failure: unknown;
+    const copy = (category: StoredCategory, generation: number, value: unknown) => {
+      if (!value) return;
+      const store = transaction.objectStore(category);
+      const read = transaction.objectStore("clearGenerations").get(category);
+      read.onsuccess = () => {
+        if ((read.result ?? 0) !== generation) return;
+        const existing = store.getKey(id);
+        existing.onsuccess = () => {
+          try { if (existing.result === undefined) store.put(value); }
+          catch (error) { failure = error; transaction.abort(); }
+        };
+      };
+    };
+    copy(NOTES, notesGeneration, notes.note.trim() || notes.bookmarkedPages?.length ? { ...notes, id, marks: [], updatedAt: Date.now() } : undefined);
+    copy(AI, ai.generation, ai.messages.length ? { id, messages: ai.messages, updatedAt: Date.now() } : undefined);
+    transaction.oncomplete = () => resolve();
+    transaction.onabort = () => reject(failure ?? transaction.error ?? new Error("Couldn’t keep the saved copy’s reading data."));
+  });
 }

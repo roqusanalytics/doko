@@ -71,6 +71,18 @@ function pageView(m: WrappedPdfiumModule, page: number) {
   const chars = objectText(m, page);
   const targets: EditTarget[] = [];
   let imageCount = 0;
+  const fonts = new Map<number, string>();
+  const fontIdentity = (font: number) => {
+    if (!fonts.has(font)) {
+      const length = m.FPDFFont_GetBaseFontName(font, 0, 0);
+      const name = length ? buffer(m, length, ptr => {
+        m.FPDFFont_GetBaseFontName(font, ptr, length);
+        return m.pdfium.UTF8ToString(ptr).replace(/^[A-Z]{6}\+/, "");
+      }) : "";
+      fonts.set(font, [name, m.FPDFFont_GetFlags(font), m.FPDFFont_GetWeight(font)].join("/"));
+    }
+    return fonts.get(font)!;
+  };
   buffer(m, 32, ptr => {
     let previous: { style: string; right: number; x: number; target: EditTarget } | undefined;
     for (let index = 0; index < count; index++) {
@@ -95,7 +107,7 @@ function pageView(m: WrappedPdfiumModule, page: number) {
         return get(obj, ptr, ptr + 4, ptr + 8, ptr + 12) ? m.pdfium.HEAP32.subarray(ptr / 4, ptr / 4 + 4).join(",") : null;
       };
       const fill = mode === 1 ? "" : color(false), stroke = mode === 0 ? "" : color(true);
-      const style = [m.FPDFTextObj_GetFont(obj), size, a, b, c, d, y, fill, stroke, mode, m.FPDFPageObj_GetMarkedContentID(obj)].join("/");
+      const style = [fontIdentity(m.FPDFTextObj_GetFont(obj)), size, a, b, c, d, y, fill, stroke, mode, m.FPDFPageObj_GetMarkedContentID(obj)].join("/");
       const gap = previous ? x - previous.right : 0;
       const em = size * a;
       // Many PDFs position each glyph separately. Join consecutive, same-style runs on one horizontal baseline.
@@ -137,10 +149,122 @@ function save(m: WrappedPdfiumModule, doc: number) {
   } finally { m.PDFiumExt_CloseFileWriter(writer); }
 }
 
-function replaceText(m: WrappedPdfiumModule, page: number, target: EditTarget, text: string) {
+function replaceFontRun(m: WrappedPdfiumModule, doc: number, page: number, target: EditTarget, text: string) {
+  const objects = Array.from({ length: target.end - target.index + 1 }, (_, offset) => m.FPDFPage_GetObject(page, target.index + offset));
+  const fonts = [...new Set(objects.map(obj => m.FPDFTextObj_GetFont(obj)))];
+  const preferred = new Map<string, number>();
+  const originalLetters = Array.from(target.label), originalFonts: (number | undefined)[] = [], origins: (number | undefined)[] = [];
+  const members = new Set(objects), glyphs = new Map<number, { char: string; x: number }[]>();
+  buffer(m, 16, ptr => {
+    const textPage = m.FPDFText_LoadPage(page);
+    if (!textPage) throw new Error("Couldn't read the text positions.");
+    try {
+      for (let i = 0; i < m.FPDFText_CountChars(textPage); i++) {
+        const obj = m.FPDFText_GetTextObject(textPage, i), code = m.FPDFText_GetUnicode(textPage, i);
+        if (!members.has(obj) || m.FPDFText_IsGenerated(textPage, i) || !code || code > 0x10ffff) continue;
+        if (!m.FPDFText_GetCharOrigin(textPage, i, ptr, ptr + 8)) throw new Error("Couldn't read a text position.");
+        const values = glyphs.get(obj) ?? [];
+        values.push({ char: String.fromCodePoint(code), x: m.pdfium.HEAPF64[ptr / 8] });
+        glyphs.set(obj, values);
+      }
+    } finally { m.FPDFText_ClosePage(textPage); }
+  });
+  let cursor = 0;
+  for (const obj of objects) {
+    const font = m.FPDFTextObj_GetFont(obj);
+    for (const { char, x } of glyphs.get(obj) ?? []) {
+      if (!preferred.has(char)) preferred.set(char, font);
+      while (cursor < originalLetters.length && originalLetters[cursor] !== char) cursor++;
+      originalFonts[cursor] = font; origins[cursor++] = x;
+    }
+  }
+  const letters = Array.from(text);
+  let prefix = 0, suffix = 0;
+  while (prefix < letters.length && prefix < originalLetters.length && letters[prefix] === originalLetters[prefix]) prefix++;
+  while (suffix < letters.length - prefix && suffix < originalLetters.length - prefix
+    && letters[letters.length - suffix - 1] === originalLetters[originalLetters.length - suffix - 1]) suffix++;
+  if (m.FPDFPage_CountObjects(page) - objects.length + letters.length > 20000) throw new Error("This text is too long to edit on this page.");
+  const scratchIndex = m.FPDF_GetPageCount(doc), scratch = m.FPDFPage_New(doc, scratchIndex, 100, 100);
+  if (!scratch) throw new Error("Couldn't prepare the text edit.");
+  const original = objects[0], created: number[] = [], inserted = new Set<number>();
+  try {
+    buffer(m, 64, ptr => {
+      if (!m.FPDFPageObj_GetMatrix(original, ptr) || !m.FPDFTextObj_GetFontSize(original, ptr + 24)) throw new Error("Couldn't read the text style.");
+      const matrix = Array.from(m.pdfium.HEAPF32.subarray(ptr / 4, ptr / 4 + 6));
+      const size = m.pdfium.HEAPF32[ptr / 4 + 6], mode = m.FPDFTextObj_GetTextRenderMode(original);
+      const color = (stroke: boolean) => {
+        if (!(stroke ? m.FPDFPageObj_GetStrokeColor : m.FPDFPageObj_GetFillColor)(original, ptr, ptr + 4, ptr + 8, ptr + 12)) throw new Error("Couldn't read the text color.");
+        return Array.from(m.pdfium.HEAP32.subarray(ptr / 4, ptr / 4 + 4));
+      };
+      const fill = color(false), stroke = color(true);
+      const strokeWidth = m.FPDFPageObj_GetStrokeWidth(original, ptr) ? m.pdfium.HEAPF32[ptr / 4] : 1;
+      const width = (font: number, char: string) => {
+        if (!m.FPDFFont_GetGlyphWidth(font, char.codePointAt(0)!, size, ptr)) throw new Error("Couldn't measure this text.");
+        return m.pdfium.HEAPF32[ptr / 4] * matrix[0];
+      };
+      const spacingAfter = (index: number) => {
+        const left = origins[index], right = origins[index + 1], font = originalFonts[index];
+        return left !== undefined && right !== undefined && font ? right - left - width(font, originalLetters[index]) : 0;
+      };
+      let x = matrix[4];
+      for (const [index, char] of letters.entries()) {
+        const sourceIndex = index < prefix ? index : index >= letters.length - suffix
+          ? originalLetters.length - letters.length + index : Math.max(0, Math.min(index, originalLetters.length - suffix - 1));
+        const retained = index < prefix || index >= letters.length - suffix ? originalFonts[sourceIndex] : undefined;
+        let font = retained ?? preferred.get(char);
+        if (index < prefix && origins[index] !== undefined) x = origins[index]!;
+        if (!font) {
+          for (const candidate of fonts) {
+            const probe = m.FPDFPageObj_CreateTextObj(doc, candidate, size);
+            if (!probe) continue;
+            buffer(m, (char.length + 1) * 2, textPtr => { m.pdfium.stringToUTF16(char, textPtr, (char.length + 1) * 2); m.FPDFText_SetText(probe, textPtr); });
+            m.FPDFPage_InsertObject(scratch, probe);
+            const actual = objectText(m, scratch).get(probe);
+            m.FPDFPage_RemoveObject(scratch, probe); m.FPDFPageObj_Destroy(probe);
+            if (actual === char) { font = candidate; preferred.set(char, font); break; }
+          }
+        }
+        if (!font) throw new Error("This font can't display all of those characters.");
+        const obj = m.FPDFPageObj_CreateTextObj(doc, font, size);
+        if (!obj) throw new Error("Couldn't create replacement text.");
+        created.push(obj);
+        buffer(m, (char.length + 1) * 2, textPtr => {
+          m.pdfium.stringToUTF16(char, textPtr, (char.length + 1) * 2);
+          if (!m.FPDFText_SetText(obj, textPtr)) throw new Error("Couldn't change this text.");
+        });
+        m.pdfium.HEAPF32.set([matrix[0], matrix[1], matrix[2], matrix[3], x, matrix[5]], ptr / 4);
+        if (!m.FPDFPageObj_SetMatrix(obj, ptr)
+          || !m.FPDFPageObj_SetFillColor(obj, fill[0], fill[1], fill[2], fill[3])
+          || !m.FPDFPageObj_SetStrokeColor(obj, stroke[0], stroke[1], stroke[2], stroke[3])
+          || !m.FPDFPageObj_SetStrokeWidth(obj, strokeWidth) || !m.FPDFTextObj_SetTextRenderMode(obj, mode)) throw new Error("Couldn't preserve the text style.");
+        x += width(font, char) + spacingAfter(sourceIndex);
+      }
+    });
+    for (const obj of objects.slice().reverse()) {
+      if (!m.FPDFPage_RemoveObject(page, obj)) throw new Error("Couldn't replace the full text run.");
+      m.FPDFPageObj_Destroy(obj);
+    }
+    for (let i = 0; i < created.length; i++) {
+      if (!m.FPDFPage_InsertObjectAtIndex(page, created[i], target.index + i)) throw new Error("Couldn't insert the edited text.");
+      inserted.add(created[i]);
+    }
+    const result = objectText(m, page);
+    if (created.map(obj => result.get(obj) ?? "").join("") !== text) throw new Error("This font can't display all of those characters.");
+  } finally {
+    for (const obj of created) if (!inserted.has(obj)) m.FPDFPageObj_Destroy(obj);
+    m.FPDF_ClosePage(scratch); m.FPDFPage_Delete(doc, scratchIndex);
+  }
+}
+
+function replaceText(m: WrappedPdfiumModule, doc: number, page: number, target: EditTarget, text: string) {
   const obj = m.FPDFPage_GetObject(page, target.index);
   if (m.FPDFPageObj_GetType(obj) !== 1 || text.length > 32767 || /[\u0000-\u001f]/u.test(text)) {
     throw new Error("Enter a single line of text.");
+  }
+  // Type3 font subsets can have no names. Retain their glyph fonts rather than flattening a line into the first subset.
+  if (text && new Set(Array.from({ length: target.end - target.index + 1 }, (_, i) => m.FPDFTextObj_GetFont(m.FPDFPage_GetObject(page, target.index + i)))).size > 1) {
+    replaceFontRun(m, doc, page, target, text);
+    return;
   }
   const firstToRemove = text ? target.index + 1 : target.index;
   for (let i = target.end; i >= firstToRemove; i--) {
@@ -174,7 +298,7 @@ self.onmessage = async ({ data }: MessageEvent<EditorRequest>) => {
       const target = targets.find(t => t.index === change.index && t.kind === change.kind);
       if (!target) throw new Error("Select the item again.");
       if (change.kind === "image") return replacePageImage(snapshot, page, target.ordinal!, imageCount, change.file);
-      replaceText(m, handle, target, change.text);
+      replaceText(m, doc, handle, target, change.text);
       if (!m.FPDFPage_GenerateContent(handle)) throw new Error("Couldn't write this page.");
       return save(m, doc);
     });

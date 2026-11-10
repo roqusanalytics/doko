@@ -4,7 +4,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { checkDiskPath, readRegular, sameFile } = require("./document-files.cjs");
 
-const { createSaveTemp } = require("./save-metadata.cjs");
+const { createSaveTemp, copySaveTemp } = require("./save-metadata.cjs");
 
 const MARKDOWN_FILE = /\.(md|markdown)$/i;
 const IMAGE_FILE = /\.(jpe?g|png|webp|gif|bmp|avif)$/i;
@@ -261,7 +261,8 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
       let expected;
       try { expected = await snapshot(file); }
       catch (error) { if (!copy && error.code === "ENOENT") throw conflict(); if (!copy || error.code !== "ENOENT") throw error; }
-      if (!copy && (!sameFile(expected.stat, record.source.stat) || expected.digest !== record.source.digest || expected.stat.ctimeNs !== record.source.stat.ctimeNs)) throw conflict();
+      // Metadata may change between saves without a content edit (for example, cloud sync).
+      if (!copy && (!sameFile(expected.stat, record.source.stat) || expected.digest !== record.source.digest)) throw conflict();
       if (expected && !(expected.stat.mode & 0o222n)) throw new Error("This file is read-only. Save a copy in another folder.");
       const normalized = text.replace(/\r\n|\r/g, "\n");
       const data = Buffer.from((record.bom ? "\ufeff" : "") + normalized.replace(/\n/g, record.eol), "utf8");
@@ -281,9 +282,16 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
           try { await fsp.lstat(file); throw conflict(); } catch (error) { if (error.code !== "ENOENT") throw error; }
         }
         if (expected) await fsp.rename(temp, file);
-        else await fsp.link(temp, file);
+        else {
+          try { await fsp.link(temp, file); }
+          catch (error) {
+            if (!["ENOTSUP", "EOPNOTSUPP", "EPERM", "EXDEV"].includes(error.code)) throw error;
+            await copySaveTemp(temp, file);
+          }
+        }
       } finally { await handle?.close(); await pending.cleanup(); }
       const source = await snapshot(file);
+      if (source.digest !== hash(data)) throw conflict();
       identities.delete(record.key);
       Object.assign(record, { file, root, directory, key: `markdown:${file}`, source, text: normalized });
       identities.set(record.key, record.id);

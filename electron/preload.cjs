@@ -79,6 +79,26 @@ contextBridge.exposeInMainWorld("folioDesktop", {
   getAppInfo: () => ipcRenderer.invoke("folio:app-info"),
   openInstallation: () => ipcRenderer.invoke("folio:open-installation"),
   setTheme: (theme) => ipcRenderer.send("folio:theme", theme),
+  setWindowTransparency: enabled => ipcRenderer.invoke("folio:set-window-transparency", enabled),
+  onWindowTransparency(callback) {
+    const listener = (_event, enabled) => callback(enabled);
+    ipcRenderer.on("folio:window-transparency", listener);
+    return () => ipcRenderer.removeListener("folio:window-transparency", listener);
+  },
+  onCloseCancelled(callback) {
+    const listener = () => callback();
+    ipcRenderer.on("folio:close-cancelled", listener);
+    return () => ipcRenderer.removeListener("folio:close-cancelled", listener);
+  },
+  onPrepareClose(callback) {
+    const listener = (_event, id) => {
+      Promise.resolve().then(callback).then(ready => {
+        ipcRenderer.send("folio:prepared-close", id, ready ? "ready" : "cancelled");
+      }, () => ipcRenderer.send("folio:prepared-close", id, "error"));
+    };
+    ipcRenderer.on("folio:prepare-close", listener);
+    return () => ipcRenderer.removeListener("folio:prepare-close", listener);
+  },
   installUpdate: () => ipcRenderer.send("folio:install-update"),
   /** Called with the updater state ({ state, version?, percent?, message? }) now and whenever it changes. */
   onUpdateStatus(callback) {

@@ -178,12 +178,13 @@ try {
     await saveNotes({ id: "reopened", marks: [mark], note: "", updatedAt: 1 }, 0);
     const deferred = Promise.withResolvers();
     let staleAdds = 0, currentAdds = 0;
-    const firstLoad = markup.load("reopened", true);
+    // Opening now awaits stored notes before attaching the document's fresh viewer layer.
+    await markup.load("reopened", true);
     manager({ div: root, deserialize: () => deferred.promise, add() { staleAdds++; } });
-    await firstLoad;
-    const nextLoad = markup.load("reopened", true);
+    events.get("annotationeditorlayerrendered")({ source: view, pageNumber: 1 });
+    await markup.load("reopened", true);
     manager({ div: root, deserialize: async () => editor(), add() { currentAdds++; } });
-    await nextLoad;
+    events.get("annotationeditorlayerrendered")({ source: view, pageNumber: 1 });
     deferred.resolve(editor());
     await new Promise(resolve => setTimeout(resolve, 0));
     markup.unload();

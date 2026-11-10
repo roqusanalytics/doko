@@ -12,9 +12,9 @@
 .markdown-preview h2 { font-size: 22px; }
 .markdown-preview p { margin: 0 0 1em; }
 .markdown-preview a { color: var(--accent-text); }
-.markdown-preview pre { padding: 14px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; overflow: auto; overflow-wrap: normal; }
+.markdown-preview pre { padding: 14px; border: 1px solid var(--line); background: var(--surface-2); border-radius: var(--radius); overflow: auto; overflow-wrap: normal; }
 .markdown-preview code { font: .9em/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; }
-.markdown-preview :not(pre) > code { background: var(--surface-2); border-radius: 3px; padding: 2px 4px; }
+.markdown-preview :not(pre) > code { background: var(--surface-2); border-radius: var(--radius); padding: 2px 4px; }
 .markdown-preview blockquote { margin-inline: 0; padding-left: 16px; color: var(--text-2); border-left: 3px solid var(--line-strong); }
 .markdown-preview .katex-display { overflow-x: auto; overflow-y: hidden; }
 .markdown-image img { max-width: 100%; height: auto; }
