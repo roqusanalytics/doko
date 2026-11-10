@@ -42,7 +42,7 @@ try {
    tx.oncomplete=()=>resolve({note:notes.result?.note,bookmarks:notes.result?.bookmarkedPages,marks:notes.result?.marks.length,chat:ai.result?.messages[0]?.content});tx.onabort=()=>reject(tx.error);
   });}finally{db.close();}
  },id);
- const open=async file=>{await app.evaluate(({app},file)=>app.emit('open-file',{preventDefault(){}},file),file);await page.waitForFunction(name=>document.title===name+' — Doko',path.basename(file));await page.waitForFunction(()=>document.querySelector('.textLayer')?.textContent.includes('SYNTHETIC'));};
+ const open=async file=>{await app.evaluate(({app},file)=>app.emit('open-file',{preventDefault(){}},file),file);await page.window.waitForFunction(name=>document.title===name+' — Doko',path.basename(file));await page.waitForFunction(()=>document.querySelector('.textLayer')?.textContent.includes('SYNTHETIC'));};
  await open(input);
  const sidebar=page.getByRole('button',{name:/Toggle sidebar/});if(await sidebar.getAttribute('aria-pressed')==='false')await sidebar.click();
  await page.getByRole('tab',{name:/^Notes/}).click();

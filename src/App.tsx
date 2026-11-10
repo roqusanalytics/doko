@@ -1,4 +1,3 @@
-import { nativeAppearanceTheme } from "./appearance";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   EventBus,
@@ -14,7 +13,6 @@ import { loadPdf, copyPdfPages, thumbnailDataUrl, type PDFDocumentProxy } from "
 import { contentKey, copySavedPdfData, getAiHistory, getRecent, MAX_RECENT_FILE_BYTES, onStoredDataCleared, removeRecent, saveRecent, updateLastPage } from "./recent";
 import { readPdfBlob, readPdfResponse } from "./pdfInput";
 import { FIT_SCALES, flushViews, readView, writeView, type ReadingView } from "./session";
-import { readSetting, writeSetting } from "./preferences";
 import { DocumentTabBar } from "./DocumentTabBar";
 import { trackTitlebar } from "./titlebar";
 import type { DocumentTabs, OpenSource } from "./documentTabs";
@@ -30,14 +28,13 @@ import { notesJson, notesMarkdown } from "./noteExport";
 import { copyText } from "./clipboard";
 import { imageRegions, trackPageImages } from "./nightImages";
 import { recognizeScannedPages } from "./pageOcr";
-import { scanLanguagesFrom } from "./scanLanguage";
 import { ImageMenu, ImageViewer, type ImageTarget } from "./ImageViewer";
 import { MoreMenu, type MoreItem } from "./MoreMenu";
 import { IS_MAC, keys } from "./platform";
 import { AiPanel, forgetClearedChats, flushAiHistory, stopAiForClose, type AiContext } from "./AiPanel";
 import { ZoomMenu } from "./ZoomMenu";
 import { SearchBar, type FindResult } from "./SearchBar";
-import { AboutDialog, InfoDialog, OpenUrlDialog, PasswordDialog, ShortcutsDialog, parseWebUrl } from "./Dialogs";
+import { AboutDialog, InfoDialog, OpenUrlDialog, PasswordDialog, ShortcutsDialog } from "./Dialogs";
 import { SignatureDialog } from "./SignatureDialog";
 import { ContentEditor, type ContentEditorHandle, type NextSelection } from "./ContentEditor";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
@@ -64,6 +61,9 @@ import { useFileCommands } from "./fileCommands";
 import { installHandTool } from "./handTool";
 import DocumentExportDialog from "./DocumentExportDialog";
 import type { ExportSnapshot } from "./documentExport";
+import { useReaderPreferences } from "./useReaderPreferences";
+import { useReaderPrinting } from "./useReaderPrinting";
+import { useReaderDrop } from "./useReaderDrop";
 
 type Tool = "select" | "highlight" | "ink" | "freetext";
 
@@ -153,6 +153,15 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const headerRef = useRef<HTMLElement>(null);
   const active = useSyncExternalStore(tabs.subscribe, () => tabs.active === tabKey);
   const multipleTabs = useSyncExternalStore(tabs.subscribe, () => tabs.all.length > 1);
+  const [toast, setToast] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const toastTimer = useRef(0);
+  const flash = useCallback((msg: string) => {
+    setToast(msg);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 2200);
+  }, []);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<PDFViewer | null>(null);
@@ -199,6 +208,10 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
 
   const [doc, setDoc] = useState<OpenDoc | null>(null);
   const [gallery, setGallery] = useState(initialGallery);
+  const { theme, setThemeTo, night, setNightTo, sidebar, setSidebar, spread, setSpread, setSpreadTo, spreadRef,
+    wheelPaging, wheelPagingRef, setWheelPagingTo, scanLanguages, setScanLanguagesTo } = useReaderPreferences({
+      active, gallery: !!gallery, initialGallery: !!initialGallery, flash,
+    });
   const galleryRef = useRef(initialGallery);
   const photoDrafts = useRef(new Map<string, { bytes: Uint8Array; dirty: boolean; reading?: Pick<MarkupState, "note" | "bookmarkedPages"> }>());
   const photoSwitch = useRef(false);
@@ -213,22 +226,12 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [textStatus, setTextStatus] = useState<string | null>(null);
-  const [scanLanguages, setScanLanguages] = useState(() => scanLanguagesFrom(readSetting("folio:scan-language")));
   const [pageInput, setPageInput] = useState("1");
   const [numPages, setNumPages] = useState(0);
   const [scale, setScale] = useState(1);
-  const [wheelPaging, setWheelPaging] = useState(() => readSetting("folio:wheel-paging") === "1");
-  const wheelPagingRef = useRef(wheelPaging);
-  wheelPagingRef.current = wheelPaging;
   const [rotation, setRotation] = useState(0);
-  const [sidebar, setSidebar] = useState(() => !initialGallery && readSetting("folio:sidebar") !== "0" && window.innerWidth > 760);
   const [searchOpen, setSearchOpen] = useState(false);
   const [find, setFind] = useState<FindResult>({ current: 0, total: 0, state: null });
-  const [theme, setTheme] = useState(document.documentElement.dataset.theme || "light");
-  const [spread, setSpread] = useState(() => !initialGallery && readSetting("folio:spread") === "1");
-  const spreadRef = useRef(spread);
-  spreadRef.current = spread;
-  const [night, setNight] = useState(() => !initialGallery && readSetting("folio:night") === "1");
   const [hand, setHand] = useState(false);
   const [fileBusy, setFileBusy] = useState(false);
   const [exportDialog, setExportDialog] = useState<{ snapshot: ExportSnapshot; mode: "export" | "compress" } | null>(null);
@@ -261,18 +264,27 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const currentPhotoDirty = dirty || editorDirty || (!!doc && doc.id !== photoSavedId);
   const unsaved = !!storageError || aiStorageError || (gallery ? currentPhotoDirty || photoDirty.size > 0 : !!doc?.sourceId || dirty || editorDirty || (!!pageOrder && !pageDraft?.copy));
   const [focus, setFocus] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  const [printCopy, setPrintCopy] = useState<{ pdf: PDFDocumentProxy; bytes: Uint8Array; page: number; name: string } | null>(null);
-  const preparingPrint = useRef(false);
-  useEffect(() => () => { if (printCopy) void printCopy.pdf.loadingTask.destroy(); }, [printCopy]);
+  const { printCopy, setPrintCopy, print, printPdfBytes } = useReaderPrinting({
+    prepare: async () => {
+      if (contentRef.current && !(await contentRef.current.finish())) return;
+      const source = docRef.current;
+      if (!source) return;
+      const copy = await currentBytes(source);
+      if (!copy || docRef.current !== source) return;
+      return { bytes: copy.bytes, name: source.name, password: source.password, signal: opening.current!.signal,
+        page: pageOrder ? pageOrder.indexOf(page) + 1 : page, isCurrent: () => docRef.current === source };
+    },
+    saveCopy: bytes => saveBytes(bytes),
+    flash,
+    onError: setError,
+    onPrepareError: () => { if (docRef.current === doc) setError("Couldn't print this document."); },
+  });
   const [dialog, setDialog] = useState<"info" | "shortcuts" | "about" | "url" | "settings" | "ai-settings" | "changelog" | "upgrade" | null>(
     upgradeNotes.length ? "upgrade" : null);
   // A pasted or dropped link waits in Open from URL, so the user sees where it goes before Doko contacts it.
   const [linkDraft, setLinkDraft] = useState("");
-  const openUrlDialog = (link = "") => { setLinkDraft(link); setDialog("url"); };
+  const openUrlDialog = useCallback((link = "") => { setLinkDraft(link); setDialog("url"); }, []);
   const [pending, setPending] = useState<Pending | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [updateNotice, setUpdateNotice] = useState<UpdateStatus | null>(null);
   const [signing, setSigning] = useState(false);
   const [signatureTargets, setSignatureTargets] = useState<SignatureTarget[]>([]);
@@ -314,12 +326,6 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   useLayoutEffect(() => tabs.markDirty(tabKey, unsaved), [tabs, tabKey, unsaved]);
   useEffect(() => { window.dispatchEvent(new Event("folio:tab-visibility")); }, [active]);
 
-  const toastTimer = useRef(0);
-  const flash = useCallback((msg: string) => {
-    setToast(msg);
-    window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(null), 2200);
-  }, []);
 
   // ── Viewer bootstrap ────────────────────────────────────────────────
   useEffect(() => {
@@ -695,8 +701,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const toggleSpread = () => {
     const v = viewerRef.current!;
     const next = !spread;
-    setSpread(next);
-    writeSetting("folio:spread", next ? "1" : "0");
+    setSpreadTo(next);
     if (!v.pdfDocument) return;
     const value = v.currentScaleValue;
     v.spreadMode = next ? SpreadMode.ODD : SpreadMode.NONE;
@@ -1178,50 +1183,6 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     } finally { savingCopy.current = false; setFileBusy(false); }
   };
 
-  const print = async () => {
-    if (printCopy || preparingPrint.current) return;
-    preparingPrint.current = true;
-    try {
-      if (contentRef.current && !(await contentRef.current.finish())) return;
-      const source = docRef.current;
-      if (!source) return;
-      const copy = await currentBytes(source);
-      if (!copy || docRef.current !== source) return;
-      if (!window.folioDesktop) { printPdfBytes(copy.bytes); return; }
-      const snapshot = await loadPdf(copy.bytes, opening.current!.signal, source.password);
-      if (docRef.current !== source) { void snapshot.loadingTask.destroy(); return; }
-      setPrintCopy({ pdf: snapshot, bytes: copy.bytes, page: pageOrder ? pageOrder.indexOf(page) + 1 : page, name: source.name });
-    } catch {
-      if (docRef.current === doc) setError("Couldn't print this document.");
-    } finally {
-      preparingPrint.current = false;
-    }
-  };
-
-  const printPdfBytes = (bytes: Uint8Array) => {
-    const url = URL.createObjectURL(pdfBlob(bytes));
-    const frame = document.createElement("iframe");
-    frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
-    frame.src = url;
-    frame.onload = () => {
-      setTimeout(() => {
-        try {
-          frame.contentWindow?.focus();
-          frame.contentWindow?.print();
-        } catch {
-          // The desktop shell denies blob: pop-ups, so a saved copy is the working fallback there.
-          if (window.folioDesktop) { void saveBytes(bytes).then(saved => { if (saved) flash("Couldn't print — saved a copy instead"); }).catch(error => setError(error.message || "Couldn’t save a copy.")); }
-          else window.open(url, "_blank");
-        }
-      }, 250);
-    };
-    document.body.appendChild(frame);
-    setTimeout(() => {
-      frame.remove();
-      URL.revokeObjectURL(url);
-    }, 60_000);
-  };
-
   useEffect(() => {
     const open = async (source: OpenSource) => {
       switch (source.kind) {
@@ -1280,29 +1241,10 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       if (recent && docRef.current === current) return { kind: "blob", name: recent.name, blob: recent.data, recentId: recent.id };
     } });
   }, [tabs, tabKey, openBytes, openBlob, openSample, openUrl, beginOpen, flash, openPhoto, loading, unsaved, aiOpen, contentEditing, operationUndo, dialog, workDialog, signing, pending]);
-  useEffect(() => {
-    const sync = (event: StorageEvent) => {
-      if (event.key === "folio:theme" && (event.newValue === "light" || event.newValue === "dark")) {
-        document.documentElement.dataset.theme = event.newValue; setTheme(event.newValue);
-      }
-      if (event.key === "folio:night") setNight(event.newValue === "1");
-      if (event.key === "folio:wheel-paging") setWheelPaging(event.newValue === "1");
-      if (event.key === "folio:scan-language" || event.key === null) setScanLanguages(scanLanguagesFrom(event.newValue));
-    };
-    window.addEventListener("storage", sync);
-    return () => window.removeEventListener("storage", sync);
-  }, []);
-  useEffect(() => { if (active) window.folioDesktop?.setTheme(nativeAppearanceTheme(theme)); }, [active, theme]);
   // Unsigned macOS builds announce a download; signed installers can offer a restart.
   useEffect(() => window.folioDesktop?.onUpdateStatus((status) => {
     if (["available", "ready"].includes(status.state) && status.version) setUpdateNotice(status);
   }), []);
-
-  const setThemeTo = (next: "light" | "dark") => {
-    document.documentElement.dataset.theme = next;
-    writeSetting("folio:theme", next);
-    setTheme(next);
-  };
 
   const toggleFocus = async () => {
     const next = !focus;
@@ -1321,12 +1263,6 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     document.addEventListener("fullscreenchange", onFs);
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
-
-  useEffect(() => { if (!gallery) writeSetting("folio:sidebar", sidebar ? "1" : "0"); }, [sidebar, gallery]);
-  const setNightTo = (next: boolean) => {
-    if (!writeSetting("folio:night", next ? "1" : "0")) flash("PDF dark mode changed, but couldn't save the preference.");
-    setNight(next);
-  };
 
   const prepareExport = async (mode: "export" | "compress") => {
     if (fileBusy || exportDialog || savingCopy.current) return;
@@ -1589,71 +1525,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  // ── Drag & drop anywhere ────────────────────────────────────────────
-  useEffect(() => {
-    let depth = 0;
-    let internal = false; // dragging text or images from inside Doko isn't an "open" gesture
-    const hasFiles = (e: DragEvent) => {
-      const types = e.dataTransfer?.types ?? [];
-      return !internal && (types.includes("Files") || types.includes("text/uri-list") || types.includes("text/plain"));
-    };
-    const droppedUrl = (data: DataTransfer) => {
-      const fromList = data.getData("text/uri-list").split(/\r?\n/).find((line) => line.trim() && !line.startsWith("#"));
-      return parseWebUrl(fromList) ?? parseWebUrl(data.getData("text/plain"));
-    };
-    const start = () => (internal = true);
-    const end = () => (internal = false);
-    const enter = (e: DragEvent) => {
-      if (!hasFiles(e)) return;
-      e.preventDefault();
-      depth++;
-      setDragging(true);
-    };
-    const leave = (e: DragEvent) => {
-      if (!hasFiles(e)) return;
-      if (--depth <= 0) {
-        depth = 0;
-        setDragging(false);
-      }
-    };
-    const over = (e: DragEvent) => hasFiles(e) && e.preventDefault();
-    const drop = (e: DragEvent) => {
-      if (workDialog) {e.preventDefault();return;}
-      if (!hasFiles(e)) return;
-      e.preventDefault();
-      depth = 0;
-      setDragging(false);
-      const files = e.dataTransfer?.files;
-      const url = !files?.length && e.dataTransfer ? droppedUrl(e.dataTransfer) : null;
-      if (files?.length) openFiles(files);
-      else if (url) openUrlDialog(url);
-      else setError("Drop a PDF file or a link to a PDF.");
-    };
-    // Pasting a link (outside text fields) fills in Open from URL too.
-    const paste = (e: ClipboardEvent) => {
-      if (workDialog || signing || (e.target as HTMLElement | null)?.closest?.("input, textarea, [contenteditable=true], .freeTextEditor")) return;
-      const url = parseWebUrl(e.clipboardData?.getData("text/plain"));
-      if (!url) return;
-      e.preventDefault();
-      openUrlDialog(url);
-    };
-    window.addEventListener("dragstart", start);
-    window.addEventListener("dragend", end);
-    window.addEventListener("paste", paste);
-    window.addEventListener("dragenter", enter);
-    window.addEventListener("dragleave", leave);
-    window.addEventListener("dragover", over);
-    window.addEventListener("drop", drop);
-    return () => {
-      window.removeEventListener("dragstart", start);
-      window.removeEventListener("dragend", end);
-      window.removeEventListener("paste", paste);
-      window.removeEventListener("dragenter", enter);
-      window.removeEventListener("dragleave", leave);
-      window.removeEventListener("dragover", over);
-      window.removeEventListener("drop", drop);
-    };
-  }, [openFiles, signing, workDialog]);
+  const dragging = useReaderDrop({ blocked: !!workDialog, signing, openFiles, openUrl: openUrlDialog, onError: setError });
 
   const runFind = (query: string, opts: { again?: boolean; previous?: boolean; caseSensitive?: boolean; entireWord?: boolean }) =>
     busRef.current!.dispatch("find", {
@@ -2044,16 +1916,8 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       {dialog === "about" && <AboutDialog onClose={() => setDialog(null)} />}
       {(dialog === "settings" || dialog === "ai-settings") && <SettingsDialog initialSection={dialog === "ai-settings" ? "Ask AI" : "General"}
         theme={theme} onTheme={setThemeTo} night={night} onNight={setNightTo}
-        scanLanguages={scanLanguages} onScanLanguages={next => {
-          setScanLanguages(next);
-          try { localStorage.setItem("folio:scan-language", next.join("+")); }
-          catch { flash("Scan languages changed, but couldn't save the preference."); }
-        }}
-        wheelPaging={wheelPaging} onWheelPaging={(next) => {
-          setWheelPaging(next);
-          try { localStorage.setItem("folio:wheel-paging", next ? "1" : "0"); }
-          catch { flash("Page scrolling changed, but couldn't save the preference."); }
-        }}
+        scanLanguages={scanLanguages} onScanLanguages={setScanLanguagesTo}
+        wheelPaging={wheelPaging} onWheelPaging={setWheelPagingTo}
         onOpenChangelog={() => setDialog("changelog")} onClose={() => setDialog(null)} />}
       {/* Closing goes back to Settings, where the changelog is opened from. */}
       {dialog === "changelog" && <ChangelogDialog onClose={() => setDialog("settings")} />}

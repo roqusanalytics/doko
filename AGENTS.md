@@ -5,7 +5,7 @@ Doko ships for **Windows, macOS, and Linux from one codebase**. Every change and
 ## Project map and local setup
 
 Doko is a local-first PDF reader with a React/TypeScript renderer, Vite, and an Electron desktop shell.
-Use Node.js 22 or newer and npm with the existing `package-lock.json`; CI uses Node.js 22 and `npm ci`.
+Use Node.js 22.12 or newer and npm with the existing `package-lock.json`; CI uses Node.js 22 and `npm ci`.
 Install dependencies with `npm ci`. `npm run dev` starts the browser edition; desktop-only features require Electron.
 The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use the npm scripts to run these hooks.
 
@@ -104,3 +104,5 @@ doesn't interrupt whoever is using the computer. A new script that launches Elec
 (`npm run app`, `electron .`, `FOLIO_SMOKE_SHOW=1`) unless the user asks to see the app.
 
 For hidden Electron test scripts, reuse `scripts/hidden-window.mjs`: Windows/Linux render off-screen, so `isVisible()` alone is not a visibility failure.
+
+For hidden Electron scripts, use `closeHidden(app)` as the only final teardown. Do not destroy windows or call `app.exit()` before it: Linux/Windows can exit before the cleanup acknowledgement returns.

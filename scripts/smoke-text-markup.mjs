@@ -57,4 +57,4 @@ try {
  await page.waitForFunction(()=>document.querySelector('.textLayer')?.textContent.includes('UNSAVED REPLACEMENT'));
  assert.equal(await undo.count(),0);assert.deepEqual(await page.getByRole('alert').allTextContents(),[]);
  await assertHidden(app);console.log('PASS text markup UI: selected text, underline, Undo, strikeout, save/reopen annotation semantics, pending reorder and newer-content loss prevention');
-}finally{await app.evaluate(({app})=>app.exit(0)).catch(()=>{});await closeHidden(app);rmSync(temp,{recursive:true,force:true});}
+}finally{await closeHidden(app);rmSync(temp,{recursive:true,force:true});}

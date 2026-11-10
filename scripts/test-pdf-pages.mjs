@@ -233,7 +233,22 @@ if (process.argv.includes("--ui")) {
     assert.equal(await dialog.getByRole("button", { name: "Delete selected", exact: true }).isDisabled(), true);
     await dialog.getByRole("button", { name: "Clear selection", exact: true }).click();
     await dialog.getByRole("checkbox", { name: "Select page 2", exact: true }).check();
+    await page.evaluate(() => {
+      const send = Worker.prototype.postMessage;
+      window.previewReloadEnabled = [];
+      window.restorePreviewWorker = () => { Worker.prototype.postMessage = send; };
+      Worker.prototype.postMessage = function(message, ...options) {
+        if (message?.bytes && message.change === undefined) {
+          window.previewReloadEnabled.push([...document.querySelectorAll(".pdf-pages-tools button")]
+            .some(button => button.textContent === "Blank page" && !button.disabled));
+        }
+        return send.call(this, message, ...options);
+      };
+    });
     await dialog.getByRole("button", { name: "Rotate 90°", exact: true }).click(); await check(initial);
+    const reloadEnabled = await page.evaluate(() => { window.restorePreviewWorker(); return window.previewReloadEnabled; });
+    assert.ok(reloadEnabled.length > 0, "Rotation must inspect the changed PDF");
+    assert.ok(reloadEnabled.every(enabled => !enabled), "Old page controls must stay disabled when preview reload starts");
     await dialog.getByRole("button", { name: "Undo", exact: true }).click(); await check(initial);
     await dialog.locator('input[type="file"]').setInputFiles({ name: "corrupt.pdf", mimeType: "application/pdf", buffer: Buffer.from("invalid") });
     await dialog.getByRole("alert").getByText("Choose a valid PDF file.", { exact: true }).waitFor();

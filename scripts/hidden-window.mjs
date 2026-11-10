@@ -14,8 +14,10 @@ export async function assertHidden(app) {
 
 // Discard only isolated test windows; normal quit can wait on an invisible unsaved-work dialog.
 export async function closeHidden(app) {
-  await app.evaluate(({ BrowserWindow }) => {
+  await app.evaluate(({ app, BrowserWindow }) => {
     if (!process.env.FOLIO_TEST_USER_DATA) throw new Error("Refusing to discard a non-test profile");
+    // Keep Linux/Windows alive until the destruction acknowledgement returns.
+    app.removeAllListeners("window-all-closed");
     BrowserWindow.getAllWindows().forEach(window => window.destroy());
   });
   app.process().kill("SIGKILL");

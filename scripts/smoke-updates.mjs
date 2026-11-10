@@ -19,10 +19,13 @@ writeFileSync(path.join(profile, "update-settings.json"), JSON.stringify({ enabl
 const config = path.join(temp, "updates.yml");
 let version = "0.0.1", fail = false;
 const requests = [];
+const arch = process.env.TEST_UPDATER_ARCH || process.arch;
+const suffix = process.platform === "linux" ? `-linux${arch === "x64" ? "" : `-${arch}`}` : process.platform === "darwin" ? "-mac" : "";
+const expectedFeed = `/latest${suffix}.yml`;
 const server = http.createServer((request, response) => {
   requests.push(request.url);
   if (fail) { response.writeHead(503); response.end("Unavailable"); return; }
-  assert.match(request.url, /^\/latest(?:-mac|-linux)?\.yml(?:\?|$)/, "unexpected artifact download");
+  assert.equal(new URL(request.url, "http://127.0.0.1").pathname, expectedFeed, "unexpected artifact download");
   response.setHeader("Content-Type", "text/yaml");
   response.end(`version: ${version}\nfiles:\n  - url: Doko-mac.zip\n    sha512: ${Buffer.alloc(64).toString("base64")}\n    size: 1\npath: Doko-mac.zip\nsha512: ${Buffer.alloc(64).toString("base64")}\nreleaseDate: '2026-11-09T00:00:00.000Z'\n`);
 });
