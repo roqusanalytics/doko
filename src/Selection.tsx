@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SelectMenu } from "./SelectMenu";
-import type { TextMarkupStyle } from "./textMarkup";
+import type { TextMarkupStyle, TextMarkupQuad } from "./textMarkup";
+import type { PDFViewer } from "./viewer";
 import { Icon } from "./icons";
 import { keys } from "./platform";
 import { copyText } from "./clipboard";
@@ -15,6 +16,24 @@ export interface SelectionInfo {
   x: number;
   top: number;
   bottom: number;
+}
+
+export function textMarkupQuads(range: Range, viewer: PDFViewer, pageCount: number): TextMarkupQuad[] {
+  const rects=[...range.getClientRects()].filter(rect=>rect.width>0 && rect.height>0);
+  const quads:TextMarkupQuad[]=[];
+  for(let index=0;index<pageCount;index++) {
+    const view=viewer.getPageView(index), layer=view?.div.querySelector('.textLayer') as HTMLElement|null;
+    if(!layer) continue;
+    const box=layer.getBoundingClientRect();
+    const seen=new Set<string>();
+    for(const rect of rects) {
+      if(rect.left<box.left-1 || rect.right>box.right+1 || rect.top<box.top-1 || rect.bottom>box.bottom+1) continue;
+      const key=[rect.left,rect.top,rect.right,rect.bottom].map(n=>n.toFixed(1)).join(); if(seen.has(key)) continue;seen.add(key);
+      const points=[[rect.left,rect.top],[rect.right,rect.top],[rect.left,rect.bottom],[rect.right,rect.bottom]].flatMap(([x,y])=>view.viewport.convertToPdfPoint(x-box.left,y-box.top));
+      quads.push({page:index+1,points});
+    }
+  }
+  return quads;
 }
 
 const POPOVER_H = 122;

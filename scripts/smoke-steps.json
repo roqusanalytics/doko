@@ -36,6 +36,9 @@
     "scripts/smoke-content.mjs"
   ],
   [
+    "scripts/smoke-word-network.mjs"
+  ],
+  [
     "scripts/smoke-updates.mjs"
   ],
   [

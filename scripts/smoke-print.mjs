@@ -1,4 +1,5 @@
-import { closeHidden } from "./hidden-window.mjs";
+import { assertHidden, closeHidden } from "./hidden-window.mjs";
+import { PDFDocument } from "pdf-lib";
 import { _electron as electron } from "playwright-core";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -131,6 +132,59 @@ try {
   assert.equal(await page.getByRole("button", { name: "Close", exact: true }).evaluate(el => document.activeElement === el), true);
   await page.keyboard.press("Escape");
   assert.equal(await page.getByRole("dialog", { name: "Print", exact: true }).count(), 0);
+  // Exercise Chromium's actual PDF parser without calling print or reaching an external server.
+  const activePdf = await PDFDocument.create();
+  activePdf.addPage([200, 200]).drawText("Synthetic print isolation probe");
+  activePdf.addJavaScript("print-launch-url", "try { app.launchURL('https://print-probe.invalid/open',false); } catch (_) {}");
+  activePdf.addJavaScript("print-submit-form", "try { this.submitForm({cURL:'https://print-probe.invalid/submit',cSubmitAs:'HTML'}); } catch (_) {}");
+  const isolation = await app.evaluate(({ BrowserWindow, dialog, shell }) => {
+    globalThis.printNetwork = []; globalThis.printLinks = []; globalThis.printPrompts = [];
+    const contents = BrowserWindow.getAllWindows()[0].webContents;
+    contents.session.webRequest.onBeforeRequest({ urls: ["*://print-probe.invalid/*"] }, (request, callback) => {
+      globalThis.printNetwork.push(request.url); callback({ cancel: true });
+    });
+    dialog.showMessageBox = async (...args) => { globalThis.printPrompts.push(args.at(-1).title); return { response: 1 }; };
+    shell.openExternal = async url => { globalThis.printLinks.push(url); };
+    const prefs = contents.getLastWebPreferences();
+    return { sandbox: prefs.sandbox, contextIsolation: prefs.contextIsolation, nodeIntegration: prefs.nodeIntegration };
+  });
+  assert.deepEqual(isolation, { sandbox: true, contextIsolation: true, nodeIntegration: false });
+  await page.evaluate(async data => {
+    const frame = document.createElement("iframe"); frame.id = "print-isolation-probe";
+    frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+    frame.src = URL.createObjectURL(new Blob([new Uint8Array(data)], { type: "application/pdf" }));
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Native PDF frame did not load")), 10000);
+      frame.onload = () => { clearTimeout(timer); resolve(); }; document.body.append(frame);
+    });
+  }, [...await activePdf.save()]);
+  const viewerLoaded = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.mainFrame.framesInSubtree
+    .some(frame => frame.url.startsWith("chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/")));
+  for (let tries = 0; !await viewerLoaded(); tries++) {
+    assert.ok(tries < 100, "Chromium's native PDF viewer was not observed");
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  // shortcut: Electron 45 viewer readiness uses private fields; update this probe when upgrading Electron.
+  const documentReady = () => app.evaluate(async ({ BrowserWindow }) => {
+    const frame = BrowserWindow.getAllWindows()[0].webContents.mainFrame.framesInSubtree
+      .find(frame => frame.url.startsWith("chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/"));
+    if (!frame) return false;
+    return frame.executeJavaScript(`(() => {
+      const viewer = document.querySelector('pdf-viewer');
+      return viewer?.loadState_ === 'success' && viewer?.loadProgress_ === 100 && viewer?.docLength_ === 1;
+    })()`);
+  });
+  for (let tries = 0; !await documentReady(); tries++) {
+    assert.ok(tries < 100, "Native PDF viewer did not successfully parse its one-page document");
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  assert.deepEqual(await app.evaluate(() => ({ network: globalThis.printNetwork, links: globalThis.printLinks, prompts: globalThis.printPrompts })),
+    { network: [], links: [], prompts: [] }, "Loading PDF JavaScript triggered a remote action");
+  assert.equal(await app.evaluate(() => globalThis.printCalls.length), callCount, "The isolation probe sent a print job");
+  await page.evaluate(() => { const frame = document.getElementById("print-isolation-probe"); URL.revokeObjectURL(frame.src); frame.remove(); });
+  await assertHidden(app);
+  console.log("ok native PDF print viewer stays sandboxed; synthetic PDF JavaScript opens no URL, network request or prompt; no print job sent");
   assert.deepEqual(errors, []);
   console.log("ok print dialog, ranges, input shortcuts, DPI/overlap controls and limits, grayscale/toner, focus trap, cancellation during preparation, native handoff; Multiple: 2 sheets, Booklet: 2 sheets in both orientations with matching duplex, Poster: 4 tiles at 600 dpi; no print job sent");
 } finally { await closeHidden(app); }
