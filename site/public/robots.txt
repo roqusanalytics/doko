@@ -1,0 +1,5 @@
+# Search engines and AI assistants may read every page.
+User-agent: *
+Allow: /
+
+Sitemap: https://doko.lt/sitemap.xml

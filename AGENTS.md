@@ -20,6 +20,14 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
   (see [README.md](README.md#privacy)).
 - Desktop APIs cross `electron/main.cjs` → `electron/preload.cjs` → `src/desktop.d.ts` → renderer callers.
   Update all affected layers together. Preserve sandboxing, context isolation, and the shared CSP in `electron/csp.cjs`.
+- `site/` is the doko.lt landing page: a separate Astro (Vite) project with its own `package.json`; it is not part of the
+  Electron build. Work inside `site/`: `npm ci`, `npm run dev` (LAN-reachable), `npm run build` (also runs
+  `scripts/check-seo.mjs` on `dist/`). Page markup is `src/components/Landing.astro`, rendered in English at `/` and
+  Lithuanian at `/lt/`; all copy (incl. FAQ, meta and JSON-LD text) lives only in `src/i18n/en.ts` and `lt.ts`
+  (same shape; a missing LT key fails the build); the logo is imported from `brand/doko/logos/`. Third-party brand marks
+  live only in `src/data/logos.ts`; keep their shapes unmodified and the footer trademark note in place.
+  Hero screenshots in `public/mockups/` come from the real app: after a root `npm run build`, run
+  `node site/scripts/capture-mockups.mjs` (throwaway profile, fictional documents; its selection step can be flaky).
 - `scripts/` contains Node regression tests and Playwright-driven Electron smoke tests; `build/` contains packaging
   resources. Read [CONTRIBUTING.md](CONTRIBUTING.md) before contribution or release work and
   [SIGNING.md](SIGNING.md) before changing installer signing.

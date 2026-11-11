@@ -1,0 +1,153 @@
+// English copy for the landing page. lt.ts must have the same shape (see Copy and the check in lt.ts).
+// Headings are [plain, bold] pairs; the bold half renders in <b>.
+type Word = string | { icon: "pdf" | "md" } | { photo: string };
+
+export const en = {
+  lang: "en",
+  url: "https://doko.lt/",
+  meta: {
+    title: "Doko: Free PDF Reader, Markdown Editor and Photo Viewer",
+    description: "Doko is a free, open-source PDF reader for Mac, Windows and Linux with no ads or upsells. Highlight, sign and ask AI about PDFs, edit Markdown, view photos.",
+    ogTitle: "Doko: Free PDF Reader, Markdown Editor and Photo Viewer",
+    ogDescription: "One free, open-source app for PDFs, Markdown and photos on Mac, Windows and Linux. No account. Your files stay on your computer.",
+    ogImageAlt: "Doko window with a PDF open and the headline PDFs, photos and Markdown. One reader.",
+    ogLocale: "en_US",
+  },
+  nav: { home: "Doko home", features: "Features", compare: "Compare", faq: "FAQ", download: "Download", language: "Language" },
+  hero: {
+    lines: ["PDFs, photos and", "Markdown."],
+    bold: "One reader.",
+    lede: "A free, open-source PDF reader, Markdown editor and photo viewer for Mac, Windows and Linux. No ads, no upsells, no account.",
+    get: "Download Doko",
+    getMac: "Download for Mac",
+    getWin: "Download for Windows",
+    source: "View source",
+    formats: "Doko opens PDF, Word documents, web pages, Markdown, text and CSV files and JPG, PNG, WebP, GIF and AVIF images.",
+    photos: "Photos",
+    filesLabel: "Open files",
+    shots: {
+      pdf: "Doko with a PDF field guide open, three highlights and their notes in the sidebar",
+      photo: "Doko browsing a folder of coastal photos with the thumbnail strip",
+      md: "Doko showing a Markdown launch checklist in preview",
+    },
+  },
+  ai: {
+    h2: ["Ask AI.", "Bring your own plan."],
+    p: "Doko works with ChatGPT through your ChatGPT plan, with Claude through your own Claude Code, or with any model on OpenRouter. Answers cite the page they came from, and nothing is sent until you ask.",
+    flowLabel: "Your PDF, a selected passage and your question go through Doko to ChatGPT, Claude or OpenRouter, and the answer comes back with page citations.",
+    inputs: ["Report.pdf", "Selected text", "Your question"],
+    inputsShort: ["PDF", "Text", "Ask"],
+    q: "What changed since last spring?",
+    a: "Nesting sites rose by 18%, mostly on the north cliffs.",
+    cite: "p. 3",
+  },
+  bento: {
+    h2: ["Read it, mark it,", "finish it."],
+    p: "Everything you need to read, annotate and sign a document, in one calm window.",
+    sheet: {
+      title: "Spring survey",
+      p1: ["Nesting sites rose by 18%", " compared with the previous year, mostly on the north cliffs."],
+      p2: ["The colony on the east ledge stayed the same size. ", "New pairs arrived two weeks earlier", " than usual."],
+      p3: "Weather records from the harbour station are attached on page 4.",
+    },
+    pin: ["Note", "Compare with the 2023 count."],
+    hl: ["Highlight and take notes", "Five colors, notes on any passage, pen and text boxes. Everything saves on its own."],
+    ask: "Ask AI",
+    ai: ["Ask AI", "ChatGPT, Claude or OpenRouter. Answers link to the page they came from."],
+    mdMini: { title: "Trip", items: ["Boat", "Camera", "Tides"] },
+    md: ["Write Markdown", "Edit and preview. Save writes the original file."],
+    sign: ["Sign documents", "Photograph your signature and place it on the page."],
+    pages: ["Organize pages", "Reorder, rotate, delete. Redact or password-protect a copy."],
+    photoAlts: ["Sea cliffs at sunset", "Fishing harbour at dawn", "Lighthouse on a green headland", "Kittiwakes nesting on a cliff ledge", "Misty forest path near the sea", "Sea thrift flowers above the coast"],
+    photo: ["Browse photo folders", "Open one image, scroll the folder. Crop, resize, adjust."],
+    local: {
+      say: ["No account.", "Documents and notes stay on your computer."],
+      label: "Your files open in Doko and your notes are saved on the same computer.",
+      computer: "This computer",
+      files: "Your files",
+      notes: "Your notes",
+    },
+  },
+  kinetic: {
+    label: "Why Doko",
+    statement: [
+      "Doko", "opens", "your", { icon: "pdf" }, "reports,", { photo: "kittiwakes" }, "photos", "and", { icon: "md" }, "notes,",
+      "with", "no", "ads,", "no", "trials", "and", "nothing", "to", "upgrade.", "Just", "the", "work.",
+    ] as Word[],
+  },
+  compare: {
+    h2: ["Just the tools.", "No upsell."],
+    p: "No ads, no trials, no upgrade prompts and no account. Every feature is included, so you open a document and get to work.",
+    promises: ["No ads", "No trials or upgrade prompts", "No account", "No telemetry"],
+    caption: "Doko compared with Adobe Acrobat",
+    head: ["Feature", "Doko", "Adobe Acrobat"],
+    rows: [
+      ["Price", "Free and open source", "Reader is free; Acrobat Pro is US$19.99/mo"],
+      ["Edit PDF text and images", "Included", "Acrobat Pro"],
+      ["Organize pages", "Included", "Acrobat Pro"],
+      ["Redact content", "Included", "Acrobat Pro"],
+      ["Password-protect PDFs", "Included", "Acrobat Pro"],
+      ["Ask AI with page citations", "Included, with your ChatGPT or Claude plan", "AI Assistant add-on, US$4.99/mo"],
+    ],
+    source: ["Adobe prices and plan features from ", "adobe.com", " (US, billed monthly), checked November 2026. Adobe and Acrobat are trademarks of Adobe Inc."],
+  },
+  details: {
+    h2: ["A complete PDF reader.", "And more."],
+    p: "Doko replaces a PDF reader, a Markdown editor and a photo viewer with one free app.",
+    items: [
+      ["PDF reader and annotator", "Continuous scrolling, search as you type, outline, thumbnails, two-page spreads and focus mode. Highlight in five colors, add notes, draw and type text boxes. Annotations save on their own and export with Save a copy."],
+      ["Chat with your PDF", "Ask AI answers questions about the whole document or a selected passage, with page citations you can click. Use your ChatGPT plan, Claude through Claude Code, or an OpenRouter key."],
+      ["Sign and edit PDFs", "Add a handwritten signature from a photo, edit existing text and images, organize pages, redact content and save a copy protected with AES-256 encryption. Select text in scanned PDFs with built-in OCR in many languages."],
+      ["Markdown and text editor", "Open .md files to write and preview them, or edit plain .txt files with their encoding and line endings kept. Save writes back to the original file, and Markdown changes made elsewhere show a conflict instead of being overwritten."],
+      ["Photo viewer", "Open one JPG, PNG, WebP, GIF, BMP or AVIF and browse every image in its folder. Crop, resize, rotate and adjust brightness, contrast and saturation. SVG files open as a picture, with their XML source one switch away."],
+      ["Tables, Word files and web pages", "Edit CSV files as a table or as text; saving changes only what you edited. Read Excel workbooks sheet by sheet and preview HTML files. Open Word documents as PDFs, or turn a web page into a PDF you can highlight."],
+    ],
+  },
+  // Single source for the visible FAQ and its FAQPage structured data.
+  faq: {
+    h2: ["Questions,", "answered."],
+    items: [
+      { q: "Is Doko free?", a: "Yes. Doko is free and open source under the MIT License. There is no paid tier, no subscription and no account." },
+      { q: "Does Doko show ads or upgrade prompts?", a: "No. Doko has no ads, no trials, no paid tier and no upgrade prompts. Every feature is included for everyone." },
+      { q: "Does Doko work offline?", a: "Yes. Reading, annotating, signing, editing Markdown and viewing photos all work without an internet connection. Doko goes online only to check for updates, download scan languages you choose, open a link you give it, or answer an Ask AI question." },
+      { q: "Does Doko upload my documents?", a: "No. Doko has no analytics or telemetry and never uploads documents on its own. Only when you ask AI a question does the document text, your selected passage and the conversation go to the provider you chose." },
+      { q: "Which files can Doko open?", a: "PDF files, Word documents (.docx and .doc), Markdown files (.md and .markdown), text files (.txt), CSV tables and images (JPG, PNG, WebP, GIF, BMP, AVIF and SVG). Excel workbooks (.xlsx) and HTML files open read-only. Web pages open as PDFs from a link." },
+      { q: "Which systems does Doko run on?", a: "Windows 10 and 11 (64-bit), macOS 12 or later on Apple silicon and Intel, and 64-bit Linux as a .deb package or an AppImage." },
+      { q: "Is Doko an alternative to Adobe Acrobat Reader or macOS Preview?", a: "Yes, for most document work. Acrobat Reader is free for viewing, printing, sharing and commenting, while editing text, organizing pages, redacting and password protection need Acrobat Pro (US$19.99/month on adobe.com). Doko does all of these for free, without ads or upgrade prompts, and also opens Markdown files and photo folders." },
+      { q: "How do I ask AI about a PDF?", a: "Open the Ask AI panel, choose ChatGPT, Claude or OpenRouter, then ask about the whole document or a selected passage. Answers stream in with page citations that jump to the source." },
+    ],
+  },
+  download: {
+    h2: ["Download", "Doko."],
+    mac: ["Download .dmg", "12 or later, Apple silicon and Intel"],
+    win: ["Download .exe", "10 and 11, 64-bit"],
+    linux: ["See files", ".deb and AppImage"],
+    firstRun: "First launch: on Mac, open <b>System Settings → Privacy &amp; Security</b> and choose <b>Open Anyway</b>. On Windows, choose <b>More info → Run anyway</b>.",
+  },
+  footer: {
+    about: "Free, open-source PDF reader, Markdown editor and photo viewer for Windows, macOS and Linux.",
+    trademarks: "Apple, macOS, Windows, Word, Adobe, Acrobat, ChatGPT, OpenAI, Claude, OpenRouter and Linux are trademarks of their respective owners, shown only to indicate compatibility. Doko is not affiliated with or endorsed by them.",
+    privacy: "Privacy",
+    changelog: "Changelog",
+    license: "License",
+  },
+  // SoftwareApplication JSON-LD text (the rest lives in src/data/software.ts).
+  software: {
+    description: "Doko is a free, open-source, local-first PDF reader, Markdown editor and photo viewer for Windows, macOS and Linux. It highlights, annotates and signs PDFs, answers questions about documents with AI, and keeps files on your computer.",
+    featureList: [
+      "PDF reader with search, outline and thumbnails",
+      "Highlights, notes, drawing and text boxes",
+      "Ask AI about a PDF with page citations",
+      "Handwritten signatures",
+      "Edit PDF text, images and pages",
+      "Redact and password-protect PDF copies",
+      "OCR for scanned PDFs",
+      "Markdown editor with preview",
+      "Photo folder viewer with crop, resize and adjustments",
+      "Open Word documents and web pages as PDFs",
+      "Edit TXT, CSV and SVG files; view Excel workbooks and HTML files",
+    ],
+  },
+};
+
+export type Copy = typeof en;

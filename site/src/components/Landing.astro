@@ -1,0 +1,444 @@
+---
+// The whole landing page; all visible copy comes from src/i18n/<lang>.ts.
+import "../styles/landing.css";
+import { logos } from "../data/logos";
+import { software } from "../data/software";
+import { en } from "../i18n/en";
+import { lt } from "../i18n/lt";
+import logoRaw from "../../../brand/doko/logos/doko-logo-ink.svg?raw";
+import markRaw from "../../../brand/doko/logos/doko-mark-ink.svg?raw";
+import appIcon from "../../../brand/doko/logos/doko-app-icon.svg?raw";
+
+// Formats that flow into Doko in the hero. Photo formats show a real photo with a format badge.
+const formats = [
+  { id: "pdf", label: "PDF", color: "#EC1C24", brand: "acrobat" },
+  { id: "docx", label: "DOCX", color: "#2B579A", brand: "word" },
+  { id: "url", label: "URL", color: "#66625D" },
+  { id: "avif", label: "AVIF", color: "#E0873A", photo: "fishing-harbour" },
+  { id: "md", label: "MD", color: "#1A1A1A" },
+  { id: "webp", label: "WEBP", color: "#4E9A5B", photo: "kittiwakes" },
+  { id: "jpg", label: "JPG", color: "#D9A441", photo: "coast-cliffs" },
+  { id: "png", label: "PNG", color: "#3FA7A0", photo: "lighthouse" },
+  { id: "gif", label: "GIF", color: "#C25FA0", photo: "sea-thrift" },
+  { id: "csv", label: "CSV", color: "#2E7D4F" },
+  { id: "txt", label: "TXT", color: "#8A8580" },
+];
+// Out-of-focus tiles drifting around the statement (size, blur and scroll speed vary for depth).
+const drift = [
+  { id: "pdf", x: "6%", y: "18%", s: 1.1, b: 0, v: 1.2 },
+  { id: "jpg", photo: "coast-cliffs", x: "88%", y: "12%", s: .8, b: 3, v: .6 },
+  { id: "md", x: "92%", y: "70%", s: 1, b: 0, v: 1.4 },
+  { id: "docx", x: "12%", y: "78%", s: .7, b: 4, v: .5 },
+  { id: "png", photo: "lighthouse", x: "78%", y: "92%", s: .65, b: 2, v: .9 },
+  { id: "webp", photo: "forest-path", x: "24%", y: "4%", s: .6, b: 5, v: .4 },
+];
+const tileBrand: Record<string, string> = { pdf: "acrobat", docx: "word" };
+const tileColor: Record<string, string> = { pdf: "#EC1C24", md: "#1A1A1A", docx: "#2B579A", jpg: "#D9A441", png: "#3FA7A0", webp: "#4E9A5B" };
+const markdownMark = '<svg viewBox="0 0 208 128" aria-hidden="true"><rect width="198" height="118" x="5" y="5" ry="10" fill="none" stroke="currentColor" stroke-width="10"/><path fill="currentColor" d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39zm125 0-30-33h20V30h20v35h20z"/></svg>';
+
+// Brand SVGs become currentColor symbols so the logo follows light and dark mode.
+const symbol = (svg: string, id: string) => {
+  const viewBox = svg.match(/viewBox="([^"]+)"/)?.[1];
+  const inner = svg.replace(/^[\s\S]*?<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "").replace(/fill="#[0-9A-Fa-f]{6}"/g, 'fill="currentColor"');
+  return `<symbol id="${id}" viewBox="${viewBox}">${inner.trim()}</symbol>`;
+};
+const logoSymbols = symbol(logoRaw, "logo") + symbol(markRaw, "mark");
+const t = Astro.props.lang === "lt" ? lt : en;
+const { faq } = t;
+// Kinetic statement: words reveal on scroll, format icons pop in between them.
+const statement = t.kinetic.statement;
+const softwareLd = { ...software, url: t.url, description: t.software.description, featureList: t.software.featureList };
+const faqLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faq.items.map(({ q, a }) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
+};
+---
+<html lang={t.lang}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{t.meta.title}</title>
+<meta name="description" content={t.meta.description}>
+<link rel="canonical" href={t.url}>
+<link rel="alternate" hreflang="en" href={en.url}>
+<link rel="alternate" hreflang="lt" href={lt.url}>
+<link rel="alternate" hreflang="x-default" href={en.url}>
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#F7F5F3">
+<meta property="og:type" content="website">
+<meta property="og:url" content={t.url}>
+<meta property="og:site_name" content="Doko">
+<meta property="og:locale" content={t.meta.ogLocale}>
+<meta property="og:locale:alternate" content={(t === en ? lt : en).meta.ogLocale}>
+<meta property="og:title" content={t.meta.ogTitle}>
+<meta property="og:description" content={t.meta.ogDescription}>
+<meta property="og:image" content="https://doko.lt/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content={t.meta.ogImageAlt}>
+<meta name="twitter:card" content="summary_large_image">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<script is:inline type="application/ld+json" set:html={JSON.stringify(softwareLd)} />
+<script is:inline type="application/ld+json" set:html={JSON.stringify(faqLd)} />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&display=swap" rel="stylesheet">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <Fragment set:html={logoSymbols} />
+  {Object.entries(logos).map(([k, l]) => <symbol id={`b-${k}`} viewBox="0 0 24 24"><path fill="currentColor" d={l.d} /></symbol>)}
+  <symbol id="i-pdf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></symbol>
+  <symbol id="i-photo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-9 9"/></symbol>
+  <symbol id="i-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M6 15V9l2.5 3L11 9v6M15.5 9v6m0 0-2-2m2 2 2-2"/></symbol>
+  <symbol id="i-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-5 5v4h4l5-5"/><path d="m14 6 4 4"/><path d="M11 9 17 3l4 4-6 6"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13 7 4 4"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12z"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/></symbol>
+  <symbol id="i-ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.8 9l5.7 1.5-5.7 1.6L12 17.5l-1.8-5.4L4.5 10.5 10.2 9z"/><path d="M18.5 16v4M16.5 18h4"/></symbol>
+</svg>
+
+<header class="masthead">
+  <div class="wrap top">
+    <a class="logo" href="./" aria-label={t.nav.home}><svg viewBox="0 0 1045 311" aria-hidden="true"><use href="#logo"/></svg></a>
+    <nav>
+      <a class="link" href="#features">{t.nav.features}</a>
+      <a class="link" href="#compare">{t.nav.compare}</a>
+      <a class="link" href="#faq">{t.nav.faq}</a>
+      <a class="link" href="https://github.com/roqusanalytics/doko">GitHub</a>
+      <details class="lang" data-lang-menu>
+        <summary aria-label={t.nav.language}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z"/></svg>
+          <span>{t === lt ? "LT" : "EN"}</span>
+          <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+        <ul>
+          <li><a href="/" hreflang="en" lang="en" aria-current={t === en ? "page" : undefined}>English</a></li>
+          <li><a href="/lt/" hreflang="lt" lang="lt" aria-current={t === lt ? "page" : undefined}>Lietuvių</a></li>
+        </ul>
+      </details>
+      <a class="btn" href="#download">{t.nav.download}</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- Hero -->
+  <section class="wrap hero">
+    <h1>
+      {t.hero.lines.map((l) => <span class="line"><span>{l}</span></span>)}
+      <span class="line"><b>{t.hero.bold}</b></span>
+    </h1>
+    <p class="lede">{t.hero.lede}</p>
+    <div class="actions">
+      <a class="btn big" id="get" href="#download" data-mac={t.hero.getMac} data-win={t.hero.getWin}>{t.hero.get}</a>
+      <a class="btn big ghost" href="https://github.com/roqusanalytics/doko">{t.hero.source}</a>
+    </div>
+
+    <div class="converge" role="img" aria-label={t.hero.formats}>
+      <canvas class="tone" data-halftone data-focus=".hubx" data-reach=".24" data-step="10" aria-hidden="true"></canvas>
+      <svg class="wires" aria-hidden="true"></svg>
+      {formats.map((f) => (
+        <div class={`fmt f-${f.id}`} style={`--c:${f.color}`} aria-hidden="true">
+          <div class={`fmt-in${f.photo ? " is-photo" : ""}`}>
+            {f.photo ? (
+              <>
+                <img src={`/photos/${f.photo}.jpg`} alt="" width="64" height="64" loading="eager" />
+                <span class="badge">{f.label}</span>
+              </>
+            ) : f.id === "md" ? (
+              <Fragment set:html={markdownMark} />
+            ) : f.id === "url" ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z"/></svg>
+            ) : (
+              <>{f.brand && <svg class="brand"><use href={`#b-${f.brand}`} /></svg>}<span class="doc">{f.label}</span></>
+            )}
+          </div>
+        </div>
+      ))}
+      <div class="hubx" aria-hidden="true"><span class="halo"></span><Fragment set:html={appIcon} /></div>
+    </div>
+
+    <div class="stage">
+      <button class="tagx g-pdf on" data-tab="0" tabindex="-1" aria-hidden="true">PDF <span>↗</span></button>
+      <button class="tagx g-photo" data-tab="1" tabindex="-1" aria-hidden="true">{t.hero.photos} <span>↗</span></button>
+      <button class="tagx g-md" data-tab="2" tabindex="-1" aria-hidden="true">Markdown <span>↗</span></button>
+      <button class="tagx g-word" tabindex="-1" aria-hidden="true">Word <span>↗</span></button>
+      <div class="window">
+        <div class="bar">
+          <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div class="tabs" role="tablist" aria-label={t.hero.filesLabel}>
+            <button class="tab" role="tab" id="t-pdf" aria-controls="p-pdf" aria-selected="true"><svg aria-hidden="true"><use href="#i-pdf"/></svg><span>PDF</span></button>
+            <button class="tab" role="tab" id="t-photo" aria-controls="p-photo" aria-selected="false" tabindex="-1"><svg aria-hidden="true"><use href="#i-photo"/></svg><span>{t.hero.photos}</span></button>
+            <button class="tab" role="tab" id="t-md" aria-controls="p-md" aria-selected="false" tabindex="-1"><svg aria-hidden="true"><use href="#i-md"/></svg><span>Markdown</span></button>
+          </div>
+        </div>
+        <div class="views">
+          <div class="view on" role="tabpanel" tabindex="0" id="p-pdf" aria-labelledby="t-pdf">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="/mockups/pdf-dark-1440.jpg 1x, /mockups/pdf-dark-2880.jpg 2x" />
+              <img src="/mockups/pdf-highlights-1440.jpg" srcset="/mockups/pdf-highlights-1440.jpg 1x, /mockups/pdf-highlights-2880.jpg 2x" alt={t.hero.shots.pdf} width="1440" height="900" fetchpriority="high" decoding="async" />
+            </picture>
+          </div>
+          <div class="view" role="tabpanel" tabindex="0" id="p-photo" aria-labelledby="t-photo">
+            <img src="/mockups/photos-1440.jpg" srcset="/mockups/photos-1440.jpg 1x, /mockups/photos-2880.jpg 2x" alt={t.hero.shots.photo} width="1440" height="900" loading="lazy" decoding="async" />
+          </div>
+          <div class="view" role="tabpanel" tabindex="0" id="p-md" aria-labelledby="t-md">
+            <img src="/mockups/markdown-1440.jpg" srcset="/mockups/markdown-1440.jpg 1x, /mockups/markdown-2880.jpg 2x" alt={t.hero.shots.md} width="1440" height="900" loading="lazy" decoding="async" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Ask AI: bring your own plan -->
+  <section class="wrap sec" id="ai" aria-labelledby="h-flow">
+    <div class="head" data-reveal>
+      <span class="idx" aria-hidden="true" data-scramble>01 / 06</span>
+      <h2 id="h-flow">{t.ai.h2[0]} <b>{t.ai.h2[1]}</b></h2>
+      <p>{t.ai.p}</p>
+    </div>
+    <div class="flow-card" data-reveal>
+      <svg class="flow flow-h" viewBox="0 0 1000 360" role="img" aria-label={t.ai.flowLabel}>
+        <path id="fh1" class="wire a" d="M230 70 C340 70 330 180 440 180"/>
+        <path id="fh2" class="wire a" d="M230 180 L440 180"/>
+        <path id="fh3" class="wire a" d="M230 290 C340 290 330 180 440 180"/>
+        <path id="fh4" class="wire b" d="M560 180 C670 180 660 70 770 70"/>
+        <path id="fh5" class="wire b" d="M560 180 L770 180"/>
+        <path id="fh6" class="wire b" d="M560 180 C670 180 660 290 770 290"/>
+        <g class="node in"><rect x="40" y="42" width="190" height="56" rx="16"/><use class="ico" href="#i-pdf" x="58" y="58" width="24" height="24"/><text x="92" y="76">{t.ai.inputs[0]}</text></g>
+        <g class="node in"><rect x="40" y="152" width="190" height="56" rx="16"/><use class="ico" href="#i-mark" x="58" y="168" width="24" height="24"/><text x="92" y="186">{t.ai.inputs[1]}</text></g>
+        <g class="node in"><rect x="40" y="262" width="190" height="56" rx="16"/><use class="ico" href="#i-chat" x="58" y="278" width="24" height="24"/><text x="92" y="296">{t.ai.inputs[2]}</text></g>
+        <g class="hub"><rect class="hub-bg" x="440" y="120" width="120" height="120" rx="32"/><use class="hub-mark" href="#mark" x="470" y="153" width="60" height="55"/></g>
+        <g class="node out"><rect x="770" y="42" width="190" height="56" rx="16"/><use class="ico" href="#b-openai" x="788" y="58" width="24" height="24" style={`color:var(--ink)`}/><text x="822" y="76">ChatGPT</text></g>
+        <g class="node out"><rect x="770" y="152" width="190" height="56" rx="16"/><use class="ico" href="#b-claude" x="788" y="168" width="24" height="24" style={`color:${logos.claude.color}`}/><text x="822" y="186">Claude</text></g>
+        <g class="node out"><rect x="770" y="262" width="190" height="56" rx="16"/><use class="ico" href="#b-openrouter" x="788" y="278" width="24" height="24" style={`color:${logos.openrouter.color}`}/><text x="822" y="296">OpenRouter</text></g>
+        <circle class="dot" r="5" data-path="fh1"/><circle class="dot" r="5" data-path="fh2"/><circle class="dot" r="5" data-path="fh3"/>
+        <circle class="dot" r="5" data-path="fh4"/><circle class="dot" r="5" data-path="fh5"/><circle class="dot" r="5" data-path="fh6"/>
+      </svg>
+      <svg class="flow flow-v" viewBox="0 0 360 600" role="img" aria-label={t.ai.flowLabel}>
+        <path id="fv1" class="wire a" d="M60 86 C60 170 180 160 180 245"/>
+        <path id="fv2" class="wire a" d="M180 86 L180 245"/>
+        <path id="fv3" class="wire a" d="M300 86 C300 170 180 160 180 245"/>
+        <path id="fv4" class="wire b" d="M180 355 C180 440 60 430 60 514"/>
+        <path id="fv5" class="wire b" d="M180 355 L180 514"/>
+        <path id="fv6" class="wire b" d="M180 355 C180 440 300 430 300 514"/>
+        <g class="node in"><rect x="8" y="30" width="104" height="56" rx="16"/><use class="ico" href="#i-pdf" x="24" y="46" width="22" height="22"/><text x="52" y="63">{t.ai.inputsShort[0]}</text></g>
+        <g class="node in"><rect x="128" y="30" width="104" height="56" rx="16"/><use class="ico" href="#i-mark" x="140" y="46" width="22" height="22"/><text x="166" y="63">{t.ai.inputsShort[1]}</text></g>
+        <g class="node in"><rect x="248" y="30" width="104" height="56" rx="16"/><use class="ico" href="#i-chat" x="262" y="46" width="22" height="22"/><text x="290" y="63">{t.ai.inputsShort[2]}</text></g>
+        <g class="hub"><rect class="hub-bg" x="125" y="245" width="110" height="110" rx="30"/><use class="hub-mark" href="#mark" x="153" y="275" width="54" height="50"/></g>
+        <g class="node out"><rect x="8" y="514" width="104" height="56" rx="16"/><use class="ico" href="#b-openai" x="50" y="520" width="20" height="20" style="color:var(--ink)"/><text x="60" y="558" text-anchor="middle" class="sm">ChatGPT</text></g>
+        <g class="node out"><rect x="128" y="514" width="104" height="56" rx="16"/><use class="ico" href="#b-claude" x="170" y="520" width="20" height="20" style={`color:${logos.claude.color}`}/><text x="180" y="558" text-anchor="middle" class="sm">Claude</text></g>
+        <g class="node out"><rect x="248" y="514" width="104" height="56" rx="16"/><use class="ico" href="#b-openrouter" x="290" y="520" width="20" height="20" style={`color:${logos.openrouter.color}`}/><text x="300" y="558" text-anchor="middle" class="sm">OpenRouter</text></g>
+        <circle class="dot" r="5" data-path="fv1"/><circle class="dot" r="5" data-path="fv2"/><circle class="dot" r="5" data-path="fv3"/>
+        <circle class="dot" r="5" data-path="fv4"/><circle class="dot" r="5" data-path="fv5"/><circle class="dot" r="5" data-path="fv6"/>
+      </svg>
+      <div class="answer" aria-hidden="true">
+        <div class="bubble q">{t.ai.q}</div>
+        <div class="bubble a">{t.ai.a}<span class="cite">{t.ai.cite}</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bento -->
+  <div class="night" id="features">
+    <section class="wrap sec" aria-labelledby="h-do">
+      <div class="head" data-reveal>
+      <span class="idx" aria-hidden="true" data-scramble>02 / 06</span>
+        <h2 id="h-do">{t.bento.h2[0]} <b>{t.bento.h2[1]}</b></h2>
+        <p>{t.bento.p}</p>
+      </div>
+      <ul class="bento">
+        <li class="cell c-hl" data-cell="hl">
+          <div class="viz">
+            <div class="swatches" aria-hidden="true"><i style="--c:#F5D565"></i><i style="--c:#8FD3A0"></i><i style="--c:#9CC3F5"></i><i style="--c:#F2A7C9"></i><i style="--c:#F28B82"></i></div>
+            <div class="sheet" aria-hidden="true">
+              <h4>{t.bento.sheet.title}</h4>
+              <p><span class="hl" style="--hl:#F8E08A">{t.bento.sheet.p1[0]}</span>{t.bento.sheet.p1[1]}</p>
+              <p>{t.bento.sheet.p2[0]}<span class="hl" style="--hl:#BFE6C7">{t.bento.sheet.p2[1]}</span>{t.bento.sheet.p2[2]}</p>
+              <p>{t.bento.sheet.p3}</p>
+            </div>
+            <div class="pin" aria-hidden="true"><small>{t.bento.pin[0]}</small>{t.bento.pin[1]}</div>
+          </div>
+          <div class="cap"><h3>{t.bento.hl[0]}</h3><p>{t.bento.hl[1]}</p></div>
+        </li>
+
+        <li class="cell c-2" data-cell="ai">
+          <div class="viz">
+            <div class="orbit" aria-hidden="true">
+              <span class="ring r1"></span><span class="ring r2"></span><span class="ring r3"></span>
+              <span class="prov p1 on" style="--bc:var(--ink)"><svg><use href="#b-openai" /></svg>ChatGPT</span><span class="prov p2" style={`--bc:${logos.claude.color}`}><svg><use href="#b-claude" /></svg>Claude</span><span class="prov p3" style={`--bc:${logos.openrouter.color}`}><svg><use href="#b-openrouter" /></svg>OpenRouter</span>
+              <span class="ask">{t.bento.ask}</span>
+            </div>
+          </div>
+          <div class="cap"><h3>{t.bento.ai[0]}</h3><p>{t.bento.ai[1]}</p></div>
+        </li>
+
+        <li class="cell c-2" data-cell="md">
+          <div class="viz bleed">
+            <div class="md-mini" aria-hidden="true">
+              <div class="md-src"><span># {t.bento.mdMini.title}</span><span>- [x] {t.bento.mdMini.items[0]}</span><span>- [x] {t.bento.mdMini.items[1]}</span><span>- [ ] {t.bento.mdMini.items[2]}</span></div>
+              <div class="md-out"><strong>{t.bento.mdMini.title}</strong><span><i class="box done"></i>{t.bento.mdMini.items[0]}</span><span><i class="box done"></i>{t.bento.mdMini.items[1]}</span><span><i class="box"></i>{t.bento.mdMini.items[2]}</span></div>
+            </div>
+          </div>
+          <div class="cap"><h3>{t.bento.md[0]}</h3><p>{t.bento.md[1]}</p></div>
+        </li>
+
+        
+
+        <li class="cell c-2" data-cell="sign">
+          <div class="viz bleed">
+            <div class="sig" aria-hidden="true">
+              <svg viewBox="0 0 260 90"><path d="M10 62c14-30 26-46 34-44 10 3-12 50-2 52 9 2 18-30 28-30 8 0 0 26 8 26s14-22 22-22c6 0 2 18 9 18 8 0 12-14 20-14 7 0 4 12 11 12 10 0 20-10 30-16 9-5 22-8 40-6"/></svg>
+              <hr>
+            </div>
+          </div>
+          <div class="cap"><h3>{t.bento.sign[0]}</h3><p>{t.bento.sign[1]}</p></div>
+        </li>
+
+        <li class="cell c-2" data-cell="pages">
+          <div class="viz">
+            <div class="pages" aria-hidden="true"><i>1</i><i class="sel">2</i><i class="sel">3</i><i>4</i></div>
+          </div>
+          <div class="cap"><h3>{t.bento.pages[0]}</h3><p>{t.bento.pages[1]}</p></div>
+        </li>
+
+        <li class="cell c-photo" data-cell="photo">
+          <div class="viz">
+            <div class="reel" aria-hidden="true">
+              <div class="reel-track">
+                <img src="/photos/coast-cliffs.jpg" alt={t.bento.photoAlts[0]} loading="lazy" width="132" height="176"><img src="/photos/fishing-harbour.jpg" alt={t.bento.photoAlts[1]} loading="lazy" width="132" height="176"><img src="/photos/lighthouse.jpg" alt={t.bento.photoAlts[2]} loading="lazy" width="132" height="176"><img src="/photos/kittiwakes.jpg" alt={t.bento.photoAlts[3]} loading="lazy" width="132" height="176"><img src="/photos/forest-path.jpg" alt={t.bento.photoAlts[4]} loading="lazy" width="132" height="176"><img src="/photos/sea-thrift.jpg" alt={t.bento.photoAlts[5]} loading="lazy" width="132" height="176">
+                <img src="/photos/coast-cliffs.jpg" alt="" loading="lazy" width="132" height="176"><img src="/photos/fishing-harbour.jpg" alt="" loading="lazy" width="132" height="176"><img src="/photos/lighthouse.jpg" alt="" loading="lazy" width="132" height="176"><img src="/photos/kittiwakes.jpg" alt="" loading="lazy" width="132" height="176"><img src="/photos/forest-path.jpg" alt="" loading="lazy" width="132" height="176"><img src="/photos/sea-thrift.jpg" alt="" loading="lazy" width="132" height="176">
+              </div>
+            </div>
+          </div>
+          <div class="cap"><h3>{t.bento.photo[0]}</h3><p>{t.bento.photo[1]}</p></div>
+        </li>
+
+        <li class="cell c-wide" data-cell="local">
+          <canvas class="tone" data-halftone data-fx="0" data-fy="1" data-reach=".36" data-step="9" aria-hidden="true"></canvas>
+          <p class="say">{t.bento.local.say[0]} <b>{t.bento.local.say[1]}</b></p>
+          <svg class="local" viewBox="0 0 520 200" role="img" aria-label={t.bento.local.label}>
+            <rect class="box-line" x="2" y="22" width="516" height="176" rx="24"/>
+            <text class="lbl" x="24" y="14">{t.bento.local.computer}</text>
+            <path id="lw1" class="wire" d="M150 110 L210 110"/>
+            <path id="lw2" class="wire" d="M310 110 L370 110"/>
+            <g><rect class="n" x="22" y="82" width="128" height="56" rx="16"/><text x="86" y="116" text-anchor="middle">{t.bento.local.files}</text></g>
+            <g><rect x="210" y="60" width="100" height="100" rx="28" fill="#1A1A1A"/><use href="#mark" x="234" y="88" width="52" height="48" style="color:#C5E1CB"/></g>
+            <g><rect class="n" x="370" y="82" width="128" height="56" rx="16"/><text x="434" y="116" text-anchor="middle">{t.bento.local.notes}</text></g>
+            <circle class="dot" r="5" data-path="lw1"/><circle class="dot" r="5" data-path="lw2"/>
+          </svg>
+        </li>
+      </ul>
+    </section>
+  </div>
+
+  <!-- Kinetic statement -->
+  <section class="kinetic-sec" aria-label={t.kinetic.label}>
+    <div class="drift" aria-hidden="true">
+      {drift.map((t) => (
+        <div class="dt" data-speed={t.v} style={`left:${t.x};top:${t.y};--s:${t.s};--b:${t.b}px;--c:${tileColor[t.id]}`}>
+          <div class={`fmt-in${t.photo ? " is-photo" : ""}`}>
+            {t.photo ? <><img src={`/photos/${t.photo}.jpg`} alt="" width="64" height="64" loading="lazy" /><span class="badge">{t.id.toUpperCase()}</span></>
+              : t.id === "md" ? <Fragment set:html={markdownMark} /> : <><svg class="brand"><use href={`#b-${tileBrand[t.id]}`} /></svg><span class="doc">{t.id.toUpperCase()}</span></>}
+          </div>
+        </div>
+      ))}
+    </div>
+    <p class="kinetic wrap">
+      {statement.map((w) =>
+        typeof w === "string" ? <><span class="kw">{w}</span>{" "}</>
+        : "photo" in w ? <><span class="ki ki-photo" aria-hidden="true"><img src={`/photos/${w.photo}.jpg`} alt="" loading="lazy" /></span>{" "}</>
+        : <><span class={`ki ki-${w.icon}`} aria-hidden="true">{w.icon === "md" ? <Fragment set:html={markdownMark} /> : <svg><use href="#b-acrobat" /></svg>}</span>{" "}</>
+      )}
+    </p>
+  </section>
+
+  <!-- No ads, no upsell: Doko vs Adobe Acrobat -->
+  <section class="wrap sec" id="compare" aria-labelledby="h-compare">
+    <div class="head" data-reveal>
+      <span class="idx" aria-hidden="true" data-scramble>03 / 06</span>
+      <h2 id="h-compare">{t.compare.h2[0]} <b>{t.compare.h2[1]}</b></h2>
+      <p>{t.compare.p}</p>
+    </div>
+    <ul class="promises" data-reveal>
+      {t.compare.promises.map((p) => <li>{p}</li>)}
+    </ul>
+    <div class="compare" data-reveal>
+      <table>
+        <caption>{t.compare.caption}</caption>
+        <thead><tr><th scope="col">{t.compare.head[0]}</th><th scope="col" class="us">{t.compare.head[1]}</th><th scope="col">{t.compare.head[2]}</th></tr></thead>
+        <tbody>
+          {t.compare.rows.map(([f, us, them]) => <tr><th scope="row">{f}</th><td class="us">{us}</td><td>{them}</td></tr>)}
+        </tbody>
+      </table>
+      <p class="source">{t.compare.source[0]}<a href="https://www.adobe.com/acrobat/plans.html">{t.compare.source[1]}</a>{t.compare.source[2]}</p>
+    </div>
+  </section>
+
+  <!-- Feature details -->
+  <section class="wrap sec" id="details" aria-labelledby="h-details">
+    <div class="head" data-reveal>
+      <span class="idx" aria-hidden="true" data-scramble>04 / 06</span>
+      <h2 id="h-details">{t.details.h2[0]} <b>{t.details.h2[1]}</b></h2>
+      <p>{t.details.p}</p>
+    </div>
+    <div class="details" data-reveal>
+      {t.details.items.map(([h, p]) => <article><h3>{h}</h3><p>{p}</p></article>)}
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="wrap sec" id="faq" aria-labelledby="h-faq">
+    <div class="head" data-reveal>
+      <span class="idx" aria-hidden="true" data-scramble>05 / 06</span>
+      <h2 id="h-faq">{t.faq.h2[0]} <b>{t.faq.h2[1]}</b></h2>
+    </div>
+    <div class="faq" data-reveal>
+      {faq.items.map(({ q, a }) => <details><summary>{q}</summary><p>{a}</p></details>)}
+    </div>
+  </section>
+
+  <!-- Download -->
+  <section class="wrap sec" id="download" aria-labelledby="h-get">
+    <div class="head" data-reveal>
+      <span class="idx" aria-hidden="true" data-scramble>06 / 06</span>
+      <h2 id="h-get">{t.download.h2[0]} <b>{t.download.h2[1]}</b></h2>
+    </div>
+    <ul class="platforms" data-reveal>
+      <li><a data-os="mac" data-asset="-mac\.dmg$" href="https://github.com/roqusanalytics/doko/releases/latest"><svg class="os" style="--bc:var(--ink)"><use href="#b-apple" /></svg><span class="get">{t.download.mac[0]}</span><strong>macOS</strong><span>{t.download.mac[1]}</span></a></li>
+      <li><a data-os="win" data-asset="-Setup\.exe$" href="https://github.com/roqusanalytics/doko/releases/latest"><svg class="os" style={`--bc:${logos.windows.color}`}><use href="#b-windows" /></svg><span class="get">{t.download.win[0]}</span><strong>Windows</strong><span>{t.download.win[1]}</span></a></li>
+      <li><a href="https://github.com/roqusanalytics/doko/releases/latest"><svg class="os" style="--bc:var(--ink)"><use href="#b-linux" /></svg><span class="get">{t.download.linux[0]}</span><strong>Linux</strong><span>{t.download.linux[1]}</span></a></li>
+    </ul>
+    <p class="first-run" set:html={t.download.firstRun} />
+  </section>
+
+  <!-- Closing picture: a photo reduced to one-bit pixels -->
+  <div class="outro" aria-hidden="true">
+    <canvas data-dither="/photos/coast-sunset.jpg" data-cell="3" data-fade="1.1" data-focus-y=".62"></canvas>
+    <p class="wrap"><span>░▒▓ doko.lt</span><span>PDF · MD · TXT · CSV · XLSX · DOCX · HTML · SVG · JPG · PNG · WEBP · GIF · AVIF</span></p>
+  </div>
+</main>
+
+<footer class="wrap">
+  <div class="foot-id">
+    <a class="logo" href="./" aria-label={t.nav.home}><svg viewBox="0 0 1045 311" aria-hidden="true"><use href="#logo"/></svg></a>
+    <p>{t.footer.about}</p>
+    <p class="tm">{t.footer.trademarks}</p>
+  </div>
+  <nav>
+    <a class="link" href="https://github.com/roqusanalytics/doko">GitHub</a>
+    <a class="link" href="https://github.com/roqusanalytics/doko#privacy">{t.footer.privacy}</a>
+    <a class="link" href="https://github.com/roqusanalytics/doko/blob/main/CHANGELOG.md">{t.footer.changelog}</a>
+    <a class="link" href="https://github.com/roqusanalytics/doko/blob/main/LICENSE">{t.footer.license}</a>
+  </nav>
+</footer>
+
+<script>
+  import "../scripts/landing.js";
+</script>
+</body>
+</html>

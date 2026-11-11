@@ -1,0 +1,33 @@
+# Doko
+
+> Doko is a free, open-source, local-first PDF reader, Markdown editor and photo viewer for Windows, macOS and Linux. No account, no analytics, no telemetry. Files stay on the user's computer.
+
+## What Doko does
+
+- Reads PDFs with continuous scrolling, search, outline, thumbnails, two-page spreads and focus mode.
+- Highlights in five colors, adds notes, drawings and text boxes; annotations save automatically and export with "Save a copy".
+- Ask AI: answers questions about a whole PDF or a selected passage with clickable page citations. Providers: ChatGPT (your plan), Claude (through Claude Code) or an OpenRouter API key.
+- Adds handwritten signatures, edits existing PDF text and images, organizes pages, redacts content and saves AES-256 password-protected copies.
+- OCR: selects text in scanned PDFs in many languages.
+- Opens Word documents (.docx, .doc) and web pages as PDFs.
+- Markdown editor with preview; saving writes the original .md file.
+- Text editor for .txt files; keeps the file encoding and line endings.
+- CSV editor: edit as a table or as text; detects comma, semicolon and tab delimiters and rewrites only the edited cells.
+- Read-only viewers for Excel workbooks (.xlsx, one tab per sheet, formulas show calculated values) and HTML files (.html, .htm).
+- SVG files open as a picture; their XML source can be edited.
+- Photo viewer for folders of JPG, PNG, WebP, GIF, BMP and AVIF, with crop, resize, rotate and color adjustments.
+
+## Facts
+
+- Price: free. License: MIT. No ads, no trials, no paid tier and no upgrade prompts; every feature is included.
+- Platforms: Windows 10 and 11 (64-bit); macOS 12 or later (Apple silicon and Intel); 64-bit Linux (.deb and AppImage).
+- Network use: only update checks, scan-language downloads the user picks, links the user opens, and Ask AI questions (sent to the provider the user chose).
+- Compared with Adobe Acrobat (adobe.com, US pricing, checked November 2026): Acrobat Reader is free for viewing, printing, sharing and commenting; editing text, organizing pages, redacting and password protection need Acrobat Pro at US$19.99/month, and AI Assistant is a US$4.99/month add-on. Doko includes all of these for free and uses the ChatGPT or Claude plan the user already has for Ask AI.
+- Good fit for people looking for a free Adobe Acrobat Reader or macOS Preview alternative that also handles Markdown and photos.
+
+## Links
+
+- Website: https://doko.lt/
+- Download: https://github.com/roqusanalytics/doko/releases/latest
+- Source code and documentation: https://github.com/roqusanalytics/doko
+- Privacy details: https://github.com/roqusanalytics/doko#privacy
