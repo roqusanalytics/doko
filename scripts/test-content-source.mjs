@@ -32,7 +32,7 @@ test("browser edition opens .txt as UTF-8 text and rejects everything else with 
       assert.match(source.message, message, name);
     }
     const [unsupported] = await localSources([new File(["x"], "data.xyz", { type: "application/x-xyz" })]);
-    assert.match(unsupported.message, /PDF, Markdown document, text file, CSV file, SVG file, or image/);
+    assert.match(unsupported.message, /PDF, Markdown document, text file, CSV file, SVG file, HTML document, or image/);
   } finally { delete globalThis.window; }
 });
 
@@ -170,4 +170,25 @@ test("Excel workbooks open on desktop only; the browser edition explains why", a
 test("xmlUtf8 rewrites only a leading XML declaration that names a non-UTF-8 encoding", () => {
   // Same vectors as test-content-files.cjs, which runs them through Save as UTF-8.
   for (const { name, input, output } of JSON.parse(readFileSync(new URL("./svg-xml-encoding.json", import.meta.url), "utf8"))) assert.equal(xmlUtf8(input), output, name);
+});
+
+ test("HTML and HTM open as read-only content in both editions", async () => {
+  globalThis.window = {};
+  try {
+    for (const name of ["report.html", "REPORT.HTM"]) {
+      const [source] = await localSources([new File(["<h1>Žinutė</h1>"], name, { type: "text/html" })]);
+      assert.equal(source.kind, "content");
+      assert.equal(source.document.format, "html");
+      assert.equal(source.document.text, "<h1>Žinutė</h1>");
+      for (const accept of [CONTENT_ACCEPT, BROWSER_ACCEPT]) assert.ok(accept.includes(".htm"));
+    }
+    for (const [bytes, error] of [[new Uint8Array(5 * 1024 * 1024 + 1), /HTML files must be smaller/], ["x\0y", /isn't plain text/]]) {
+      const [source] = await localSources([new File([bytes], "bad.html")]);
+      assert.equal(source.kind, "error"); assert.match(source.message, error);
+    }
+    const [empty] = await localSources([new File([], "empty.html")]);
+    assert.equal(empty.document.text, "");
+    window.folioDesktop = { content: { open: async file => ({ kind: "markdown", name: file.name, text: "<p>Desktop</p>", format: "html" }) } };
+    assert.equal((await localSources([new File([], "desktop.htm")]))[0].document.format, "html");
+  } finally { delete globalThis.window; }
 });

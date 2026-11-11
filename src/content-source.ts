@@ -1,6 +1,6 @@
 import type { OpenSource } from "./documentTabs";
 
-export const CONTENT_ACCEPT = "application/pdf,.pdf,.doc,.docx,.xlsx,.md,.markdown,.txt,.csv,.svg,.jpg,.jpeg,.png,.webp,.gif,.bmp,.avif";
+export const CONTENT_ACCEPT = "application/pdf,.pdf,.doc,.docx,.xlsx,.md,.markdown,.txt,.csv,.svg,.html,.htm,.jpg,.jpeg,.png,.webp,.gif,.bmp,.avif";
 /** The browser edition's picker filter: Word and Excel files open in the desktop app only. */
 /** Electron adds this to the message of an error thrown in the main process. */
 export const IPC_PREFIX = /^Error invoking remote method '[^']*': (?:Error: )?/;
@@ -9,6 +9,7 @@ const XLSX = /\.xlsx?$/i;
 const MARKDOWN = /\.(md|markdown)$/i;
 const TEXT = /\.txt$/i;
 const CSV = /\.csv$/i;
+const HTML = /\.html?$/i;
 const SVG = /\.svg$/i;
 const IMAGE = /\.(jpe?g|png|webp|gif|bmp|avif)$/i;
 
@@ -56,7 +57,7 @@ export async function localSources(files: File[]): Promise<OpenSource[]> {
   const browserImages = !window.folioDesktop ? files.filter(file => IMAGE.test(file.name)) : [];
   const sources = await Promise.all(files.map(async (file): Promise<OpenSource | null> => {
     try {
-      if (MARKDOWN.test(file.name) || TEXT.test(file.name) || CSV.test(file.name) || SVG.test(file.name) || IMAGE.test(file.name)) {
+      if (MARKDOWN.test(file.name) || TEXT.test(file.name) || CSV.test(file.name) || SVG.test(file.name) || HTML.test(file.name) || IMAGE.test(file.name)) {
         if (window.folioDesktop) {
           const document = await window.folioDesktop.content.open(file);
           return { kind: "content", name: document.name, document };
@@ -66,9 +67,9 @@ export async function localSources(files: File[]): Promise<OpenSource[]> {
           const text = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
           return { kind: "content", name: file.name, document: { kind: "markdown", name: file.name, text } };
         }
-        if (TEXT.test(file.name) || CSV.test(file.name) || SVG.test(file.name)) {
-          const csv = CSV.test(file.name), format = SVG.test(file.name) ? "svg" : "text";
-          if (file.size > 5 * 1024 * 1024) throw new Error(`${csv ? "CSV" : format === "svg" ? "SVG" : "Text"} files must be smaller than 5 MB.`);
+        if (TEXT.test(file.name) || CSV.test(file.name) || SVG.test(file.name) || HTML.test(file.name)) {
+          const csv = CSV.test(file.name), format = HTML.test(file.name) ? "html" : SVG.test(file.name) ? "svg" : "text";
+          if (file.size > 5 * 1024 * 1024) throw new Error(`${csv ? "CSV" : format === "html" ? "HTML" : format === "svg" ? "SVG" : "Text"} files must be smaller than 5 MB.`);
           const bytes = new Uint8Array(await file.arrayBuffer());
           let text: string;
           // The browser edition reads UTF-8 only; the desktop app also reads UTF-16 and Windows encodings.
@@ -98,7 +99,7 @@ export async function localSources(files: File[]): Promise<OpenSource[]> {
         throw new Error("Excel workbooks open in the Doko desktop app.");
       }
       if (!file.type || /\.pdf$/i.test(file.name) || file.type === "application/pdf") return { kind: "blob", name: file.name, blob: file };
-      throw new Error("This file type isn't supported. Choose a PDF, Markdown document, text file, CSV file, SVG file, or image.");
+      throw new Error("This file type isn't supported. Choose a PDF, Markdown document, text file, CSV file, SVG file, HTML document, or image.");
     } catch (error) {
       return { kind: "error", name: file.name, message: `Couldn't open “${file.name}”. ${(error as Error).message.replace(IPC_PREFIX, "")}` };
     }

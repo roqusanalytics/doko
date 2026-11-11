@@ -44,3 +44,5 @@
   .markdown-print pre { white-space: pre-wrap; overflow-wrap: anywhere; }
   @page { margin: 20mm; }
 }
+
+.html-preview { display: block; flex: 1; width: 100%; min-height: 0; border: 0; background: white; color-scheme: light; }
