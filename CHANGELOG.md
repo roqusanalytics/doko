@@ -1,14 +1,6 @@
 # Changelog
 
-## 1.20.6
-
-- Keep automated Mac releases compatible with the existing update signing identity.
-
-## 1.20.5
-
-- Keep automatic Mac updates working with the existing signing certificate when building on a fresh release runner.
-
-## 1.20.4
+## 1.20.7
 
 - Switch between Markdown preview and source with one button and a matching icon.
 - Show a denser Markdown section rail that emphasizes the current reading position.
