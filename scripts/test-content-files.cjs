@@ -206,7 +206,7 @@ function formats() {
     await fs.rm(textDestination);
     locale = "en-US";
     texts.clear();
-    await assert.rejects(texts.open(path.join(root, "plain.rtf")), /Markdown file, text file, CSV file, or supported image/);
+    await assert.rejects(texts.open(path.join(root, "plain.rtf")), /Markdown file, text file, CSV file, SVG file, or supported image/);
 
     // CSV: the same record and encodings as text, with its own format marker, wording and file filter.
     let csvDestination = null, csvPrompts = [];
@@ -261,6 +261,90 @@ function formats() {
     assert.deepEqual([csvCopy.ok, csvCopy.document.name, csvCopy.document.format], [true, "copy.csv", "csv"]);
     assert.deepEqual(csvPrompts, ["csv", "csv"], "Save As asks for the CSV file filter");
     csvs.clear();
+
+    // SVG: the same record and encodings as text, with its own format marker, wording and file filter. It is not a gallery image.
+    let svgDestination = null; const svgPrompts = [];
+    const svgs = createContentFiles({ getLocale: () => "lt-LT", chooseSavePath: async (name, format) => { svgPrompts.push(format); return svgDestination; } });
+    const drawing = path.join(root, "Drawing.SVG");
+    const openSvg = async bytes => { await fs.writeFile(drawing, bytes); svgs.clear(); return svgs.open(drawing); };
+    const markup = '<?xml version="1.0"?>\r\n<svg xmlns="http://www.w3.org/2000/svg" width="4" height="3"><title>Žaliuzė</title></svg>\r\n';
+    doc = await openSvg(markup);
+    assert.deepEqual([doc.kind, doc.format, doc.encoding, doc.name, doc.eol], ["markdown", "svg", "UTF-8", "Drawing.SVG", "\r\n"]);
+    assert.equal(doc.text, markup.replaceAll("\r\n", "\n"));
+    // Unchanged text writes back the same bytes in every readable encoding, BOM and line ending included.
+    for (const [name, bytes] of [["utf-8", Buffer.from(markup)], ["utf-8 bom lf", Buffer.from("﻿" + markup.replaceAll("\r\n", "\n"))],
+      ["utf-16le", utf16(markup)], ["utf-16be", utf16(markup, true)], ["windows-1257", Buffer.from([0x3c, 0x73, 0x76, 0x67, 0x3e, 0xe0, 0xfe, 0x0a])]]) {
+      doc = await openSvg(bytes);
+      assert.equal((await svgs.save(doc.id, doc.text)).ok, true, name);
+      assert((await fs.readFile(drawing)).equals(bytes), `${name}: unchanged SVG keeps its bytes`);
+    }
+    // An edit changes only the edited characters; encoding, BOM and line endings stay.
+    doc = await openSvg(utf16(markup, true));
+    assert.equal((await svgs.save(doc.id, doc.text.replace('width="4"', 'width="40"'))).ok, true);
+    assert((await fs.readFile(drawing)).equals(utf16(markup.replace('width="4"', 'width="40"'), true)));
+    doc = await openSvg("﻿<svg/>\n");
+    assert.deepEqual([doc.bom, "eol" in doc], [true, false]);
+    assert.equal((await svgs.save(doc.id, "<svg/>\n<!-- x -->\n")).ok, true);
+    assert.equal(await fs.readFile(drawing, "utf8"), "﻿<svg/>\n<!-- x -->\n");
+    // An empty file and text that is not SVG open as text: the reader decides what it can draw.
+    for (const bytes of ["", "<html><body>no</body></html>", "plain words"]) assert.equal((await openSvg(bytes)).text, bytes);
+    // Unreadable bytes, an oversized file and a NUL are refused in words about SVG, or with the shared text error.
+    for (const bytes of [Buffer.from("a\0b"), Buffer.from("ab", "utf16le"), Buffer.from([0xff, 0xfe, 0x61])]) {
+      await fs.writeFile(drawing, bytes); svgs.clear();
+      await assert.rejects(svgs.open(drawing), notText);
+    }
+    await fs.writeFile(drawing, Buffer.alloc(MAX_MARKDOWN_BYTES + 1, 65)); svgs.clear();
+    await assert.rejects(svgs.open(drawing), /SVG is limited to 5 MB/);
+    doc = await openSvg("<svg/>");
+    assert.equal((await svgs.save(doc.id, "x\0y")).error, "SVG can't contain null characters.");
+    assert.match((await svgs.save(doc.id, "x".repeat(MAX_MARKDOWN_BYTES + 1))).error, /SVG is limited to 5 MB/);
+    // A character the file's encoding cannot hold offers Save as UTF-8, as for text.
+    doc = await openSvg(Buffer.from([0x3c, 0x73, 0x3e, 0xe9]));
+    const refusedSvg = await svgs.save(doc.id, "<s>é ы</s>");
+    assert.deepEqual([refusedSvg.unencodable, refusedSvg.ok], [true, undefined]);
+    assert.match(refusedSvg.error, /Windows-1257.*Nothing was saved/);
+    assert((await fs.readFile(drawing)).equals(Buffer.from([0x3c, 0x73, 0x3e, 0xe9])), "nothing is written");
+    assert.equal((await svgs.save(doc.id, "<s>é ы</s>", false, true)).document.encoding, "UTF-8");
+    assert.equal(await fs.readFile(drawing, "utf8"), "<s>é ы</s>");
+    // Moving an SVG to UTF-8 updates a stale XML encoding declaration (the vectors are shared with src/content-source.ts);
+    // a save in the file's own encoding rewrites nothing.
+    for (const { name, input, output } of JSON.parse(await fs.readFile(path.join(__dirname, "svg-xml-encoding.json"), "utf8"))) {
+      if (input.includes("\ufeff")) continue;
+      const bytes = Buffer.from(input + "<!--é-->", "latin1");
+      doc = await openSvg(bytes);
+      assert.equal((await svgs.save(doc.id, doc.text)).ok, true, name);
+      assert((await fs.readFile(drawing)).equals(bytes), `${name}: a save in the file's own encoding keeps the declaration`);
+      const moved = await svgs.save(doc.id, doc.text, false, true);
+      assert.deepEqual([moved.ok, moved.document.encoding], [true, "UTF-8"], name);
+      assert.equal(await fs.readFile(drawing, "utf8"), output + "<!--é-->", `${name}: Save as UTF-8`);
+      assert.equal(moved.document.text, output + "<!--é-->", `${name}: the record holds the saved text`);
+    }
+    const stale = '<?xml version="1.0" encoding="UTF-16"?>\r\n<svg><title>Žaliuzė</title></svg>\r\n';
+    for (const [name, bytes] of [["utf-16le", utf16(stale)], ["utf-16be", utf16(stale, true)]]) {
+      doc = await openSvg(bytes);
+      assert.equal((await svgs.save(doc.id, doc.text, false, true)).ok, true, name);
+      assert.equal(await fs.readFile(drawing, "utf8"), "\ufeff" + stale.replace("UTF-16", "UTF-8"), `${name}: Save as UTF-8 declares UTF-8 (the BOM is kept)`);
+    }
+    // A file already in UTF-8 keeps even a wrong declaration on a normal save, and after Save as UTF-8 a later save keeps the new one.
+    const misdeclared = Buffer.from('<?xml version="1.0" encoding="ISO-8859-1"?><svg><title>é</title></svg>');
+    doc = await openSvg(misdeclared);
+    assert.equal((await svgs.save(doc.id, doc.text + "\n")).ok, true);
+    assert.equal(await fs.readFile(drawing, "utf8"), misdeclared + "\n", "a UTF-8 file's own save does not rewrite its declaration");
+    doc = await openSvg(Buffer.from('<?xml version="1.0" encoding="ISO-8859-1"?><svg>\u00e9</svg>', "latin1"));
+    const adopted = await svgs.save(doc.id, doc.text, false, true);
+    assert.equal(adopted.document.text, '<?xml version="1.0" encoding="UTF-8"?><svg>é</svg>');
+    assert.equal((await svgs.save(doc.id, adopted.document.text + "\n")).ok, true);
+    assert.equal(await fs.readFile(drawing, "utf8"), '<?xml version="1.0" encoding="UTF-8"?><svg>é</svg>\n');
+    // Save As asks for the .svg filter and extension.
+    svgDestination = path.join(root, "copy.png");
+    assert.match((await svgs.save(doc.id, "<svg/>", true)).error, /\.svg extension/);
+    svgDestination = path.join(root, "copy.svg");
+    const svgCopy = await svgs.save(doc.id, "<svg/>", true);
+    assert.deepEqual([svgCopy.ok, svgCopy.document.name, svgCopy.document.format], [true, "copy.svg", "svg"]);
+    assert.deepEqual(svgPrompts, ["svg", "svg"]);
+    // The same file opens once: a second open returns the same record, never a gallery.
+    assert.equal((await svgs.open(svgDestination)).id, svgCopy.document.id);
+    svgs.clear();
 
     const pictures = path.join(root, "pictures"); await fs.mkdir(pictures);
     await fs.writeFile(path.join(pictures, "photo10.png"), png());
@@ -328,7 +412,7 @@ function formats() {
     files.release(gallery.id);
     await assert.rejects(files.image(gallery.id, "photo1.png"), /no longer open/);
     await assert.rejects(files.open("relative.md"), /local file/);
-    await assert.rejects(files.open(path.join(root, "ignored.zip")), /Markdown file, text file, CSV file, or supported image/);
+    await assert.rejects(files.open(path.join(root, "ignored.zip")), /Markdown file, text file, CSV file, SVG file, or supported image/);
     files.clear();
     await assert.rejects(files.reload(second.id), /no longer open/);
 

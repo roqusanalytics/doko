@@ -12,12 +12,13 @@ import { Icon } from "./icons";
 import { keys } from "./platform";
 import { trackTitlebar } from "./titlebar";
 import { readSetting, writeSetting } from "./preferences";
-import { BROWSER_ACCEPT, CONTENT_ACCEPT, IPC_PREFIX, localSources, restoreText } from "./content-source";
+import { BROWSER_ACCEPT, CONTENT_ACCEPT, IPC_PREFIX, localSources, restoreText, xmlUtf8 } from "./content-source";
 import { normalizeMathDelimiters } from "./chatMath";
 import { UpdateSettings } from "./SettingsDialog";
 import { updateSummary } from "./updates";
 import MarkdownPane, { type MarkdownEditorHandle } from "./MarkdownPane";
 import WorkbookView from "./WorkbookView";
+import SvgView, { useSvgImage } from "./SvgView";
 import { parseCsv, parseCsvPinned } from "./csv";
 import "katex/dist/katex.min.css";
 import "./content-reader.css";
@@ -116,6 +117,11 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
   const [saved, setSaved] = useState(text);
   const [saving, setSaving] = useState(false);
   const [printMarkup, setPrintMarkup] = useState("");
+  // Blob URL of the SVG being printed, shown as an <img> in the print view.
+  const [printSvgUrl, setPrintSvgUrl] = useState("");
+  const printImage = useRef<HTMLImageElement>(null);
+  // A ref, not state: a second Print command can arrive before React has re-rendered with a "busy" flag.
+  const printing = useRef(false);
   const [error, setError] = useState("");
   const [conflict, setConflict] = useState(false);
   // Set when the file's own encoding cannot hold the text; `copy` repeats the failed Save As.
@@ -137,6 +143,8 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
   const dirty = doc.kind === "markdown" && text !== saved;
   const plain = doc.format === "text";
   const sheet = doc.format === "csv";
+  const svg = doc.format === "svg";
+  const svgImage = useSvgImage(text, svg);
   // The delimiter is pinned once a parse yields two or more columns, so editing a cell cannot change how the file is split.
   // A table of at most one column keeps detecting: the first typed character of an empty file must not decide it.
   const delimiter = useRef<string | undefined>(undefined);
@@ -172,12 +180,13 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
     const current = state.current;
     if (current.doc.kind !== "markdown" || workbook) return Promise.resolve(true);
     const markdown = current.doc;
+    let savedText = current.text;
     setSaving(true); setError(""); setUnencodable(null);
     const operation = (async () => {
       try {
         if (!markdown.id || !window.folioDesktop) {
-          // A browser .txt or .csv keeps its original BOM and line endings (the editor text always uses "\n").
-          const url = URL.createObjectURL(new Blob([restoreText(markdown, current.text)], { type: markdown.format === "text" ? "text/plain;charset=utf-8" : markdown.format === "csv" ? "text/csv;charset=utf-8" : "text/markdown;charset=utf-8" }));
+          // A browser .txt, .csv or .svg keeps its original BOM and line endings (the editor text always uses "\n").
+          const url = URL.createObjectURL(new Blob([restoreText(markdown, current.text)], { type: markdown.format === "text" ? "text/plain;charset=utf-8" : markdown.format === "csv" ? "text/csv;charset=utf-8" : markdown.format === "svg" ? "image/svg+xml;charset=utf-8" : "text/markdown;charset=utf-8" }));
           const link = document.createElement("a"); link.href = url; link.download = markdown.name; link.click();
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         } else {
@@ -190,9 +199,14 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
             return false;
           }
           setDoc(result.document); tabs.contentSaved(tabKey, result.document);
+          // Saving an SVG as UTF-8 rewrites its XML encoding declaration; the editor must hold what the file now holds.
+          if (result.document.format === "svg" && result.document.text !== current.text) {
+            savedText = result.document.text;
+            if (state.current.text === current.text) { state.current.text = savedText; setText(savedText); }
+          }
         }
-        setSaved(current.text); state.current.saved = current.text;
-        tabs.markDirty(tabKey, state.current.text !== current.text); setConflict(false);
+        setSaved(savedText); state.current.saved = savedText;
+        tabs.markDirty(tabKey, state.current.text !== savedText); setConflict(false);
         return true;
       } catch (error) { setError(failure(error)); return false; }
       finally { setSaving(false); }
@@ -244,15 +258,15 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
     } catch (error) { setError(failure(error)); }
     finally { setSaving(false); }
   };
-  const exportMarkdown = async (format: "html" | "txt" | "csv", printing = false) => {
+  const exportMarkdown = async (format: "html" | "txt" | "csv" | "svg", printing = false) => {
     if (saving) return;
     editor.current?.flush();
     setSaving(true); setError("");
     try {
       const current = state.current;
-      const content = format === "html" ? await (await import("./markdownExport")).markdownHtml(current.doc.name, current.text, current.doc.id) : current.text;
+      const content = format === "html" ? await (await import("./markdownExport")).markdownHtml(current.doc.name, current.text, current.doc.id) : format === "svg" ? xmlUtf8(current.text) : current.text;
       // Exported CSV is UTF-8 with a BOM, so Excel reads accented letters; both copies keep the file's own line endings.
-      const output = format === "csv" ? restoreText(current.doc, content, true) : format === "txt" ? restoreText(current.doc, content) : content;
+      const output = format === "csv" ? restoreText(current.doc, content, true) : format === "html" ? content : restoreText(current.doc, content);
       if (printing) {
         // Plain text prints as-is; running it through the Markdown renderer would turn "#" lines into headings.
         setPrintMarkup(format === "csv" ? csvMarkup(content, delimiter.current ?? parseCsv(content).delimiter)
@@ -261,18 +275,35 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
         await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
         window.print(); setPrintMarkup(""); return;
       }
-      const name = current.doc.name.replace(/\.(md|markdown|txt|csv)$/i, "") + "." + format;
+      const name = current.doc.name.replace(/\.(md|markdown|txt|csv|svg)$/i, "") + "." + format;
       if (window.folioDesktop) {
         const result = await window.folioDesktop.saveFile({ name, format, data: new TextEncoder().encode(output), saveAs: true });
         if (result.cancelled) return;
         if (!result.ok) throw new Error(result.error || "Couldn't save this export. Try again.");
       } else {
-        const url = URL.createObjectURL(new Blob([output], { type: format === "html" ? "text/html" : format === "csv" ? "text/csv" : "text/plain" }));
+        const url = URL.createObjectURL(new Blob([output], { type: format === "html" ? "text/html" : format === "csv" ? "text/csv" : format === "svg" ? "image/svg+xml" : "text/plain" }));
         const link = document.createElement("a"); link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
       setDialog(null);
     } catch (error) { setError(failure(error)); }
     finally { setSaving(false); }
+  };
+  // An <img> from a Blob URL prints the drawing as the Image view shows it, and runs nothing from the file.
+  const printSvg = async () => {
+    if (saving || printing.current) return;
+    if (!state.current.text.trim()) { setError("This SVG is empty, so there is nothing to print."); return; }
+    printing.current = true; setError("");
+    const url = URL.createObjectURL(new Blob([state.current.text], { type: "image/svg+xml" }));
+    setPrintSvgUrl(url);
+    try {
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      const image = printImage.current;
+      if (!image) throw new Error("The print view didn't open.");
+      try { await image.decode(); }
+      catch { setError("This SVG can't be drawn, so it can't be printed. Check the source for errors."); return; }
+      window.print();
+    } catch { setError("Couldn't print this SVG. Try again."); }
+    finally { setPrintSvgUrl(""); URL.revokeObjectURL(url); printing.current = false; }
   };
   const printSheet = async () => {
     setPrintMarkup(tableMarkup(workbook!.sheets[sheetIndex].rows));
@@ -288,7 +319,7 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
     }
     if (command === "save" || command === "save-as") void save(command === "save-as");
     else if (command === "export") setDialog("export");
-    else if (command === "print") void exportMarkdown(plain ? "txt" : sheet ? "csv" : "html", true);
+    else if (command === "print") void (svg ? printSvg() : exportMarkdown(plain ? "txt" : sheet ? "csv" : "html", true));
     else if (command === "properties") setDialog("properties");
     else if (command === "recent") tabs.library();
   };
@@ -358,7 +389,7 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
         {error && <div className="content-notice" role="alert"><span>{error}</span>{conflict && <button className="btn ghost" disabled={saving} onClick={() => setDialog("reload")}>Reload from disk</button>}{unencodable && <button className="btn ghost" disabled={saving} onClick={() => void save(unencodable.copy, true)}>Save as UTF-8</button>}</div>}
         <MarkdownPane text={text} editorRef={editor} format={doc.format} csv={csvTable} onTableVisible={setTableVisible} onChange={value => {
           state.current.text = value; setText(value); tabs.markDirty(tabKey, value !== state.current.saved);
-        }} renderPreview={plain || sheet ? undefined : headingIds => <MarkdownPreview doc={doc} text={text} headingIds={headingIds} />} />
+        }} renderPreview={plain || sheet ? undefined : svg ? () => <SvgView image={svgImage} name={doc.name} /> : headingIds => <MarkdownPreview doc={doc} text={text} headingIds={headingIds} />} />
       </>}
     </main>
     <input type="file" ref={input} hidden multiple accept={window.folioDesktop ? CONTENT_ACCEPT : BROWSER_ACCEPT} onChange={event => {
@@ -366,9 +397,11 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
     }} />
     {dialog === "updates" && <Modal title="Updates" onClose={cancelDialog}><div className="settings"><UpdateSettings /></div></Modal>}
     {printMarkup && <div className="markdown-print" dangerouslySetInnerHTML={{ __html: printMarkup }} />}
-    {dialog === "export" && <Modal title={sheet ? "Export CSV" : plain ? "Export text" : "Export Markdown"} onClose={() => { if (!saving) setDialog(null); }}><div className="content-dialog"><p>{sheet ? "Save a UTF-8 copy of the current CSV with a byte order mark, so Excel reads accented letters, and the file\u2019s own line endings. Your file stays unchanged." : plain ? "Save a UTF-8 copy of the current text with the file\u2019s own line endings. Your file stays unchanged." : "Export the current text as a standalone HTML document or a plain text file. Your Markdown stays unchanged."}</p>
-      {error && <p role="alert" className="form-error">{error}</p>}<div className="form-actions"><button className="btn ghost" disabled={saving} onClick={() => setDialog(null)}>Cancel</button><button className={plain || sheet ? "btn primary" : "btn ghost"} disabled={saving} onClick={() => void exportMarkdown(sheet ? "csv" : "txt")}>{sheet ? "Save CSV…" : "Save text…"}</button>{!plain && !sheet && <button className="btn primary" disabled={saving} onClick={() => void exportMarkdown("html")}>Save HTML…</button>}</div></div></Modal>}
-    {dialog === "properties" && <Modal title="Properties" onClose={() => setDialog(null)}><dl className="info-list"><div><dt>File</dt><dd>{doc.name}</dd></div><div><dt>Type</dt><dd>{sheet ? `CSV (${doc.encoding ?? "UTF-8"})` : plain ? `Plain text (${doc.encoding ?? "UTF-8"})` : "Markdown (UTF-8)"}</dd></div><div><dt>Size</dt><dd>{new TextEncoder().encode(text).byteLength.toLocaleString()} bytes</dd></div>{csvTable ? <><div><dt>Rows</dt><dd>{csvTable.rows.length.toLocaleString()}</dd></div><div><dt>Columns</dt><dd>{csvTable.columns.toLocaleString()}</dd></div></>
+    {printSvgUrl && <div className="markdown-print"><img ref={printImage} src={printSvgUrl} alt={doc.name} /></div>}
+    {dialog === "export" && <Modal title={sheet ? "Export CSV" : svg ? "Export SVG" : plain ? "Export text" : "Export Markdown"} onClose={() => { if (!saving) setDialog(null); }}><div className="content-dialog"><p>{sheet ? "Save a UTF-8 copy of the current CSV with a byte order mark, so Excel reads accented letters, and the file\u2019s own line endings. Your file stays unchanged." : svg ? "Save a UTF-8 copy of the current SVG with the file\u2019s own line endings. Your file stays unchanged." : plain ? "Save a UTF-8 copy of the current text with the file\u2019s own line endings. Your file stays unchanged." : "Export the current text as a standalone HTML document or a plain text file. Your Markdown stays unchanged."}</p>
+      {error && <p role="alert" className="form-error">{error}</p>}<div className="form-actions"><button className="btn ghost" disabled={saving} onClick={() => setDialog(null)}>Cancel</button><button className={plain || sheet || svg ? "btn primary" : "btn ghost"} disabled={saving} onClick={() => void exportMarkdown(sheet ? "csv" : svg ? "svg" : "txt")}>{sheet ? "Save CSV…" : svg ? "Save SVG…" : "Save text…"}</button>{!plain && !sheet && !svg && <button className="btn primary" disabled={saving} onClick={() => void exportMarkdown("html")}>Save HTML…</button>}</div></div></Modal>}
+    {dialog === "properties" && <Modal title="Properties" onClose={() => setDialog(null)}><dl className="info-list"><div><dt>File</dt><dd>{doc.name}</dd></div><div><dt>Type</dt><dd>{sheet ? `CSV (${doc.encoding ?? "UTF-8"})` : svg ? `SVG (${doc.encoding ?? "UTF-8"})` : plain ? `Plain text (${doc.encoding ?? "UTF-8"})` : "Markdown (UTF-8)"}</dd></div><div><dt>Size</dt><dd>{new TextEncoder().encode(text).byteLength.toLocaleString()} bytes</dd></div>{csvTable ? <><div><dt>Rows</dt><dd>{csvTable.rows.length.toLocaleString()}</dd></div><div><dt>Columns</dt><dd>{csvTable.columns.toLocaleString()}</dd></div></>
+      : svg ? null
       : <div><dt>Words</dt><dd>{text.trim() ? text.trim().split(/\s+/).length : 0}</dd></div>}</dl></Modal>}
     {dialog && ["close", "reload"].includes(dialog) && <Modal title={dialog === "close" ? "Unsaved changes" : "Reload from disk"} onClose={cancelDialog}>
       <div className="content-dialog">

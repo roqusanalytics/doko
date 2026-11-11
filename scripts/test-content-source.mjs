@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
-import { BROWSER_ACCEPT, CONTENT_ACCEPT, csvRestore, localSources, restoreText } from "../src/content-source.ts";
+import { BROWSER_ACCEPT, CONTENT_ACCEPT, csvRestore, localSources, restoreText, xmlUtf8 } from "../src/content-source.ts";
 
 test("extensionless PDFs with no inferred MIME still reach the PDF parser", async () => {
   globalThis.window = {};
@@ -32,7 +32,7 @@ test("browser edition opens .txt as UTF-8 text and rejects everything else with 
       assert.match(source.message, message, name);
     }
     const [unsupported] = await localSources([new File(["x"], "data.xyz", { type: "application/x-xyz" })]);
-    assert.match(unsupported.message, /PDF, Markdown document, text file, CSV file, or image/);
+    assert.match(unsupported.message, /PDF, Markdown document, text file, CSV file, SVG file, or image/);
   } finally { delete globalThis.window; }
 });
 
@@ -98,6 +98,45 @@ test("browser CSV download restores row and in-cell line endings byte for byte",
   } finally { delete globalThis.window; }
 });
 
+test("browser edition opens .svg as UTF-8 text with the BOM and line ending kept aside, and restores them on download", async () => {
+  globalThis.window = {};
+  try {
+    const raw = "\ufeff<?xml version=\"1.0\"?>\r\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"4\" height=\"3\"><title>Žaliuzė</title></svg>\r\n";
+    const [ok] = await localSources([new File([Buffer.from(raw)], "logo.SVG", { type: "image/svg+xml" })]);
+    assert.equal(ok.kind, "content", "an SVG is a content document, not a gallery image");
+    assert.deepEqual(ok.document, { kind: "markdown", name: "logo.SVG", text: raw.slice(1).replaceAll("\r\n", "\n"), format: "svg", bom: true, eol: "\r\n" });
+    assert.equal(restoreText(ok.document, ok.document.text), raw, "unchanged download is byte-identical");
+    assert.equal(restoreText(ok.document, ok.document.text.replace('width="4"', 'width="5"')), raw.replace('width="4"', 'width="5"'), "edited download");
+    const [plain] = await localSources([new File(["<svg/>\n"], "p.svg")]);
+    assert.deepEqual(plain.document, { kind: "markdown", name: "p.svg", text: "<svg/>\n", format: "svg" }, "no BOM and LF add no markers");
+    const [empty] = await localSources([new File([], "empty.svg")]);
+    assert.deepEqual(empty.document, { kind: "markdown", name: "empty.svg", text: "", format: "svg" });
+    const bad = [["legacy.svg", Uint8Array.of(0x3c, 0xe9), /isn't UTF-8 text/], ["utf16.svg", Buffer.from("\ufeff<svg/>", "utf16le"), /isn't UTF-8 text/],
+      ["binary.svg", Uint8Array.of(0x61, 0, 0x62), /isn't plain text/], ["huge.svg", new Uint8Array(5 * 1024 * 1024 + 1), /SVG files must be smaller than 5 MB/]];
+    for (const [name, data, message] of bad) {
+      const [source] = await localSources([new File([data], name)]);
+      assert.equal(source.kind, "error", name);
+      assert.match(source.message, message, name);
+    }
+    // Raster images still go to the gallery; .svgz is not routed.
+    assert.equal((await localSources([new File([new Uint8Array(4)], "a.png", { type: "image/png" })]))[0].document.kind, "gallery");
+    assert.equal((await localSources([new File([new Uint8Array(4)], "a.svgz", { type: "image/svg+xml" })]))[0].kind, "error");
+    for (const accept of [CONTENT_ACCEPT, BROWSER_ACCEPT]) assert.ok(accept.split(",").includes(".svg"), accept);
+  } finally { delete globalThis.window; }
+});
+
+test("desktop .svg files go to the content reader and open errors show the plain message", async () => {
+  const opened = [];
+  globalThis.window = { folioDesktop: { content: { open: async file => { opened.push(file.name); return { kind: "markdown", name: file.name, text: "<svg/>", format: "svg" }; } } } };
+  try {
+    const [source] = await localSources([new File(["<svg/>"], "icon.svg")]);
+    assert.deepEqual([source.kind, source.document.format, opened], ["content", "svg", ["icon.svg"]]);
+    globalThis.window = { folioDesktop: { content: { open: async () => { throw new Error("Error invoking remote method 'folio:content-open': Error: SVG is limited to 5 MB."); } } } };
+    const [failed] = await localSources([new File(["x"], "big.svg")]);
+    assert.deepEqual([failed.kind, failed.message], ["error", "Couldn't open “big.svg”. SVG is limited to 5 MB."]);
+  } finally { delete globalThis.window; }
+});
+
 test("desktop open errors for .txt and .csv show the plain message without Electron's prefix", async () => {
   const prefixed = message => new Error(`Error invoking remote method 'folio:content-open': Error: ${message}`);
   try {
@@ -126,4 +165,9 @@ test("Excel workbooks open on desktop only; the browser edition explains why", a
     assert.ok(CONTENT_ACCEPT.split(",").includes(".xlsx"));
     assert.deepEqual(["application/pdf", ".pdf", ".doc", ".docx", ".xlsx"].filter(type => BROWSER_ACCEPT.split(",").includes(type)), ["application/pdf", ".pdf"]);
   } finally { delete globalThis.window; }
+});
+
+test("xmlUtf8 rewrites only a leading XML declaration that names a non-UTF-8 encoding", () => {
+  // Same vectors as test-content-files.cjs, which runs them through Save as UTF-8.
+  for (const { name, input, output } of JSON.parse(readFileSync(new URL("./svg-xml-encoding.json", import.meta.url), "utf8"))) assert.equal(xmlUtf8(input), output, name);
 });

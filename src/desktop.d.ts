@@ -1,8 +1,8 @@
 type ContentDocument = MarkdownDocument | GalleryDocument | WorkbookDocument;
-// `format` marks a content document that is not Markdown ("text" is a .txt file, "csv" a .csv file; absent means Markdown).
+// `format` marks a content document that is not Markdown ("text" is a .txt file, "csv" a .csv file, "svg" an .svg file shown as an image with its XML as the source; absent means Markdown).
 // `encoding` is the label of the file's encoding on desktop (for example "UTF-8" or "Windows-1257").
-interface MarkdownDocument { kind: "markdown"; id?: string; name: string; text: string; format?: "text" | "csv"; encoding?: string;
-  // A .txt or .csv file's original BOM and line endings (rows, and for CSV also breaks inside quoted cells); each is absent when
+interface MarkdownDocument { kind: "markdown"; id?: string; name: string; text: string; format?: "text" | "csv" | "svg"; encoding?: string;
+  // A .txt, .csv or .svg file's original BOM and line endings (rows, and for CSV also breaks inside quoted cells); each is absent when
   // it is the default (no BOM, "\n"). The editor text always uses "\n"; saving or exporting a copy restores them.
   bom?: boolean; eol?: string; cellEol?: string }
 // A read-only Excel workbook (desktop only): each worksheet as plain display text. Rows are ragged: a row ends at its last
@@ -21,7 +21,7 @@ interface UpdateStatus {
 
 // Present only when Doko runs as the desktop app (see electron/preload.cjs).
 type FileCommand = "save" | "save-as" | "export" | "compress" | "print" | "properties" | "recent" | "hand";
-type FileSaveFormat = "pdf" | "png" | "jpg" | "webp" | "html" | "txt" | "csv" | "md" | "zip" | "json";
+type FileSaveFormat = "pdf" | "png" | "jpg" | "webp" | "html" | "txt" | "csv" | "svg" | "md" | "zip" | "json";
 type FileSaveResult = { ok?: boolean; cancelled?: boolean; id?: string; name?: string; error?: string; conflict?: boolean };
 interface FolioDesktop {
   saveFile(request: { name: string; data: Uint8Array; format: FileSaveFormat; id?: string; saveAs?: boolean }): Promise<FileSaveResult>;

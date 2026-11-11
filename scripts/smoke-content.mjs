@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { createServer } from "node:http";
 import { electronPath } from "./electron-path.mjs";
 import { readerPage } from "./reader-page.mjs";
 import { assertHidden, closeHidden } from "./hidden-window.mjs";
@@ -25,7 +26,7 @@ const env = { ...process.env, FOLIO_TEST_USER_DATA: path.join(temp, "profile"), 
 delete env.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({ executablePath: electronPath(env), env,
   args: [appPath, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
-const errors = [];
+const errors = [], svgRequests = [];
 try {
   const page = readerPage(await app.firstWindow());
   page.on("pageerror", error => errors.push(error.stack ?? String(error)));
@@ -476,6 +477,252 @@ try {
   await assertEventually(async () => (await app.evaluate(() => globalThis.contentOpenErrors.length)) > csvErrors, "oversized CSV did not report an error");
   assert.match(await app.evaluate(() => globalThis.contentOpenErrors.at(-1).detail), /CSV is limited to 5 MB/);
   console.log("ok  native .csv opens as an editable table, edits through undo/redo, saves only the edited bytes, and handles empty, 100k-row and oversized files");
+
+  // SVG: shown as an <img> (no script runs, nothing is fetched), with the XML as Source; saves like any text file.
+  const svgSize = await page.window.evaluate(() => [innerWidth, innerHeight]);
+  await page.window.setViewportSize({ width: 1000, height: 760 });
+  const beacon = createServer((request, response) => { svgRequests.push(request.url); response.writeHead(404).end(); });
+  await new Promise(resolve => beacon.listen(0, "127.0.0.1", resolve));
+  const beaconPort = beacon.address().port;
+  await fetch(`http://127.0.0.1:${beaconPort}/control`);
+  assert.deepEqual(svgRequests, ["/control"], "the request log records a hit");
+  svgRequests.length = 0;
+  page.window.on("request", request => { if (/127\.0\.0\.1/.test(request.url())) svgRequests.push(request.url()); });
+  const svgSource = page.getByRole("textbox", { name: "SVG source", exact: true });
+  const svgImage = () => page.locator("img.svg-image");
+  const svgNotice = () => page.getByRole("alert").filter({ hasText: "This SVG can't be drawn. Check the source for errors." });
+  const svgMode = name => page.getByRole("group", { name: "SVG mode", exact: true }).getByRole("button", { name, exact: true });
+  const svgLoaded = width => page.waitForFunction(width => { const img = document.querySelector("img.svg-image"); return !!img && img.complete && img.naturalWidth === width; }, width);
+  const svgLines = () => svgSource.locator(".cm-line").evaluateAll(lines => lines.map(line => line.textContent).join("\n"));
+  const iconFile = path.join(temp, "Icon.svg");
+  // Short lines (the editor wraps long ones); line 3 holds the width, so the edit below touches only that number.
+  const iconLines = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" height="80"`,
+    `  onload="window.__svgOnload=1;parent.__svgOnload=1;top.__svgOnload=1"`, `  width="120">`,
+    `  <script>window.__svgScript=1;parent.__svgScript=1;top.__svgScript=1;</script>`,
+    `  <image href="http://127.0.0.1:${beaconPort}/x.png" width="10" height="10"/>`, `  <image href="http://127.0.0.1:1/x.png" width="10" height="10"/>`,
+    `  <rect width="120" height="80" fill="#c5e1cb"/><circle cx="60" cy="40" r="25" fill="#305d40"/>`, `  <path d="M10 70 L110 70" stroke="#000" stroke-width="4" fill="none"/>`,
+    `  <title>Žalias ratas</title>`, `</svg>`];
+  // Records whether the SVG empty message is ever inserted, from the first render of every reader frame. It hooks
+  // the DOM insert calls: the init script runs in the frame's initial empty document, whose window the real page keeps.
+  await app.context().addInitScript(() => {
+    window.__svgEmptySeen = false;
+    for (const method of ["appendChild", "insertBefore"]) {
+      const original = Node.prototype[method];
+      Node.prototype[method] = function (node, ...rest) {
+        if (node.classList?.contains("content-empty") && /^This SVG is empty/.test(node.textContent)) window.__svgEmptySeen = true;
+        return original.call(this, node, ...rest);
+      };
+    }
+  });
+  const iconOriginal = "﻿" + iconLines.join("\r\n") + "\r\n";
+  writeFileSync(iconFile, iconOriginal);
+  await open(iconFile);
+  await svgImage().waitFor();
+  await svgLoaded(120);
+  assert.equal(await svgMode("Image").getAttribute("aria-pressed"), "true", "an SVG opens in Image mode");
+  assert.equal(await svgSource.isVisible(), false, "the source editor stays hidden in Image mode");
+  assert.equal(await svgImage().getAttribute("alt"), "Icon.svg");
+  assert.match(await svgImage().getAttribute("src"), /^blob:/, "the image comes from a Blob URL");
+  assert.equal(await page.locator(".svg-status").count(), 0, "no size line: Chromium's default size for an unsized SVG would be invented");
+  assert.equal(await page.evaluate(() => window.__svgEmptySeen), false, "a non-empty SVG never flashes the empty message on its first render");
+  assert.equal(await textStatus(), "All changes saved · UTF-8");
+  assert.equal(await svgNotice().count(), 0);
+  for (const gone of [page.getByLabel("Markdown preview", { exact: true }), page.getByRole("navigation", { name: "Document sections", exact: true }), page.locator(".svg-view object, .svg-view embed, .svg-view iframe, .svg-view svg, .svg-view script")])
+    assert.equal(await gone.count(), 0, "no markup from the file reaches the page");
+  assert.equal(await page.evaluate(() => window.__svgScript === undefined && window.__svgOnload === undefined), true, "no script ran in the reader");
+  assert.equal(await page.window.evaluate(() => window.__svgScript === undefined && window.__svgOnload === undefined), true, "no script ran in the app window");
+  await page.screenshot({ path: path.join(shots, "content-svg-light.png") });
+  await useTheme("dark");
+  await page.screenshot({ path: path.join(shots, "content-svg-dark.png") });
+  await useTheme("light");
+  // Source shows the file's text; an edit to the last attribute of line 1 changes the drawing after a short pause.
+  await svgMode("Source").click();
+  await svgSource.waitFor();
+  assert.equal(await svgLines(), iconLines.join("\n") + "\n");
+  assert.equal(await svgImage().isVisible(), false, "the image is hidden in Source mode");
+  await svgSource.focus();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+ArrowUp" : "Control+Home");
+  await page.keyboard.press("ArrowDown"); await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("End");
+  await page.keyboard.press("ArrowLeft"); await page.keyboard.press("ArrowLeft");
+  for (let i = 0; i < 3; i++) await page.keyboard.press("Backspace");
+  await page.keyboard.insertText("240");
+  assert.equal(await textStatus(), "Unsaved changes · UTF-8");
+  await svgMode("Image").click();
+  await svgLoaded(240);
+  await page.screenshot({ path: path.join(shots, "content-svg-edited.png") });
+  await page.keyboard.press("ControlOrMeta+s");
+  const iconEdited = iconOriginal.replace('width="120"', 'width="240"');
+  await assertEventually(() => readFileSync(iconFile).equals(Buffer.from(iconEdited)), "the SVG was not saved with only the width changed, BOM and CRLF kept");
+  await assertEventually(async () => await textStatus() === "All changes saved · UTF-8", "SVG save did not finish");
+  assert.equal(readFileSync(iconFile, "utf8"), iconEdited);
+  // Properties and printing use the rendered drawing.
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Properties…", exact: true }).click();
+  const props = page.getByRole("dialog", { name: "Properties", exact: true });
+  await props.waitFor();
+  const propsText = await props.innerText();
+  assert.match(propsText, /Type\s+SVG \(UTF-8\)/);
+  assert.doesNotMatch(propsText, /Dimensions|Not set in the file/);
+  await page.keyboard.press("Escape");
+  await props.waitFor({ state: "detached" });
+  await page.evaluate(() => {
+    window.__printed = null;
+    window.print = () => { const img = document.querySelector(".markdown-print img"); window.__printed = img && { complete: img.complete, width: img.naturalWidth, blob: img.src.startsWith("blob:") }; };
+  });
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Print…", exact: true }).click();
+  await page.waitForFunction(() => window.__printed);
+  assert.deepEqual(await page.evaluate(() => window.__printed), { complete: true, width: 240, blob: true });
+  assert.equal(await page.locator(".markdown-print").count(), 0, "the print view is removed afterwards");
+  // Export / Convert saves a UTF-8 copy with the file's own BOM and line endings.
+  const iconCopy = path.join(temp, "Icon-copy.svg");
+  await exportTo("Icon.svg", "Export SVG", "Save SVG…", iconCopy);
+  assert.ok(readFileSync(iconCopy).equals(Buffer.from(iconEdited)), "SVG export keeps BOM and CRLF");
+  // Reopening reads the saved bytes back.
+  await open(iconFile);
+  await svgLoaded(240);
+  await svgMode("Source").click();
+  await svgSource.waitFor();
+  assert.match(await svgLines(), /width="240">/);
+  await close("Icon.svg");
+  await docs.getByRole("tab", { name: /Icon.svg/ }).waitFor({ state: "detached" });
+  assert.deepEqual(svgRequests, [], "an SVG must not make network requests");
+  // A drawing the browser cannot render keeps its text editable and savable; fixing it brings the image back.
+  const brokenFile = path.join(temp, "Broken.svg");
+  writeFileSync(brokenFile, `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50"><rect width="50" height="50"></svg>\n`);
+  await open(brokenFile);
+  await svgNotice().waitFor();
+  assert.equal(await svgImage().isVisible(), false, "no broken-image icon");
+  assert.equal(await page.getByRole("button", { name: "Save", exact: true }).isEnabled(), true);
+  await page.screenshot({ path: path.join(shots, "content-svg-invalid.png") });
+  await svgMode("Source").click();
+  await svgSource.waitFor();
+  assert.match(await svgLines(), /<rect width="50" height="50"><\/svg>/, "the text is intact");
+  await svgSource.focus();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.insertText(`<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50"><rect width="50" height="50" fill="#305d40"/></svg>`);
+  await svgMode("Image").click();
+  await svgLoaded(50);
+  assert.equal(await svgNotice().count(), 0, "the notice goes once the SVG draws");
+  await page.keyboard.press("ControlOrMeta+s");
+  await assertEventually(() => readFileSync(brokenFile, "utf8").includes('fill="#305d40"/></svg>'), "the fixed SVG was not saved");
+  // Text that is not SVG at all gets the same notice, and the text stays.
+  await svgMode("Source").click();
+  await svgSource.focus();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.insertText("<html><body>Not a drawing</body></html>");
+  await svgMode("Image").click();
+  await svgNotice().waitFor();
+  await page.keyboard.press("ControlOrMeta+s");
+  await assertEventually(() => readFileSync(brokenFile, "utf8") === "<html><body>Not a drawing</body></html>", "unrenderable text was not saved");
+  // Printing something that cannot be drawn says so and prints nothing.
+  await page.evaluate(() => { window.__printed = "untouched"; });
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Print…", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: "can't be printed" }).waitFor();
+  assert.equal(await page.evaluate(() => window.__printed), "untouched");
+  await close("Broken.svg");
+  await docs.getByRole("tab", { name: /Broken.svg/ }).waitFor({ state: "detached" });
+  // An empty file shows a message, not a broken image icon; typing a drawing brings the image.
+  const emptyFile = path.join(temp, "Empty.svg");
+  writeFileSync(emptyFile, "");
+  await open(emptyFile);
+  await page.getByText("This SVG is empty. Switch to Source and add some markup.", { exact: true }).waitFor();
+  assert.deepEqual([await svgImage().count(), await svgNotice().count()], [0, 0]);
+  assert.equal(await page.evaluate(() => window.__svgEmptySeen), true, "the empty-message watcher sees a really empty SVG");
+  await svgMode("Source").click();
+  await svgSource.waitFor();
+  await svgSource.focus();
+  await page.keyboard.insertText(`<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30"><circle cx="15" cy="15" r="14"/></svg>`);
+  await svgMode("Image").click();
+  await svgLoaded(30);
+  await docs.getByRole("button", { name: /Close Empty.svg/ }).click();
+  await page.getByRole("dialog", { name: "Unsaved changes", exact: true }).getByRole("button", { name: "Discard", exact: true }).click();
+  await docs.getByRole("tab", { name: /Empty.svg/ }).waitFor({ state: "detached" });
+  // A drawing with only a viewBox has no size of its own; it still shows, filling the area it is given.
+  const unsizedFile = path.join(temp, "Unsized.svg");
+  writeFileSync(unsizedFile, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#305d40"/></svg>`);
+  await open(unsizedFile);
+  await page.waitForFunction(() => { const img = document.querySelector("img.svg-image"); return !!img && img.complete && img.getBoundingClientRect().width > 20; });
+  assert.equal(await svgNotice().count(), 0);
+  await page.screenshot({ path: path.join(shots, "content-svg-unsized.png") });
+  assert.equal(await page.evaluate(() => window.__svgEmptySeen), false, "an unsized SVG does not flash the empty message either");
+  assert.equal(await page.locator(".svg-status").count(), 0, "an unsized SVG shows no invented size");
+  // Two Print commands in a row print once, and never report a drawable SVG as unprintable.
+  await page.evaluate(() => { window.__printCount = 0; window.print = () => { window.__printCount++; }; });
+  await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; for (let i = 0; i < 2; i++) win.webContents.send("folio:file-command", "print"); });
+  await page.waitForFunction(() => window.__printCount > 0);
+  await page.waitForTimeout(500);
+  assert.equal(await page.evaluate(() => window.__printCount), 1, "a second Print while one is in progress is ignored");
+  assert.equal(await page.getByRole("alert").count(), 0, "no print error");
+  await close("Unsized.svg");
+  await docs.getByRole("tab", { name: /Unsized.svg/ }).waitFor({ state: "detached" });
+  // An SVG moved to UTF-8 gets a UTF-8 XML declaration, in an exported copy and through Save as UTF-8; a save in the file's
+  // own encoding rewrites nothing (the unit tests cover that), so UTF-8 bytes never sit under a Latin-1 or UTF-16 declaration.
+  const xmlDeclared = `<?xml version="1.0" encoding="ISO-8859-1"?>\r\n<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><title>é</title></svg>\r\n`;
+  const xmlUtf8 = xmlDeclared.replace("ISO-8859-1", "UTF-8");
+  const latinSvg = path.join(temp, "Latin.svg"), utf16Svg = path.join(temp, "Utf16.svg");
+  const latinExport = path.join(temp, "Latin-export.svg"), utf16Export = path.join(temp, "Utf16-export.svg");
+  writeFileSync(latinSvg, Buffer.from(xmlDeclared, "latin1"));
+  writeFileSync(utf16Svg, Buffer.from("\ufeff" + xmlDeclared.replace("ISO-8859-1", "UTF-16"), "utf16le"));
+  await open(latinSvg); await svgLoaded(20);
+  await exportTo("Latin.svg", "Export SVG", "Save SVG…", latinExport);
+  assert.ok(readFileSync(latinExport).equals(Buffer.from(xmlUtf8)), "SVG export from Windows-1252 declares UTF-8");
+  await open(utf16Svg); await svgLoaded(20);
+  await exportTo("Utf16.svg", "Export SVG", "Save SVG…", utf16Export);
+  assert.ok(readFileSync(utf16Export).equals(Buffer.from("\ufeff" + xmlUtf8)), "SVG export from UTF-16 declares UTF-8 (the BOM is kept)");
+  const latinBytes = Buffer.from(xmlDeclared, "latin1");
+  await open(latinSvg); await svgLoaded(20);
+  assert.match(await textStatus(), /^All changes saved · Windows-125[27]$/);
+  await svgMode("Source").click();
+  await svgSource.waitFor();
+  await svgSource.focus();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+ArrowDown" : "Control+End");
+  await page.keyboard.insertText("<!-- Ж -->");
+  await page.keyboard.press("ControlOrMeta+s");
+  const svgRefusal = page.getByRole("alert").filter({ hasText: "Nothing was saved" });
+  await svgRefusal.waitFor();
+  assert.ok(readFileSync(latinSvg).equals(latinBytes), "an unencodable SVG save must not touch the file");
+  await svgRefusal.getByRole("button", { name: "Save as UTF-8", exact: true }).click();
+  await assertEventually(() => readFileSync(latinSvg, "utf8") === xmlUtf8 + "<!-- Ж -->", "Save as UTF-8 did not update the XML declaration");
+  await assertEventually(async () => await textStatus() === "All changes saved · UTF-8", "SVG Save as UTF-8 did not finish");
+  assert.equal((await svgLines()).split("\n")[0], '<?xml version="1.0" encoding="UTF-8"?>', "the editor shows the declaration the file now has");
+  await page.keyboard.insertText("<!-- 2 -->");
+  await page.keyboard.press("ControlOrMeta+s");
+  await assertEventually(() => readFileSync(latinSvg, "utf8") === xmlUtf8 + "<!-- Ж --><!-- 2 -->", "a later save in UTF-8 kept the declaration");
+  await close("Latin.svg");
+  await docs.getByRole("tab", { name: /Latin.svg/ }).waitFor({ state: "detached" });
+  // A large drawing fits the window; at phone width nothing overflows, in either mode and appearance.
+  const wideFile = path.join(temp, "Wide.svg");
+  writeFileSync(wideFile, `<svg xmlns="http://www.w3.org/2000/svg" width="3000" height="1500" viewBox="0 0 3000 1500"><rect width="3000" height="1500" fill="#305d40"/><circle cx="1500" cy="750" r="600" fill="#c5e1cb"/></svg>`);
+  await open(wideFile);
+  await svgLoaded(3000);
+  for (const [width, height] of [[390, 844], [1000, 760]]) {
+    await page.window.setViewportSize({ width, height });
+    for (const theme of ["dark", "light"]) {
+      await useTheme(theme);
+      for (const mode of ["Image", "Source"]) {
+        await svgMode(mode).click();
+        if (mode === "Source") await svgSource.waitFor();
+        const fit = await page.evaluate(() => {
+          const img = document.querySelector("img.svg-image"), stage = document.querySelector(".svg-stage");
+          const box = img.getBoundingClientRect(), area = stage.getBoundingClientRect();
+          return { page: document.documentElement.scrollWidth <= innerWidth, visible: img.checkVisibility(), inside: box.width <= area.width + 1 && box.height <= area.height + 1 && box.left >= area.left - 1 && box.right <= area.right + 1 };
+        });
+        assert.equal(fit.page, true, `SVG ${mode} overflows at ${width}px (${theme})`);
+        if (mode === "Image") assert.deepEqual([fit.visible, fit.inside], [true, true], `the drawing does not fit at ${width}px (${theme})`);
+      }
+      await svgMode("Image").click();
+      await page.screenshot({ path: path.join(shots, `content-svg-${width}-${theme}.png`) });
+    }
+  }
+  await close("Wide.svg");
+  await docs.getByRole("tab", { name: /Wide.svg/ }).waitFor({ state: "detached" });
+  await page.window.setViewportSize({ width: svgSize[0], height: svgSize[1] });
+  await new Promise(resolve => beacon.close(resolve));
+  assert.deepEqual(svgRequests, [], "an SVG must not make network requests");
+  console.log("ok  native .svg shows as an image without running scripts or loading anything, edits through Source, saves only the edited bytes, and handles invalid, empty and wide files");
 
   const png = await app.evaluate(({ nativeImage }) => nativeImage.createFromBitmap(Buffer.alloc(800 * 600 * 4, 190), { width: 800, height: 600 }).toPNG().toString("base64"));
   for (let i = 1; i <= 20; i++) writeFileSync(path.join(photos, `image${i}.png`), Buffer.from(png, "base64"));

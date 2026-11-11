@@ -211,6 +211,12 @@
           "rank": "Alternate"
         },
         {
+          "ext": "svg",
+          "name": "SVG Image",
+          "role": "Editor",
+          "rank": "Alternate"
+        },
+        {
           "ext": "xlsx",
           "name": "Excel Workbook",
           "role": "Viewer",
@@ -241,6 +247,7 @@
         "text/x-markdown",
         "text/plain",
         "text/csv",
+        "image/svg+xml",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "image/jpeg",
         "image/png",

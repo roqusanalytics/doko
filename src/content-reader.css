@@ -40,6 +40,7 @@
   .content-reader > :not(.markdown-print) { display: none !important; }
   .markdown-print { display: block; font: 12pt/1.6 system-ui, sans-serif; }
   .markdown-print img { max-width: 100%; height: auto; }
+  .markdown-print > img:only-child { max-height: 230mm; }
   .markdown-print pre { white-space: pre-wrap; overflow-wrap: anywhere; }
   @page { margin: 20mm; }
 }
