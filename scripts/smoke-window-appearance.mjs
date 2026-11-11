@@ -2,7 +2,7 @@ import { closeHidden } from "./hidden-window.mjs";
 // Exercise the saved chrome preference and text-only hover in a disposable hidden reader.
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { release, tmpdir } from 'node:os';
 import path from 'node:path';
 import { _electron as electron } from 'playwright-core';
 import { electronPath } from './electron-path.mjs';
@@ -16,6 +16,7 @@ let app;
 try {
   app = await electron.launch({ executablePath: electronPath(env), args: [root, '--mute-audio', ...(process.platform === 'linux' && process.getuid?.() === 0 ? ['--no-sandbox'] : [])], env });
   const window = await app.firstWindow(), page = readerPage(window);
+  await window.setViewportSize({ width: 1360, height: 900 });
   await page.getByRole('button', { name: /Try a sample/ }).click();
   await page.locator('.textLayer span:not(.markedContent)').first().waitFor();
   const tools = page.getByRole('toolbar', { name: 'Tools', exact: true });
@@ -82,7 +83,7 @@ try {
   assert.equal(await toggle.getAttribute('aria-checked'), 'true');
   await window.waitForFunction(() => document.documentElement.hasAttribute('data-window-transparency') && [...document.querySelectorAll('iframe.document-reader')].every(frame => frame.contentDocument.documentElement.hasAttribute('data-window-transparency')));
   assert.equal(await page.evaluate(() => localStorage.getItem('folio:window-transparency')), 'true');
-  const nativeExpected = await app.evaluate(({nativeTheme}) => (process.platform === 'darwin' || process.platform === 'win32' && Number(require('node:os').release().split('.')[2]) >= 22621) && !nativeTheme.prefersReducedTransparency && !nativeTheme.shouldUseHighContrastColors);
+  const nativeExpected = await app.evaluate(({nativeTheme}, windowsBuild) => (process.platform === 'darwin' || process.platform === 'win32' && windowsBuild >= 22621) && !nativeTheme.prefersReducedTransparency && !nativeTheme.shouldUseHighContrastColors, Number(release().split('.')[2]));
   await window.waitForFunction(expected => document.documentElement.hasAttribute('data-window-material') === expected && [...document.querySelectorAll('iframe.document-reader')].every(frame => frame.contentDocument.documentElement.hasAttribute('data-window-material') === expected), nativeExpected);
   await page.evaluate(() => { window.originalPreferenceWrite = Storage.prototype.setItem; Storage.prototype.setItem = () => { throw new Error('Test storage unavailable'); }; });
   await toggle.click();

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.18.2
+
+- Download and install Doko under its new name on Windows, macOS, and Linux.
+- Replace the Linux APT signing key after the previous private key became unavailable. Existing .deb users must download and install this release manually once to trust future updates.
+- Fix Windows installer packaging by excluding the update-only handle from the uninstaller.
+- Keep the selected text available when choosing an underline or strike-through style.
+
 ## 1.18.0
 
 - Switch Markdown documents between View and editable View Source, with syntax highlighting and section navigation.

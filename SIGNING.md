@@ -100,3 +100,7 @@ and its trust configuration separate. Removing the Doko fork removes only its ap
 
 Before replacing this key, plan a signed transition that reaches already installed Folio Local clients. Merely
 replacing the checked-in certificate and secret would prevent those clients from authenticating the next update.
+
+Version 1.18.2 uses a new archive key because the previous private key was unavailable. This recovery was explicitly
+approved with a manual migration: existing .deb users must download and install Doko-linux-amd64.deb once before
+APT updates can resume. The new public fingerprint is `16457B964D1D72F56EA966B7B81A700FB04D1004`.

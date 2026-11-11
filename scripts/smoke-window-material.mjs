@@ -1,11 +1,11 @@
 // Exercise the real preload/IPC path without showing a window or changing user preferences.
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { release, tmpdir } from 'node:os';
 import path from 'node:path';
 import { _electron as electron } from 'playwright-core';
 import { electronPath } from './electron-path.mjs';
-import { assertHidden } from './hidden-window.mjs';
+import { assertHidden, closeHidden } from './hidden-window.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const profile = mkdtempSync(path.join(tmpdir(), 'doko-window-material-'));
@@ -16,7 +16,7 @@ try {
   app = await electron.launch({ executablePath: electronPath(env), args: [root, '--mute-audio', ...(process.platform === 'linux' && process.getuid?.() === 0 ? ['--no-sandbox'] : [])], env });
   const page = await app.firstWindow();
   await page.waitForFunction(() => !!window.folioDesktop && !!document.querySelector('iframe.document-reader')?.contentDocument?.querySelector('.app'));
-  const supported = await app.evaluate(({ BrowserWindow, nativeTheme }) => {
+  const supported = await app.evaluate(({ BrowserWindow, nativeTheme }, windowsBuild) => {
     Object.defineProperty(nativeTheme, 'prefersReducedTransparency', { configurable: true, value: false });
     Object.defineProperty(nativeTheme, 'shouldUseHighContrastColors', { configurable: true, value: false });
     const window = BrowserWindow.getAllWindows()[0];
@@ -25,8 +25,8 @@ try {
       const original = window[method]?.bind(window);
       if (original) window[method] = value => { globalThis.materialTrace.push([method, value]); return original(value); };
     }
-    return process.platform === 'darwin' || process.platform === 'win32' && Number(require('node:os').release().split('.')[2]) >= 22621;
-  });
+    return process.platform === 'darwin' || process.platform === 'win32' && windowsBuild >= 22621;
+  }, Number(release().split('.')[2]));
   await page.evaluate(() => {
     window.nativeMaterialEvents = [];
     window.stopMaterialEvents = window.folioDesktop.onWindowTransparency(enabled => window.nativeMaterialEvents.push(enabled));
@@ -73,6 +73,6 @@ try {
   console.log(`PASS native window material (${process.platform}): trusted preload/IPC, material, theme, accessibility, disable, invalid input and event cleanup`);
   await assertHidden(app);
 } finally {
-  await app?.close();
+  if (app) await closeHidden(app);
   rmSync(profile, { recursive: true, force: true });
 }

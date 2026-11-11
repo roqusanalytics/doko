@@ -106,7 +106,7 @@ interface PopoverProps {
   /** Highlights the selection in a color, with the note typed so far (may be empty). */
   onHighlight: (hex: string, note: string, style?: "Highlight" | TextMarkupStyle) => void;
   onAsk: () => void;
-  /** The note field took focus (which clears the page selection): keep the popover open. */
+  /** A control took focus (which clears the page selection): keep the popover open. */
   onPin: () => void;
   onDismiss: () => void;
 }
@@ -124,7 +124,7 @@ export function SelectionPopover({ info, stageWidth, colors, current, onHighligh
       aria-label="Selected text"
       style={place(info, width, POPOVER_H, stageWidth)}
       // Keep the text selection alive while clicking buttons (but let the note field take focus).
-      onMouseDown={(e) => { if (!(e.target as HTMLElement).closest("input")) e.preventDefault(); }}
+      onMouseDown={(e) => { if (!(e.target as HTMLElement).closest("input")) { e.preventDefault(); onPin(); } }}
     >
       <SelectMenu label="Text marking style" value={style} onChange={value=>setStyle(value as typeof style)} options={[{value:"Highlight",label:"Highlight"},{value:"Underline",label:"Underline"},{value:"StrikeOut",label:"Strike through"}]} />
       <div className="pop-row" role="toolbar" aria-label="Highlight">

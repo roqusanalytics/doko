@@ -7,7 +7,9 @@
 ; Restart uses --updated /S --force-run. Keep the old image from starting again while the
 ; uninstaller moves it aside. A write handle prevents execution, and sharing delete lets the
 ; uninstaller rename it. Windows releases the handle even if setup is interrupted.
-Var /GLOBAL previousExeHandle
+!ifndef BUILD_UNINSTALLER
+  Var /GLOBAL previousExeHandle
+!endif
 !macro holdPreviousExecutable
   StrCpy $3 "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
   ; The first Doko update replaces the executable shipped by Folio Local.
