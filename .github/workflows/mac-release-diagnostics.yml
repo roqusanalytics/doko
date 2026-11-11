@@ -37,7 +37,7 @@ jobs:
           subjectKeyIdentifier = hash
           EOF
           openssl req -newkey rsa:2048 -nodes -x509 -days 1 -config "$work/cert.cnf" -keyout "$work/key.pem" -out "$work/cert.pem"
-          openssl pkcs12 -export -inkey "$work/key.pem" -in "$work/cert.pem" -out "$work/cert.p12" -passout pass:fixture-password
+          openssl pkcs12 -export -inkey "$work/key.pem" -in "$work/cert.pem" -out "$work/cert.p12" -passout pass:fixture-password -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1
           security create-keychain -p fixture-password "$keychain"
           security unlock-keychain -p fixture-password "$keychain"
           security set-keychain-settings -lut 21600 "$keychain"
