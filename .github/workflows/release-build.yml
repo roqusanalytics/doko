@@ -104,6 +104,7 @@ jobs:
     needs: verify
     environment: release-macos
     runs-on: macos-26-intel
+    timeout-minutes: 30
     steps:
       - *checkout
       - *setup-node
@@ -131,22 +132,28 @@ jobs:
           # A fresh runner must trust this self-signed root before codesign can use its identity.
           security find-certificate -p "$DOKO_MAC_SIGN_KEYCHAIN" > "$RUNNER_TEMP/doko-signing.crt"
           sudo security add-trusted-cert -d -r trustRoot -p codeSign -k "$DOKO_MAC_SIGN_KEYCHAIN" "$RUNNER_TEMP/doko-signing.crt"
+          # codesign also needs this keychain in the search list to resolve the certificate chain.
+          keychains=()
+          while IFS= read -r keychain; do
+            keychain=${keychain#*\"}
+            keychains+=("${keychain%\"*}")
+          done < <(security list-keychains -d user)
+          security list-keychains -d user -s "$DOKO_MAC_SIGN_KEYCHAIN" "${keychains[@]}"
+          cp /usr/bin/true "$RUNNER_TEMP/doko-signing-check"
+          codesign --force --sign "$DOKO_MAC_SIGN_IDENTITY" --keychain "$DOKO_MAC_SIGN_KEYCHAIN" --timestamp=none "$RUNNER_TEMP/doko-signing-check"
+          codesign --verify --strict -R="certificate leaf = H\"$DOKO_MAC_SIGN_IDENTITY\"" "$RUNNER_TEMP/doko-signing-check"
+          rm "$RUNNER_TEMP/doko-signing-check"
           rm "$RUNNER_TEMP/doko-signing.p12"
           npx electron-builder --mac -c.mac.identity=- -c.mac.sign=./scripts/mac-sign.cjs -c.extraMetadata.folioMacSigned=true --publish never
           codesign --verify --deep --strict -R="certificate leaf = H\"$DOKO_MAC_SIGN_IDENTITY\"" "release/mac-universal/Doko.app"
       - name: Remove temporary signing keychain
         if: always()
         run: |
-          trust_status=0
-          if [ -f "$RUNNER_TEMP/doko-signing.crt" ]; then
-            sudo security remove-trusted-cert -d "$RUNNER_TEMP/doko-signing.crt" || trust_status=$?
-            rm "$RUNNER_TEMP/doko-signing.crt"
-          fi
-          rm -f "$RUNNER_TEMP/doko-signing.p12"
+          # The ephemeral runner discards its trust settings; remove all private key material here.
+          rm -f "$RUNNER_TEMP/doko-signing.p12" "$RUNNER_TEMP/doko-signing.crt" "$RUNNER_TEMP/doko-signing-check"
           if [ -f "$RUNNER_TEMP/doko-signing.keychain-db" ]; then
             security delete-keychain "$RUNNER_TEMP/doko-signing.keychain-db"
           fi
-          exit "$trust_status"
       - name: Packaged app starts (macOS)
         run: |
           codesign --verify --deep --verbose=2 "release/mac-universal/Doko.app"

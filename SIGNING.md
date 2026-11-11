@@ -39,7 +39,9 @@ Developer ID), stops automatic updates until users reinstall by hand.
 For GitHub releases, store the same certificate in the `release-macos` environment as
 `MAC_SELF_SIGNED_P12_BASE64` and its password as `MAC_SELF_SIGNED_PASSWORD`. The workflow imports it into a
 temporary keychain, checks the packaged app against the pinned 1.20.0 fingerprint, and deletes the keychain.
-The ephemeral macOS runner trusts the self-signed root only for code signing and removes that trust during cleanup.
+The ephemeral macOS runner trusts the self-signed root only for code signing and registers the keychain for chain
+lookup. A real signing preflight checks access before packaging. Cleanup deletes private key material; GitHub
+discards the runner and its trust settings after the job.
 Missing signing credentials fail the release instead of producing an ad-hoc update.
 
 ```sh

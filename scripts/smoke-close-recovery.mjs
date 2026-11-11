@@ -254,8 +254,16 @@ try {
     return contents.executeJavaScript('Boolean(window.fixtureTabs && document.querySelector("iframe.document-reader"))');
   }), true);
   assert.equal((await state()).dialogs.length, 1);
-  await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].webContents.forcefullyCrashRenderer(); });
-  await sleep(400);
+  await app.evaluate(({ BrowserWindow }) => new Promise((resolve, reject) => {
+    const contents = BrowserWindow.getAllWindows()[0].webContents;
+    const gone = () => { clearTimeout(timer); resolve(true); };
+    const timer = setTimeout(() => {
+      contents.removeListener("render-process-gone", gone);
+      reject(new Error("Second renderer crash did not emit render-process-gone within 10 seconds"));
+    }, 10_000);
+    contents.once("render-process-gone", gone);
+    contents.forcefullyCrashRenderer();
+  }));
   const crashes = await state();
   assert.equal(crashes.dialogs.length, 2);
   assert.deepEqual(crashes.dialogs[1].buttons, ["Keep open"]);
