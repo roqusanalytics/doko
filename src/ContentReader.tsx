@@ -12,20 +12,43 @@ import { Icon } from "./icons";
 import { keys } from "./platform";
 import { trackTitlebar } from "./titlebar";
 import { readSetting, writeSetting } from "./preferences";
-import { CONTENT_ACCEPT, localSources } from "./content-source";
+import { BROWSER_ACCEPT, CONTENT_ACCEPT, IPC_PREFIX, localSources, restoreText } from "./content-source";
 import { normalizeMathDelimiters } from "./chatMath";
 import { UpdateSettings } from "./SettingsDialog";
 import { updateSummary } from "./updates";
 import MarkdownPane, { type MarkdownEditorHandle } from "./MarkdownPane";
+import WorkbookView from "./WorkbookView";
+import { parseCsv } from "./csv";
 import "katex/dist/katex.min.css";
 import "./content-reader.css";
 
 const MAX_BYTES = 100 * 1024 * 1024;
 const MAX_PIXELS = 80_000_000;
 
-function failure(error: unknown) { return error instanceof Error ? error.message : "Couldn't read this file. Try again."; }
+// Errors thrown in the main process arrive with Electron's "Error invoking remote method" prefix; users see the plain message.
+function failure(error: unknown) { return error instanceof Error ? error.message.replace(IPC_PREFIX, "") : "Couldn't read this file. Try again."; }
 function relativeImage(src: string) { return !!src && !/^[a-z][a-z\d+.-]*:|^[\\/#]/i.test(src); }
 function webLink(href: string) { return /^https?:\/\//i.test(href) || href.startsWith("#"); }
+const delimiterLabel = (delimiter: string) => delimiter === "\t" ? "Tab" : delimiter === " " ? "Space" : delimiter;
+
+// DOM text nodes escape every cell, so a cell can never inject markup into the print view.
+// insertRow()/insertCell() are quadratic on large tables; append() is linear.
+function tableMarkup(rows: readonly (readonly string[])[]) {
+  const table = document.createElement("table");
+  const body = document.createElement("tbody");
+  table.append(body);
+  for (const row of rows) {
+    const line = document.createElement("tr");
+    for (const cell of row) {
+      const td = document.createElement("td");
+      td.textContent = cell;
+      line.append(td);
+    }
+    body.append(line);
+  }
+  return table.outerHTML;
+}
+const csvMarkup = (text: string, delimiter: string) => tableMarkup(parseCsv(text, delimiter).rows.map(row => row.cells.map(cell => cell.value)));
 
 function LocalImage({ id, src, alt }: { id?: string; src: string; alt: string }) {
   const [url, setUrl] = useState("");
@@ -83,15 +106,20 @@ function MarkdownPreview({ doc, text, headingIds }: { doc: MarkdownDocument; tex
   </section>;
 }
 
-export default function ContentReader({ tabs, tabKey, initial }: { tabs: DocumentTabs; tabKey: number; initial: MarkdownDocument }) {
+export default function ContentReader({ tabs, tabKey, initial }: { tabs: DocumentTabs; tabKey: number; initial: MarkdownDocument | WorkbookDocument }) {
   useSyncExternalStore(tabs.subscribe, tabs.snapshot);
-  const [doc, setDoc] = useState(initial);
+  // A workbook is read-only and never changes, so the editing state below stays at its empty defaults.
+  const workbook = initial.kind === "workbook" ? initial : null;
+  const [sheetIndex, setSheetIndex] = useState(0);
+  const [doc, setDoc] = useState<MarkdownDocument>(initial.kind === "markdown" ? initial : { kind: "markdown", name: initial.name, text: "" });
   const [text, setText] = useState(initial.kind === "markdown" ? initial.text : "");
   const [saved, setSaved] = useState(text);
   const [saving, setSaving] = useState(false);
   const [printMarkup, setPrintMarkup] = useState("");
   const [error, setError] = useState("");
   const [conflict, setConflict] = useState(false);
+  // Set when the file's own encoding cannot hold the text; `copy` repeats the failed Save As.
+  const [unencodable, setUnencodable] = useState<{ copy: boolean } | null>(null);
   const [dialog, setDialog] = useState<"close" | "reload" | "updates" | "export" | "properties" | null>(null);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: "idle" });
   const [theme, setTheme] = useState(readSetting("folio:theme") || document.documentElement.dataset.theme || "light");
@@ -107,6 +135,21 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
   const closeAnswer = useRef<((answer: boolean) => void) | null>(null);
   const actions = useRef({ save: (_copy = false): Promise<boolean> => Promise.resolve(false), canClose: (): Promise<boolean> => Promise.resolve(true) });
   const dirty = doc.kind === "markdown" && text !== saved;
+  const plain = doc.format === "text";
+  const sheet = doc.format === "csv";
+  // The delimiter is pinned once a parse yields two or more columns, so editing a cell cannot change how the file is split.
+  // A table of at most one column keeps detecting: the first typed character of an empty file must not decide it.
+  const delimiter = useRef<string | undefined>(undefined);
+  // Parsing a large file takes hundreds of milliseconds, so it is skipped while only the source editor is on screen.
+  const [tableVisible, setTableVisible] = useState(true);
+  const lastTable = useRef<ReturnType<typeof parseCsv> | null>(null);
+  const csvTable = useMemo(() => {
+    if (!sheet) return null;
+    if (!tableVisible && dialog !== "properties" && lastTable.current) return lastTable.current;
+    const table = parseCsv(text, delimiter.current);
+    if (table.columns > 1) delimiter.current = table.delimiter;
+    return lastTable.current = table;
+  }, [sheet, text, tableVisible, dialog === "properties"]);
 
   useEffect(() => window.folioDesktop?.onUpdateStatus(setUpdateStatus), []);
   useEffect(() => { tabs.markDirty(tabKey, dirty); }, [tabs, tabKey, dirty]);
@@ -122,23 +165,26 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const save = (copy = false): Promise<boolean> => {
+  const save = (copy = false, utf8 = false): Promise<boolean> => {
+    editor.current?.flush();
     if (pendingSave.current) return pendingSave.current;
     const current = state.current;
-    if (current.doc.kind !== "markdown") return Promise.resolve(true);
+    if (current.doc.kind !== "markdown" || workbook) return Promise.resolve(true);
     const markdown = current.doc;
-    setSaving(true); setError("");
+    setSaving(true); setError(""); setUnencodable(null);
     const operation = (async () => {
       try {
         if (!markdown.id || !window.folioDesktop) {
-          const url = URL.createObjectURL(new Blob([current.text], { type: "text/markdown;charset=utf-8" }));
+          // A browser .txt or .csv keeps its original BOM and line endings (the editor text always uses "\n").
+          const url = URL.createObjectURL(new Blob([restoreText(markdown, current.text)], { type: markdown.format === "text" ? "text/plain;charset=utf-8" : markdown.format === "csv" ? "text/csv;charset=utf-8" : "text/markdown;charset=utf-8" }));
           const link = document.createElement("a"); link.href = url; link.download = markdown.name; link.click();
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         } else {
-          const result = await window.folioDesktop.content.save(markdown.id, current.text, copy);
+          const result = await window.folioDesktop.content.save(markdown.id, current.text, copy, utf8);
           if (result.cancelled) return false;
           if (!result.ok || !result.document) {
             setConflict(!!result.conflict);
+            setUnencodable(result.unencodable ? { copy } : null);
             setError(result.error || (result.conflict ? "This file changed outside Doko. Save a copy or reload it." : "Couldn't save. Your changes are still here."));
             return false;
           }
@@ -159,6 +205,7 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
     if (!answer) editor.current?.focus();
   };
   actions.current = { save, canClose: async () => {
+    editor.current?.flush();
     if (pendingSave.current) await pendingSave.current;
     if (state.current.doc.kind !== "markdown" || state.current.text === state.current.saved) return true;
     return new Promise(resolve => { closeAnswer.current = resolve; setDialog("close"); });
@@ -190,45 +237,61 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
     setDialog(null); setSaving(true);
     try {
       const next = await window.folioDesktop.content.reload(doc.id);
-      setDoc(next); setText(next.text); setSaved(next.text); setError(""); setConflict(false);
+      delimiter.current = undefined; lastTable.current = null;
+      setDoc(next); setText(next.text); setSaved(next.text); setError(""); setConflict(false); setUnencodable(null);
       state.current = { doc: next, text: next.text, saved: next.text }; tabs.markDirty(tabKey, false);
     } catch (error) { setError(failure(error)); }
     finally { setSaving(false); }
   };
-  const exportMarkdown = async (format: "html" | "txt", printing = false) => {
+  const exportMarkdown = async (format: "html" | "txt" | "csv", printing = false) => {
     if (saving) return;
+    editor.current?.flush();
     setSaving(true); setError("");
     try {
       const current = state.current;
       const content = format === "html" ? await (await import("./markdownExport")).markdownHtml(current.doc.name, current.text, current.doc.id) : current.text;
+      // Exported CSV is UTF-8 with a BOM, so Excel reads accented letters; both copies keep the file's own line endings.
+      const output = format === "csv" ? restoreText(current.doc, content, true) : format === "txt" ? restoreText(current.doc, content) : content;
       if (printing) {
-        const body = new DOMParser().parseFromString(content, "text/html").body.innerHTML;
-        setPrintMarkup(body);
+        // Plain text prints as-is; running it through the Markdown renderer would turn "#" lines into headings.
+        setPrintMarkup(format === "csv" ? csvMarkup(content, delimiter.current ?? parseCsv(content).delimiter)
+          : format === "txt" ? Object.assign(document.createElement("pre"), { textContent: content }).outerHTML
+          : new DOMParser().parseFromString(content, "text/html").body.innerHTML);
         await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
         window.print(); setPrintMarkup(""); return;
       }
-      const name = current.doc.name.replace(/\.(md|markdown)$/i, "") + "." + format;
+      const name = current.doc.name.replace(/\.(md|markdown|txt|csv)$/i, "") + "." + format;
       if (window.folioDesktop) {
-        const result = await window.folioDesktop.saveFile({ name, format, data: new TextEncoder().encode(content), saveAs: true });
+        const result = await window.folioDesktop.saveFile({ name, format, data: new TextEncoder().encode(output), saveAs: true });
         if (result.cancelled) return;
         if (!result.ok) throw new Error(result.error || "Couldn't save this export. Try again.");
       } else {
-        const url = URL.createObjectURL(new Blob([content], { type: format === "html" ? "text/html" : "text/plain" }));
+        const url = URL.createObjectURL(new Blob([output], { type: format === "html" ? "text/html" : format === "csv" ? "text/csv" : "text/plain" }));
         const link = document.createElement("a"); link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
       setDialog(null);
     } catch (error) { setError(failure(error)); }
     finally { setSaving(false); }
   };
+  const printSheet = async () => {
+    setPrintMarkup(tableMarkup(workbook!.sheets[sheetIndex].rows));
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    window.print(); setPrintMarkup("");
+  };
   const fileCommand = (command: FileCommand) => {
     if (saving || dialog) return;
+    if (workbook) {
+      if (command === "print" && workbook.sheets.length) void printSheet();
+      else if (command === "recent") tabs.library();
+      return;
+    }
     if (command === "save" || command === "save-as") void save(command === "save-as");
     else if (command === "export") setDialog("export");
-    else if (command === "print") void exportMarkdown("html", true);
+    else if (command === "print") void exportMarkdown(plain ? "txt" : sheet ? "csv" : "html", true);
     else if (command === "properties") setDialog("properties");
     else if (command === "recent") tabs.library();
   };
-  useFileCommands(tabs.active === tabKey, "markdown", saving || !!dialog, fileCommand);
+  useFileCommands(tabs.active === tabKey, workbook ? "workbook" : "markdown", saving || !!dialog, fileCommand);
   const cancelDialog = () => dialog === "close" ? answerClose(false) : setDialog(null);
   useEffect(() => {
     if (!dialog) return;
@@ -255,11 +318,13 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
       <div className="topbar-right">
         <MoreMenu label="File" items={[
           { kind: "action", icon: "upload", label: "Open…", onSelect: () => input.current?.click() },
-          { kind: "action", icon: "download", label: "Save", onSelect: () => fileCommand("save") },
-          { kind: "action", icon: "download", label: "Save As…", onSelect: () => fileCommand("save-as") },
-          { kind: "action", icon: "download", label: "Export / Convert…", onSelect: () => fileCommand("export") },
+          ...(workbook ? [] : [
+            { kind: "action" as const, icon: "download" as const, label: "Save", onSelect: () => fileCommand("save") },
+            { kind: "action" as const, icon: "download" as const, label: "Save As…", onSelect: () => fileCommand("save-as") },
+            { kind: "action" as const, icon: "download" as const, label: "Export / Convert…", onSelect: () => fileCommand("export") },
+          ]),
           { kind: "action", icon: "print", label: "Print…", onSelect: () => fileCommand("print") },
-          { kind: "action", icon: "info", label: "Properties…", onSelect: () => fileCommand("properties") },
+          ...(workbook ? [] : [{ kind: "action" as const, icon: "info" as const, label: "Properties…", onSelect: () => fileCommand("properties") }]),
         ]} />
         {window.folioDesktop && <button className="btn ghost" onClick={() => setDialog("updates")}>Updates</button>}
         <button className="icon-btn" aria-label="Open file" title="Open file" onClick={() => input.current?.click()}><Icon name="upload" /></button>
@@ -278,28 +343,32 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
           else window.folioDesktop?.checkForUpdates();
         }}>{updateStatus.state === "ready" ? "Restart and update" : updateStatus.state === "available" ? `Download ${updateStatus.version}` : updateStatus.state === "downloading" ? "Downloading…" : "Retry"}</button>
       </div>}
-      <>
+      {workbook ? <>
+        <div className="content-toolbar"><span className="content-save-status" role="status">Read-only · {workbook.sheets.length === 1 ? "1 sheet" : `${workbook.sheets.length} sheets`}</span></div>
+        <WorkbookView workbook={workbook} selected={sheetIndex} onSelect={setSheetIndex} />
+      </> : <>
         <div className="content-toolbar">
-          <span className="content-save-status" role="status">{saving ? "Saving…" : dirty ? "Unsaved changes" : "All changes saved"}</span>
+          <span className="content-save-status" role="status">{saving ? "Saving…" : dirty ? "Unsaved changes" : "All changes saved"}{doc.format && doc.encoding && <span title="File encoding"> · {doc.encoding}</span>}{csvTable && <span title="Column separator"> · Delimiter: {delimiterLabel(csvTable.delimiter)}</span>}</span>
           <div className="content-toolbar-actions">
             {doc.id && <button className="btn ghost" disabled={saving} onClick={() => void save(true)}>Save copy</button>}
             <button className="btn primary" title={keys("Save (Ctrl+S)")} disabled={saving} onClick={() => void save()}>{doc.id ? "Save" : "Save copy"}</button>
           </div>
         </div>
-        {error && <div className="content-notice" role="alert"><span>{error}</span>{conflict && <button className="btn ghost" disabled={saving} onClick={() => setDialog("reload")}>Reload from disk</button>}</div>}
-        <MarkdownPane text={text} editorRef={editor} onChange={value => {
+        {error && <div className="content-notice" role="alert"><span>{error}</span>{conflict && <button className="btn ghost" disabled={saving} onClick={() => setDialog("reload")}>Reload from disk</button>}{unencodable && <button className="btn ghost" disabled={saving} onClick={() => void save(unencodable.copy, true)}>Save as UTF-8</button>}</div>}
+        <MarkdownPane text={text} editorRef={editor} format={doc.format} csv={csvTable} onTableVisible={setTableVisible} onChange={value => {
           state.current.text = value; setText(value); tabs.markDirty(tabKey, value !== state.current.saved);
-        }} renderPreview={headingIds => <MarkdownPreview doc={doc} text={text} headingIds={headingIds} />} />
-      </>
+        }} renderPreview={plain || sheet ? undefined : headingIds => <MarkdownPreview doc={doc} text={text} headingIds={headingIds} />} />
+      </>}
     </main>
-    <input type="file" ref={input} hidden multiple accept={CONTENT_ACCEPT} onChange={event => {
+    <input type="file" ref={input} hidden multiple accept={window.folioDesktop ? CONTENT_ACCEPT : BROWSER_ACCEPT} onChange={event => {
       void openFiles(Array.from(event.target.files ?? [])); event.target.value = "";
     }} />
     {dialog === "updates" && <Modal title="Updates" onClose={cancelDialog}><div className="settings"><UpdateSettings /></div></Modal>}
     {printMarkup && <div className="markdown-print" dangerouslySetInnerHTML={{ __html: printMarkup }} />}
-    {dialog === "export" && <Modal title="Export Markdown" onClose={() => { if (!saving) setDialog(null); }}><div className="content-dialog"><p>Export the current text as a standalone HTML document or a plain text file. Your Markdown stays unchanged.</p>
-      {error && <p role="alert" className="form-error">{error}</p>}<div className="form-actions"><button className="btn ghost" disabled={saving} onClick={() => setDialog(null)}>Cancel</button><button className="btn ghost" disabled={saving} onClick={() => void exportMarkdown("txt")}>Save text…</button><button className="btn primary" disabled={saving} onClick={() => void exportMarkdown("html")}>Save HTML…</button></div></div></Modal>}
-    {dialog === "properties" && <Modal title="Properties" onClose={() => setDialog(null)}><dl className="info-list"><div><dt>File</dt><dd>{doc.name}</dd></div><div><dt>Type</dt><dd>Markdown (UTF-8)</dd></div><div><dt>Size</dt><dd>{new TextEncoder().encode(text).byteLength.toLocaleString()} bytes</dd></div><div><dt>Words</dt><dd>{text.trim() ? text.trim().split(/\s+/).length : 0}</dd></div></dl></Modal>}
+    {dialog === "export" && <Modal title={sheet ? "Export CSV" : plain ? "Export text" : "Export Markdown"} onClose={() => { if (!saving) setDialog(null); }}><div className="content-dialog"><p>{sheet ? "Save a UTF-8 copy of the current CSV with a byte order mark, so Excel reads accented letters, and the file\u2019s own line endings. Your file stays unchanged." : plain ? "Save a UTF-8 copy of the current text with the file\u2019s own line endings. Your file stays unchanged." : "Export the current text as a standalone HTML document or a plain text file. Your Markdown stays unchanged."}</p>
+      {error && <p role="alert" className="form-error">{error}</p>}<div className="form-actions"><button className="btn ghost" disabled={saving} onClick={() => setDialog(null)}>Cancel</button><button className={plain || sheet ? "btn primary" : "btn ghost"} disabled={saving} onClick={() => void exportMarkdown(sheet ? "csv" : "txt")}>{sheet ? "Save CSV…" : "Save text…"}</button>{!plain && !sheet && <button className="btn primary" disabled={saving} onClick={() => void exportMarkdown("html")}>Save HTML…</button>}</div></div></Modal>}
+    {dialog === "properties" && <Modal title="Properties" onClose={() => setDialog(null)}><dl className="info-list"><div><dt>File</dt><dd>{doc.name}</dd></div><div><dt>Type</dt><dd>{sheet ? `CSV (${doc.encoding ?? "UTF-8"})` : plain ? `Plain text (${doc.encoding ?? "UTF-8"})` : "Markdown (UTF-8)"}</dd></div><div><dt>Size</dt><dd>{new TextEncoder().encode(text).byteLength.toLocaleString()} bytes</dd></div>{csvTable ? <><div><dt>Rows</dt><dd>{csvTable.rows.length.toLocaleString()}</dd></div><div><dt>Columns</dt><dd>{csvTable.columns.toLocaleString()}</dd></div></>
+      : <div><dt>Words</dt><dd>{text.trim() ? text.trim().split(/\s+/).length : 0}</dd></div>}</dl></Modal>}
     {dialog && ["close", "reload"].includes(dialog) && <Modal title={dialog === "close" ? "Unsaved changes" : "Reload from disk"} onClose={cancelDialog}>
       <div className="content-dialog">
         <p>{dialog === "close" ? `Save changes to “${doc.name}” before closing?` : "Reloading discards your unsaved changes and reads the current file from disk."}</p>

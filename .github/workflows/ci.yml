@@ -33,7 +33,7 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npm run test:chat-math
       - run: npm run test:thumbnails
-      - run: node --test scripts/test-word-files.cjs scripts/test-network-security.cjs scripts/test-release-build.mjs scripts/test-claude-path.cjs scripts/test-content-files.cjs scripts/test-content-source.mjs scripts/test-markdown-sections.mjs scripts/test-hidden-window.mjs scripts/test-fork-channel.mjs
+      - run: node --test scripts/test-word-files.cjs scripts/test-network-security.cjs scripts/test-release-build.mjs scripts/test-claude-path.cjs scripts/test-content-files.cjs scripts/test-content-source.mjs scripts/test-csv.mjs scripts/test-xlsx-files.cjs scripts/test-markdown-sections.mjs scripts/test-hidden-window.mjs scripts/test-fork-channel.mjs
       - run: node --test scripts/test-link-history.mjs
       - run: node --test scripts/test-openrouter.cjs
       - run: node scripts/test-smoke-runner.mjs

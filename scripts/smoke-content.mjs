@@ -207,6 +207,276 @@ try {
   await diskIs(first, "\ufeff" + (preservedText + "\nPreserved after rejected opens.\n").replaceAll("\n", "\r\n"));
   console.log("ok  cancelled Save copy and invalid/oversized Markdown leave the current document intact");
 
+  // Plain text uses the same document path, with an editor only and the file's own encoding.
+  const textEditor = () => page.getByRole("textbox", { name: "Text document", exact: true });
+  const textStatus = () => page.locator(".content-save-status").innerText();
+  const textLines = () => textEditor().locator(".cm-line").evaluateAll(lines => lines.map(line => line.textContent).join("\n"));
+  const plain = path.join(temp, "Plain.txt"), legacy = path.join(temp, "Legacy.txt");
+  writeFileSync(plain, "First line\r\nSecond line\r\n");
+  await open(plain);
+  await textEditor().waitFor();
+  assert.equal(await textLines(), "First line\nSecond line\n");
+  for (const gone of [page.getByRole("button", { name: "View source", exact: true }), page.getByLabel("Markdown preview", { exact: true }),
+    page.getByRole("navigation", { name: "Document sections", exact: true })]) assert.equal(await gone.count(), 0, "text opens in the editor only");
+  assert.equal(await textStatus(), "All changes saved · UTF-8");
+  await textEditor().focus();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.insertText("Edited plain\nsecond ąž\n");
+  assert.equal(await textStatus(), "Unsaved changes · UTF-8");
+  await page.keyboard.press("ControlOrMeta+s");
+  await diskIs(plain, "Edited plain\r\nsecond ąž\r\n");
+  await assertEventually(async () => await textStatus() === "All changes saved · UTF-8", "text save did not finish");
+  await page.screenshot({ path: path.join(shots, "content-text.png") });
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Export / Convert…", exact: true }).click();
+  const exportDialog = page.getByRole("dialog", { name: "Export text", exact: true });
+  await exportDialog.waitFor();
+  assert.equal(await exportDialog.getByRole("button", { name: "Save HTML…" }).count(), 0, "text has no HTML export");
+  await page.keyboard.press("Escape");
+  await close("Plain.txt");
+  await docs.getByRole("tab", { name: /Plain.txt/ }).waitFor({ state: "detached" });
+  await open(plain);
+  await textEditor().waitFor();
+  assert.equal(await textLines(), "Edited plain\nsecond ąž\n");
+  await close("Plain.txt");
+  await docs.getByRole("tab", { name: /Plain.txt/ }).waitFor({ state: "detached" });
+
+  // A legacy single-byte file keeps its bytes until the user chooses UTF-8 for a character it cannot hold.
+  const legacyBytes = Buffer.from([0x63, 0x61, 0x66, 0xe9, 0x0d, 0x0a]);
+  writeFileSync(legacy, legacyBytes);
+  await open(legacy);
+  await textEditor().waitFor();
+  assert.match(await textStatus(), /^All changes saved · Windows-125[27]$/);
+  assert.equal(await textLines(), "café\n");
+  await textEditor().focus();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+ArrowDown" : "Control+End");
+  await page.keyboard.insertText("Ж");
+  await page.keyboard.press("ControlOrMeta+s");
+  const refusal = page.getByRole("alert").filter({ hasText: "Nothing was saved" });
+  await refusal.waitFor();
+  assert.ok(readFileSync(legacy).equals(legacyBytes), "an unencodable save must not touch the file");
+  assert.equal(await textLines(), "café\nЖ", "the text stays in the editor");
+  await refusal.getByRole("button", { name: "Save as UTF-8", exact: true }).click();
+  await diskIs(legacy, "café\r\nЖ");
+  await assertEventually(async () => await textStatus() === "All changes saved · UTF-8", "Save as UTF-8 did not switch the encoding");
+  assert.equal(await refusal.count(), 0);
+  await close("Legacy.txt");
+  await docs.getByRole("tab", { name: /Legacy.txt/ }).waitFor({ state: "detached" });
+  const binary = path.join(temp, "Binary.txt");
+  writeFileSync(binary, Buffer.from("a\0b"));
+  const errorsBefore = await app.evaluate(() => globalThis.contentOpenErrors.length);
+  await open(binary, false);
+  await assertEventually(async () => (await app.evaluate(() => globalThis.contentOpenErrors.length)) > errorsBefore, "binary .txt did not report an error");
+  assert.match(await app.evaluate(() => globalThis.contentOpenErrors.at(-1).detail), /isn't plain text or uses an encoding Doko can't read/);
+  console.log("ok  native .txt opens editor-only, saves in its encoding with CRLF, offers Save as UTF-8 and rejects binary files");
+
+  // CSV: the table is a view of the text in the editor, so save, undo, dirty state and encodings are the ones above.
+  const grid = () => page.getByRole("grid", { name: "CSV table", exact: true });
+  const cell = (row, col) => grid().locator(`[data-r="${row}"][data-c="${col}"]`);
+  const cellText = async (row, col) => (await cell(row, col).innerText()).trim();
+  const footer = () => page.locator(".tv-footer [role=status]").innerText();
+  const useTheme = async theme => {
+    const toggle = page.getByRole("button", { name: `Use ${theme} theme`, exact: true });
+    if (await toggle.count()) await toggle.click();
+    await page.waitForFunction(theme => document.documentElement.dataset.theme === theme, theme);
+  };
+  const csvFile = path.join(temp, "Kontaktai.csv");
+  const csvLines = ["Vardas;Miestas;Pastaba", 'Žygimantas;Šiauliai;"Sakė: ""labas""; rytas"', 'Austėja;Kaunas;"Pirma eilutė\r\nantra eilutė"', "Rokas;Vilnius;"];
+  const csvOriginal = csvLines.join("\r\n") + "\r\n";
+  writeFileSync(csvFile, csvOriginal);
+  await open(csvFile);
+  await grid().waitFor();
+  assert.equal(await textStatus(), "All changes saved · UTF-8 · Delimiter: ;");
+  assert.equal(await page.getByRole("button", { name: "Table", exact: true }).getAttribute("aria-pressed"), "true");
+  assert.equal(await page.getByRole("textbox", { name: "CSV source", exact: true }).isVisible(), false, "the editor stays hidden in table mode");
+  assert.equal(await footer(), "4 rows × 3 columns");
+  assert.equal(await grid().getAttribute("aria-rowcount"), "5");
+  assert.equal(await grid().getAttribute("aria-colcount"), "4");
+  assert.deepEqual([await cellText(0, 0), await cellText(1, 0), await cellText(1, 1), await cellText(1, 2)], ["Vardas", "Žygimantas", "Šiauliai", 'Sakė: "labas"; rytas']);
+  assert.equal(await cell(0, 0).getAttribute("tabindex"), "0", "one tab stop");
+  assert.equal(await grid().locator('[tabindex="0"]').count(), 1);
+  await useTheme("light");
+  await page.screenshot({ path: path.join(shots, "content-csv-light.png") });
+
+  // Edit through the table: Enter starts, Enter commits and moves down; undo and redo run the editor history.
+  await cell(1, 1).click();
+  await page.keyboard.press("Enter");
+  const field = () => page.getByRole("textbox", { name: "Cell value", exact: true });
+  await field().waitFor();
+  assert.equal(await field().inputValue(), "Šiauliai");
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.insertText("Panevėžys");
+  await page.keyboard.press("Enter");
+  await field().waitFor({ state: "detached" });
+  assert.equal(await cellText(1, 1), "Panevėžys");
+  assert.equal(await cell(2, 1).getAttribute("data-active"), "true", "Enter moves down");
+  assert.equal(await textStatus(), "Unsaved changes · UTF-8 · Delimiter: ;");
+  await page.keyboard.press("ControlOrMeta+z");
+  await assertEventually(async () => await cellText(1, 1) === "Šiauliai", "undo did not reach the table");
+  assert.equal(await textStatus(), "All changes saved · UTF-8 · Delimiter: ;", "undo returns to the saved text");
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await assertEventually(async () => await cellText(1, 1) === "Panevėžys", "redo did not reach the table");
+  // Esc cancels, typing starts an edit, a multi-line cell opens in the same field, Alt+Enter adds a line break.
+  await cell(3, 0).click();
+  await page.keyboard.press("F2");
+  await page.keyboard.insertText("changed");
+  await page.keyboard.press("Escape");
+  assert.equal(await cellText(3, 0), "Rokas", "Esc keeps the old value");
+  await cell(2, 2).click();
+  await page.keyboard.press("Enter");
+  assert.equal(await field().inputValue(), "Pirma eilutė\nantra eilutė");
+  await page.keyboard.press("Escape");
+  // Add row, type into it (typing starts the edit), Tab commits and moves right.
+  await page.getByRole("button", { name: "Add row", exact: true }).click();
+  assert.equal(await footer(), "5 rows × 3 columns");
+  await page.keyboard.type("Jonas");
+  await page.keyboard.press("Tab");
+  await field().waitFor({ state: "detached" });
+  assert.equal(await cellText(4, 0), "Jonas");
+  assert.equal(await cell(4, 1).getAttribute("data-active"), "true", "Tab moves right");
+  // A cell edit that is still open is part of the save.
+  await page.keyboard.press("Enter");
+  await page.keyboard.insertText("Marijampolė");
+  await page.keyboard.press("ControlOrMeta+s");
+  const csvRowsEdited = csvLines.slice();
+  csvRowsEdited[1] = 'Žygimantas;Panevėžys;"Sakė: ""labas""; rytas"';
+  const csvEdited = csvRowsEdited.join("\r\n") + "\r\nJonas;Marijampolė;\r\n";
+  await diskIs(csvFile, csvEdited);
+  await assertEventually(async () => (await textStatus()).startsWith("All changes saved"), "CSV save did not finish");
+  // Row and column operations come from the context menu and are single undo steps.
+  await cell(1, 1).click({ button: "right" });
+  const menu = page.getByRole("menu", { name: "Actions for cell B2", exact: true });
+  await menu.waitFor();
+  await menu.getByRole("menuitem", { name: "Insert column right", exact: true }).click();
+  assert.equal(await footer(), "5 rows × 4 columns");
+  await page.keyboard.press("ControlOrMeta+z");
+  await assertEventually(async () => await footer() === "5 rows × 3 columns", "undo did not remove the inserted column");
+  await grid().getByRole("rowheader", { name: "3", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Delete row", exact: true }).click();
+  assert.equal(await footer(), "4 rows × 3 columns");
+  await page.keyboard.press("ControlOrMeta+z");
+  await assertEventually(async () => await footer() === "5 rows × 3 columns", "undo did not restore the deleted row");
+  assert.equal(await cellText(2, 2), "Pirma eilutė antra eilutė", "line breaks show as spaces in the cell");
+  await page.keyboard.press("Delete");
+  assert.equal(await cellText(2, 2), "", "Delete clears the active cell");
+  await page.keyboard.press("ControlOrMeta+z");
+  await assertEventually(async () => (await cellText(2, 2)).startsWith("Pirma"), "undo did not restore the cleared cell");
+  // Source mode shows the same text; the delimiter and CRLF stay.
+  await page.getByRole("button", { name: "Source", exact: true }).click();
+  const csvSource = page.getByRole("textbox", { name: "CSV source", exact: true });
+  await csvSource.waitFor();
+  assert.equal(await csvSource.locator(".cm-line").evaluateAll(lines => lines.map(line => line.textContent).join("\n")), csvEdited.replaceAll("\r\n", "\n"));
+  await page.getByRole("button", { name: "Table", exact: true }).click();
+  await grid().waitFor();
+  // Dark appearance.
+  await useTheme("dark");
+  await cell(1, 1).click();
+  await page.screenshot({ path: path.join(shots, "content-csv-dark.png") });
+  await useTheme("light");
+  // Reopening reads the saved bytes back into the table.
+  await close("Kontaktai.csv");
+  await docs.getByRole("tab", { name: /Kontaktai.csv/ }).waitFor({ state: "detached" });
+  await open(csvFile);
+  await grid().waitFor();
+  assert.equal(await footer(), "5 rows × 3 columns");
+  assert.deepEqual([await cellText(1, 1), await cellText(4, 0), await cellText(4, 1)], ["Panevėžys", "Jonas", "Marijampolė"]);
+  await close("Kontaktai.csv");
+  await docs.getByRole("tab", { name: /Kontaktai.csv/ }).waitFor({ state: "detached" });
+
+  // An empty file is an empty grid with Add row; a long CSV renders only the visible rows.
+  const emptyCsv = path.join(temp, "Tuscias.csv"), bigCsv = path.join(temp, "Didelis.csv"), hugeCsv = path.join(temp, "Per-didelis.csv");
+  writeFileSync(emptyCsv, "");
+  await open(emptyCsv);
+  await page.getByText("This file is empty. Add a row to start.", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Add row", exact: true }).click();
+  assert.equal(await footer(), "1 row × 1 column");
+  await docs.getByRole("button", { name: /Close Tuscias.csv/ }).click();
+  await page.getByRole("dialog", { name: "Unsaved changes", exact: true }).getByRole("button", { name: "Discard", exact: true }).click();
+  await docs.getByRole("tab", { name: /Tuscias.csv/ }).waitFor({ state: "detached" });
+  // The delimiter is only pinned once a parse yields two columns: a first typed character must not decide it for good.
+  await open(emptyCsv);
+  await page.getByText("This file is empty. Add a row to start.", { exact: true }).waitFor();
+  const csvSourceBox = page.getByRole("textbox", { name: "CSV source", exact: true });
+  const setCsvSource = async text => {
+    await page.getByRole("button", { name: "Source", exact: true }).click();
+    await csvSourceBox.waitFor();
+    await csvSourceBox.focus();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.insertText(text);
+    await page.getByRole("button", { name: "Table", exact: true }).click();
+    await grid().waitFor();
+  };
+  await setCsvSource("a");
+  assert.equal(await footer(), "1 row × 1 column");
+  await setCsvSource("a;b\n1;2\n");
+  assert.equal(await footer(), "2 rows × 2 columns", "typing a;b after a first single-column text splits on ;");
+  assert.match(await textStatus(), /Delimiter: ;$/);
+  await setCsvSource("sep=|\nx|y|z\n");
+  assert.match(await textStatus(), /Delimiter: \|$/, "a sep= line keeps winning");
+  await docs.getByRole("button", { name: /Close Tuscias.csv/ }).click();
+  await page.getByRole("dialog", { name: "Unsaved changes", exact: true }).getByRole("button", { name: "Discard", exact: true }).click();
+  await docs.getByRole("tab", { name: /Tuscias.csv/ }).waitFor({ state: "detached" });
+  // Exported copies are friendly to Excel: CSV gets a BOM and the file's own endings, text keeps its endings and BOM state.
+  const exportCsv = path.join(temp, "Eksportas.csv"), exportTxt = path.join(temp, "Eksportas.txt");
+  const exportedCsv = path.join(temp, "Eksportuota.csv"), exportedTxt = path.join(temp, "Eksportuota.txt");
+  writeFileSync(exportCsv, 'Vardas;Miestas\r\nŽygimantas;"Šiauliai\r\nčia"\r\n');
+  writeFileSync(exportTxt, "Ąžuolas\r\nantra\r\n");
+  const exportTo = async (name, dialogName, button, destination) => {
+    await app.evaluate(({ dialog }, destination) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: destination }); }, destination);
+    await page.getByRole("button", { name: "File", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Export / Convert…", exact: true }).click();
+    const exporting = page.getByRole("dialog", { name: dialogName, exact: true });
+    await exporting.waitFor();
+    await exporting.getByRole("button", { name: button, exact: true }).click();
+    await exporting.waitFor({ state: "detached" });
+    await app.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => ({ canceled: true, filePath: undefined }); });
+    await close(name);
+    await docs.getByRole("tab", { name: new RegExp(name) }).waitFor({ state: "detached" });
+  };
+  await open(exportCsv); await grid().waitFor();
+  await exportTo("Eksportas.csv", "Export CSV", "Save CSV…", exportedCsv);
+  assert.ok(readFileSync(exportedCsv).equals(Buffer.from('﻿Vardas;Miestas\r\nŽygimantas;"Šiauliai\r\nčia"\r\n')), "CSV export: UTF-8 BOM, CRLF rows and in-cell CRLF");
+  await open(exportTxt); await textEditor().waitFor();
+  await exportTo("Eksportas.txt", "Export text", "Save text…", exportedTxt);
+  assert.ok(readFileSync(exportedTxt).equals(Buffer.from("Ąžuolas\r\nantra\r\n")), "text export: CRLF kept, no BOM added");
+  console.log("ok  CSV delimiter re-detects until two columns, and exported CSV/text copies keep their line endings (CSV with a BOM)");
+  writeFileSync(bigCsv, Array.from({ length: 100_000 }, (_, i) => `${i + 1};ąčęėįšųūž;"x, ${i}";${i * 3}`).join("\n") + "\n");
+  const started = Date.now();
+  await open(bigCsv);
+  await grid().waitFor();
+  assert.equal(await footer(), "100,000 rows × 4 columns");
+  assert.ok(await grid().locator('[role="gridcell"]').count() < 400, "only visible rows are rendered");
+  await cell(0, 0).click();
+  await page.keyboard.press("ControlOrMeta+ArrowDown");
+  await assertEventually(async () => await cellText(99_999, 0) === "100000", "Ctrl+Down did not reach the last row");
+  assert.ok(await grid().locator('[role="gridcell"]').count() < 400);
+  console.log(`ok  100k-row CSV opened and navigated in ${Date.now() - started} ms`);
+  // Printing builds 400k table cells; the old insertRow()/insertCell() build was quadratic and froze the page for minutes.
+  await page.evaluate(() => {
+    window.printed = null;
+    window.print = () => {
+      const rows = document.querySelector(".markdown-print table")?.rows;
+      window.printed = { count: rows?.length, first: rows?.[0].innerHTML, last: rows?.[rows.length - 1].innerHTML };
+    };
+  });
+  const printStarted = Date.now();
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Print…", exact: true }).click();
+  await page.waitForFunction(() => window.printed, null, { timeout: 30_000 });
+  const printMs = Date.now() - printStarted;
+  assert.deepEqual(await page.evaluate(() => window.printed), { count: 100_000,
+    first: "<td>1</td><td>ąčęėįšųūž</td><td>x, 0</td><td>0</td>", last: "<td>100000</td><td>ąčęėįšųūž</td><td>x, 99999</td><td>299997</td>" });
+  assert.ok(printMs < 10_000, `printing a 100k-row CSV took ${printMs} ms`);
+  console.log(`ok  100k-row CSV prints as a table in ${printMs} ms`);
+  await close("Didelis.csv");
+  await docs.getByRole("tab", { name: /Didelis.csv/ }).waitFor({ state: "detached" });
+  writeFileSync(hugeCsv, Buffer.alloc(5 * 1024 * 1024 + 1, 0x61));
+  const csvErrors = await app.evaluate(() => globalThis.contentOpenErrors.length);
+  await open(hugeCsv, false);
+  await assertEventually(async () => (await app.evaluate(() => globalThis.contentOpenErrors.length)) > csvErrors, "oversized CSV did not report an error");
+  assert.match(await app.evaluate(() => globalThis.contentOpenErrors.at(-1).detail), /CSV is limited to 5 MB/);
+  console.log("ok  native .csv opens as an editable table, edits through undo/redo, saves only the edited bytes, and handles empty, 100k-row and oversized files");
+
   const png = await app.evaluate(({ nativeImage }) => nativeImage.createFromBitmap(Buffer.alloc(800 * 600 * 4, 190), { width: 800, height: 600 }).toPNG().toString("base64"));
   for (let i = 1; i <= 20; i++) writeFileSync(path.join(photos, `image${i}.png`), Buffer.from(png, "base64"));
   mkdirSync(path.join(photos, "Nested"));

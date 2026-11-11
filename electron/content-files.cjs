@@ -7,10 +7,19 @@ const { checkDiskPath, readRegular, sameFile } = require("./document-files.cjs")
 const { createSaveTemp, copySaveTemp } = require("./save-metadata.cjs");
 
 const MARKDOWN_FILE = /\.(md|markdown)$/i;
+const TEXT_FILE = /\.txt$/i;
+const CSV_FILE = /\.csv$/i;
+// .xls is routed here too, so the reader can tell the user to save it as .xlsx.
+const XLSX_FILE = /\.xlsx?$/i;
 const IMAGE_FILE = /\.(jpe?g|png|webp|gif|bmp|avif)$/i;
 const MAX_MARKDOWN_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 100 * 1024 * 1024;
 const MAX_IMAGE_PIXELS = 80_000_000;
+const ENCODING_LABELS = { "utf-8": "UTF-8", "utf-16le": "UTF-16 LE", "utf-16be": "UTF-16 BE", "windows-1252": "Windows-1252", "windows-1257": "Windows-1257" };
+const NOT_TEXT = "This file isn't plain text or uses an encoding Doko can't read.";
+// `txt` and `csv` records are plain text for I/O (same encodings); a CSV table is only a view of that text.
+const kindName = format => format === "text" ? "Text" : format === "csv" ? "CSV" : "Markdown";
+const fileFormat = file => TEXT_FILE.test(file) ? "text" : CSV_FILE.test(file) ? "csv" : undefined;
 const hash = data => crypto.createHash("sha256").update(data).digest("hex");
 const conflict = () => Object.assign(new Error("The file changed on disk. Reload it or save a copy."), { conflict: true });
 const compareNames = (a, b) => a.localeCompare(b, "en", { numeric: true, sensitivity: "base" }) || (a < b ? -1 : a > b ? 1 : 0);
@@ -25,9 +34,9 @@ async function regular(file) {
   return resolved;
 }
 
-async function snapshot(file) {
+async function snapshot(file, name = "Markdown") {
   const before = await fsp.lstat(file, { bigint: true });
-  if (before.size > MAX_MARKDOWN_BYTES) throw new Error("Markdown is limited to 5 MB.");
+  if (before.size > MAX_MARKDOWN_BYTES) throw new Error(`${name} is limited to 5 MB.`);
   const data = await readRegular(file, MAX_MARKDOWN_BYTES);
   const after = await fsp.lstat(file, { bigint: true });
   if (!sameFile(before, after) || before.ctimeNs !== after.ctimeNs) throw conflict();
@@ -41,7 +50,89 @@ function decodeMarkdown(data) {
   if (text.includes("\0")) throw new Error("Markdown must be a UTF-8 text file.");
   const bom = data.length >= 3 && data.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf]));
   const eol = text.match(/\r\n|\n|\r/)?.[0] ?? "\n";
-  return { text: text.replace(/\r\n|\r/g, "\n"), bom, eol };
+  return { text: text.replace(/\r\n|\r/g, "\n"), bom, eol, encoding: "utf-8" };
+}
+
+// CSV line endings: rows end with `eol`, line breaks inside quoted cells use `cellEol`, each the dominant one of its kind.
+// A cell break defaults to "\n" (what Excel writes); rows default to the cell ending. Mixed row endings normalize to
+// the dominant one (accepted). Keep in sync with csvEndings in src/content-source.ts.
+// shortcut: a quote in the middle of a cell also toggles, so malformed quotes can misclassify later breaks; upgrade if real files show it.
+function csvEndings(raw) {
+  const counts = [{}, {}];
+  let inside = 0;
+  for (const [token] of raw.matchAll(/"|\r\n|\n|\r/g)) {
+    if (token === '"') inside ^= 1; else counts[inside][token] = (counts[inside][token] ?? 0) + 1;
+  }
+  const top = count => ["\r\n", "\n", "\r"].reduce((best, ending) => (count[ending] ?? 0) > (count[best] ?? 0) ? ending : best, "");
+  const cellEol = top(counts[1]) || "\n";
+  return { eol: top(counts[0]) || cellEol, cellEol };
+}
+// Writes the editor's "\n" back as the file's own endings. Keep in sync with csvRestore in src/content-source.ts.
+function csvRestore(text, eol, cellEol) {
+  let inside = false;
+  return text.replace(/"|\n/g, char => char === '"' ? ((inside = !inside), char) : inside ? cellEol : eol);
+}
+
+// Plain text: UTF-8 or BOM-marked UTF-16, else the legacy single-byte page of the user's locale.
+function decodeText(data, locale, csv = false) {
+  const strict = (bytes, label) => {
+    try { return new TextDecoder(label, { fatal: true }).decode(bytes); } catch { throw new Error(NOT_TEXT); }
+  };
+  let text, bom = false, encoding = "utf-8";
+  const utf16 = data[0] === 0xff && data[1] === 0xfe ? "utf-16le" : data[0] === 0xfe && data[1] === 0xff ? "utf-16be" : null;
+  if (utf16) {
+    if (data.length % 2) throw new Error(NOT_TEXT);
+    // Swap big-endian bytes ourselves so decoding does not depend on ICU's UTF-16BE support.
+    const body = Buffer.from(data.subarray(2));
+    text = strict(utf16 === "utf-16be" ? body.swap16() : body, "utf-16le");
+    bom = true; encoding = utf16;
+  } else {
+    if (data.includes(0)) throw new Error(NOT_TEXT);
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(data);
+      bom = data.length >= 3 && data[0] === 0xef && data[1] === 0xbb && data[2] === 0xbf;
+    } catch {
+      encoding = /^(lt|lv|et)(?![a-z])/i.test(locale) ? "windows-1257" : "windows-1252";
+      text = new TextDecoder(encoding).decode(data);
+      if (text.includes("\ufffd")) throw new Error(NOT_TEXT);
+    }
+  }
+  if (text.includes("\0")) throw new Error(NOT_TEXT);
+  const endings = csv ? csvEndings(text) : { eol: text.match(/\r\n|\n|\r/)?.[0] ?? "\n" };
+  return { text: text.replace(/\r\n|\r/g, "\n"), bom, ...endings, encoding };
+}
+
+// The reverse of a single-byte page comes from the decoder itself, so no table is shipped.
+const legacyTables = new Map();
+function legacyTable(encoding) {
+  let table = legacyTables.get(encoding);
+  if (!table) {
+    table = new Map();
+    const decoder = new TextDecoder(encoding);
+    for (let byte = 0; byte < 256; byte++) {
+      const char = decoder.decode(Uint8Array.of(byte));
+      if (char !== "\ufffd") table.set(char, byte);
+    }
+    legacyTables.set(encoding, table);
+  }
+  return table;
+}
+
+// Throws before anything is written when a character does not exist in the file's encoding.
+function encodeText(text, encoding, bom) {
+  if (encoding === "utf-8") return Buffer.from((bom ? "\ufeff" : "") + text, "utf8");
+  if (encoding.startsWith("utf-16")) {
+    const data = Buffer.from("\ufeff" + text, "utf16le");
+    return encoding === "utf-16be" ? data.swap16() : data;
+  }
+  const table = legacyTable(encoding), data = Buffer.alloc(text.length);
+  let length = 0;
+  for (const char of text) {
+    const byte = table.get(char);
+    if (byte === undefined) throw Object.assign(new Error(`Some characters can't be saved as ${ENCODING_LABELS[encoding]}, such as “${char}”. Nothing was saved.`), { unencodable: true });
+    data[length++] = byte;
+  }
+  return data.subarray(0, length);
 }
 
 // Inspect dimensions before handing compressed originals to Chromium's image decoder.
@@ -115,7 +206,7 @@ function imageInfo(data, name) {
   return { width, height, mime: ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : `image/${ext.slice(1)}` };
 }
 
-function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTrashAccess, showItemInFolder } = {}) {
+function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTrashAccess, showItemInFolder, readWorkbook, getLocale = () => "en" } = {}) {
   const records = new Map();
   const identities = new Map();
   const opening = new Map();
@@ -124,7 +215,11 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
     if (!record || kind && record.kind !== kind) throw new Error("This document is no longer open.");
     return record;
   };
-  const document = record => ({ kind: "markdown", id: record.id, name: path.basename(record.file), text: record.text });
+  // Text and CSV documents carry their BOM and line endings (absent when default), so exported copies can keep them.
+  const document = record => ({ kind: "markdown", id: record.id, name: path.basename(record.file), text: record.text,
+    ...(record.format && { format: record.format, encoding: ENCODING_LABELS[record.encoding],
+      ...(record.bom && { bom: true }), ...(record.eol !== "\n" && { eol: record.eol }), ...(record.cellEol && record.cellEol !== "\n" && { cellEol: record.cellEol }) }) });
+  const decode = (record, data) => record.format ? decodeText(data, getLocale(), record.format === "csv") : decodeMarkdown(data);
   const remember = record => {
     record.id = crypto.randomUUID(); records.set(record.id, record); identities.set(record.key, record.id); return record;
   };
@@ -132,38 +227,60 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
     const stat = await fsp.lstat(record.root, { bigint: true });
     if (!stat.isDirectory() || !sameFile(stat, record.directory)) throw new Error("The document folder changed. Reopen the file.");
   };
-  const gallery = async (record, selected) => {
+  // `chosen` is a file the user opened; only those may be shown when the folder itself can't be listed.
+  const gallery = async (record, selected, chosen) => {
     await checkRoot(record);
-    record.files = (await fsp.readdir(record.root, { withFileTypes: true })).filter(entry => entry.isFile() && IMAGE_FILE.test(entry.name)).map(entry => entry.name).sort(compareNames);
+    const entries = await fsp.readdir(record.root, { withFileTypes: true }).catch(error => {
+      // macOS app containers (e.g. Outlook attachments) allow reading the opened file but not listing its folder.
+      if (error.code !== "EPERM" && error.code !== "EACCES") throw error;
+    });
+    if (entries) record.files = entries.filter(entry => entry.isFile() && IMAGE_FILE.test(entry.name)).map(entry => entry.name).sort(compareNames);
+    else {
+      if (chosen) await fsp.open(path.join(record.root, chosen), "r").then(handle => handle.close(), error => {
+        if (error.code !== "EPERM" && error.code !== "EACCES") throw error;
+        throw new Error("macOS doesn't allow Doko to read this file where it is. Save it to a folder such as Downloads, then open it from there.");
+      });
+      const known = [...new Set([...(record.files ?? []), ...(chosen ? [chosen] : [])])];
+      const present = await Promise.all(known.map(name => fsp.lstat(path.join(record.root, name)).then(stat => stat.isFile(), () => false)));
+      record.files = known.filter((_, index) => present[index]).sort(compareNames);
+    }
     return { kind: "gallery", id: record.id, name: path.basename(record.root), files: record.files,
       selected: record.files.includes(selected) ? selected : record.files[0] ?? "" };
   };
   const loadMarkdown = async record => {
     await checkRoot(record);
-    const source = await snapshot(record.file);
-    Object.assign(record, decodeMarkdown(source.data), { source });
+    const source = await snapshot(record.file, kindName(record.format));
+    Object.assign(record, decode(record, source.data), { source });
     return document(record);
   };
+  // A workbook is a read-only snapshot: nothing stays registered, so opening it again shows the file as it is now.
+  async function openWorkbook(file) {
+    if (typeof file !== "string" || !path.isAbsolute(file)) throw new Error("Choose a local file.");
+    if (!readWorkbook) throw new Error("Opening Excel workbooks is unavailable.");
+    const result = await readWorkbook(file).catch(error => { throw new Error(error.userMessage ?? "The workbook may be damaged or too complex to open."); });
+    return { kind: "workbook", name: path.basename(file), ...result };
+  }
   async function open(file) {
-    if (!MARKDOWN_FILE.test(file) && !IMAGE_FILE.test(file)) throw new Error("Choose a Markdown file or supported image.");
+    if (XLSX_FILE.test(file)) return openWorkbook(file);
+    if (!MARKDOWN_FILE.test(file) && !TEXT_FILE.test(file) && !CSV_FILE.test(file) && !IMAGE_FILE.test(file)) throw new Error("Choose a Markdown file, text file, CSV file, or supported image.");
     const resolved = await regular(file);
-    const root = path.dirname(resolved), markdown = MARKDOWN_FILE.test(resolved);
+    const root = path.dirname(resolved), markdown = MARKDOWN_FILE.test(resolved) || TEXT_FILE.test(resolved) || CSV_FILE.test(resolved);
     const key = `${markdown ? "markdown" : "gallery"}:${markdown ? resolved : root}`;
     const existing = identities.get(key);
-    if (existing) return markdown ? document(get(existing)) : gallery(get(existing), path.basename(resolved));
+    if (existing) return markdown ? document(get(existing)) : gallery(get(existing), path.basename(resolved), path.basename(resolved));
     if (opening.has(key)) {
       const result = await opening.get(key);
-      return markdown ? result : gallery(get(result.id), path.basename(resolved));
+      return markdown ? result : gallery(get(result.id), path.basename(resolved), path.basename(resolved));
     }
     const loading = (async () => {
-      const record = { kind: markdown ? "markdown" : "gallery", file: resolved, root, key, directory: await fsp.lstat(root, { bigint: true }) };
+      const record = { kind: markdown ? "markdown" : "gallery", format: fileFormat(resolved), file: resolved, root, key, directory: await fsp.lstat(root, { bigint: true }) };
       // Register only after a successful read, so failed opens cannot retain filesystem access.
       if (markdown) {
-        const source = await snapshot(resolved);
-        Object.assign(record, decodeMarkdown(source.data), { source });
+        const source = await snapshot(resolved, kindName(record.format));
+        Object.assign(record, decode(record, source.data), { source });
         remember(record); return document(record);
       }
-      const result = await gallery(record, path.basename(resolved));
+      const result = await gallery(record, path.basename(resolved), path.basename(resolved));
       remember(record); return { ...result, id: record.id };
     })();
     opening.set(key, loading);
@@ -236,22 +353,29 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
     showItemInFolder(file);
     return true;
   }
-  async function save(id, text, copy = false) {
+  // `utf8` re-saves a text file as UTF-8 after the user accepts that its own encoding cannot hold some characters.
+  async function save(id, text, copy = false, utf8 = false) {
     let record, acquired = false;
     try {
       record = get(id, "markdown");
       if (record.busy) return { error: "This document is still saving." };
-      if (typeof text !== "string" || typeof copy !== "boolean") throw new Error("Invalid Markdown save request.");
-      if (text.includes("\0")) throw new Error("Markdown must be a UTF-8 text file.");
-      if (Buffer.byteLength(text, "utf8") > MAX_MARKDOWN_BYTES) throw new Error("Markdown is limited to 5 MB.");
+      const name = kindName(record.format);
+      if (typeof text !== "string" || typeof copy !== "boolean" || typeof utf8 !== "boolean") throw new Error(`Invalid ${name} save request.`);
+      if (text.includes("\0")) throw new Error(record.format ? `${name} can't contain null characters.` : "Markdown must be a UTF-8 text file.");
+      // Cheap bound before encoding: every supported encoding needs at least one byte per character.
+      if (text.length > MAX_MARKDOWN_BYTES) throw new Error(`${name} is limited to 5 MB.`);
+      const encoding = utf8 ? "utf-8" : record.encoding;
+      const normalized = text.replace(/\r\n|\r/g, "\n");
+      const data = encodeText(record.format === "csv" ? csvRestore(normalized, record.eol, record.cellEol) : normalized.replace(/\n/g, record.eol), encoding, record.bom);
+      if (data.length > MAX_MARKDOWN_BYTES) throw new Error(`${name} is limited to 5 MB.`);
       record.busy = true;
       acquired = true;
       await checkRoot(record);
       let file = record.file;
       if (copy) {
-        file = await chooseSavePath?.(path.basename(record.file));
+        file = await chooseSavePath?.(path.basename(record.file), record.format);
         if (!file) return { cancelled: true };
-        if (!path.isAbsolute(file) || !MARKDOWN_FILE.test(file)) throw new Error("Save the copy with a .md or .markdown extension.");
+        if (!path.isAbsolute(file) || !(record.format === "text" ? TEXT_FILE : record.format === "csv" ? CSV_FILE : MARKDOWN_FILE).test(file)) throw new Error(record.format === "text" ? "Save the copy with a .txt extension." : record.format === "csv" ? "Save the copy with a .csv extension." : "Save the copy with a .md or .markdown extension.");
         checkDiskPath(file);
         file = path.join(await fsp.realpath(path.dirname(file)), path.basename(file));
         if (file === record.file) throw new Error("Choose a different file name to save a copy.");
@@ -259,14 +383,11 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
         if (other && other !== record.id) throw new Error("That file is already open. Choose another name.");
       }
       let expected;
-      try { expected = await snapshot(file); }
+      try { expected = await snapshot(file, name); }
       catch (error) { if (!copy && error.code === "ENOENT") throw conflict(); if (!copy || error.code !== "ENOENT") throw error; }
       // Metadata may change between saves without a content edit (for example, cloud sync).
       if (!copy && (!sameFile(expected.stat, record.source.stat) || expected.digest !== record.source.digest)) throw conflict();
       if (expected && !(expected.stat.mode & 0o222n)) throw new Error("This file is read-only. Save a copy in another folder.");
-      const normalized = text.replace(/\r\n|\r/g, "\n");
-      const data = Buffer.from((record.bom ? "\ufeff" : "") + normalized.replace(/\n/g, record.eol), "utf8");
-      if (data.length > MAX_MARKDOWN_BYTES) throw new Error("Markdown is limited to 5 MB.");
       const root = path.dirname(file), directory = await fsp.lstat(root, { bigint: true });
       if (!directory.isDirectory() || !(directory.mode & 0o222n)) throw new Error("This folder is read-only. Save a copy elsewhere.");
       const pending = await createSaveTemp(root, expected && { file, stat: expected.stat });
@@ -276,7 +397,7 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
         await handle.writeFile(data); await pending.verify(); await handle.sync(); await handle.close(); handle = null;
         if (!sameFile(directory, await fsp.lstat(root, { bigint: true }))) throw conflict();
         if (expected) {
-          const current = await snapshot(file);
+          const current = await snapshot(file, name);
           if (!sameFile(expected.stat, current.stat) || expected.digest !== current.digest || expected.stat.ctimeNs !== current.stat.ctimeNs) throw conflict();
         } else {
           try { await fsp.lstat(file); throw conflict(); } catch (error) { if (error.code !== "ENOENT") throw error; }
@@ -290,14 +411,14 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
           }
         }
       } finally { await handle?.close(); await pending.cleanup(); }
-      const source = await snapshot(file);
+      const source = await snapshot(file, name);
       if (source.digest !== hash(data)) throw conflict();
       identities.delete(record.key);
-      Object.assign(record, { file, root, directory, key: `markdown:${file}`, source, text: normalized });
+      Object.assign(record, { file, root, directory, key: `markdown:${file}`, source, text: normalized, encoding });
       identities.set(record.key, record.id);
       return { ok: true, document: document(record) };
     } catch (error) {
-      return error.conflict ? { conflict: true } : { error: error.code === "EACCES" || error.code === "EPERM" || error.code === "EROFS" ? "Couldn't write this file. Save a copy in another folder." : error.message };
+      return error.conflict ? { conflict: true } : error.unencodable ? { unencodable: true, error: error.message } : { error: error.code === "EACCES" || error.code === "EPERM" || error.code === "EROFS" ? "Couldn't write this file. Save a copy in another folder." : error.message };
     } finally { if (acquired) record.busy = false; }
   }
   return { open, save, trash, reveal, asset, image: (id, name) => asset(id, name, true),
@@ -306,4 +427,4 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
     clear() { records.clear(); identities.clear(); } };
 }
 
-module.exports = { createContentFiles, imageInfo, MARKDOWN_FILE, IMAGE_FILE, MAX_MARKDOWN_BYTES, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS };
+module.exports = { createContentFiles, imageInfo, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, XLSX_FILE, IMAGE_FILE, MAX_MARKDOWN_BYTES, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS };

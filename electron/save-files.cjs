@@ -4,7 +4,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { checkDiskPath, readRegular, sameFile, MAX_DOCUMENT_BYTES } = require('./document-files.cjs');
 const { createSaveTemp, copySaveTemp } = require('./save-metadata.cjs');
-const FORMATS = new Set(['pdf', 'png', 'jpg', 'webp', 'html', 'txt', 'md', 'json', 'zip']);
+const FORMATS = new Set(['pdf', 'png', 'jpg', 'webp', 'html', 'txt', 'csv', 'md', 'json', 'zip']);
 const conflict = () => Object.assign(new Error('The file changed on disk. Save a copy instead.'), { conflict: true });
 const digest = data => crypto.createHash('sha256').update(data).digest('hex');
 async function snapshot(file) {
@@ -30,7 +30,7 @@ function createSaveFiles({ chooseSavePath }) {
         if (!request || typeof request !== 'object' || !FORMATS.has(request.format)
           || typeof request.name !== 'string' || !request.name || request.name.length > 240
           || /[/\\\x00-\x1f]/.test(request.name) || !request.name.toLowerCase().endsWith('.' + request.format)
-          || !(request.data instanceof Uint8Array) || (!request.data.byteLength && !['txt', 'md'].includes(request.format)) || request.data.byteLength > MAX_DOCUMENT_BYTES
+          || !(request.data instanceof Uint8Array) || (!request.data.byteLength && !['txt', 'csv', 'md'].includes(request.format)) || request.data.byteLength > MAX_DOCUMENT_BYTES
           || request.saveAs !== undefined && typeof request.saveAs !== 'boolean'
           || request.id !== undefined && typeof request.id !== 'string') throw new Error('Invalid file save request.');
         const submittedDigest = digest(request.data);

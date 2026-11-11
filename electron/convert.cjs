@@ -239,4 +239,29 @@ function openWord(file, log = () => {}) {
   return result;
 }
 
-module.exports = { WORD_FILE, openWord };
+// An Excel workbook is read, never converted: xlsx-worker.cjs turns a private, size-bounded snapshot of the file into
+// tables. Reads wait in line, so selecting many workbooks does not start as many memory-hungry workers at once.
+async function readWorkbook(file, log) {
+  const dir = await fs.promises.mkdtemp(path.join(app.getPath("userData"), "xlsx-tmp-"));
+  try {
+    if (process.platform === "darwin") await run("/bin/chmod", ["-N", dir]);
+    const source = path.join(dir, "source.xlsx"), output = path.join(dir, "sheets.json");
+    await stageWord(file, source);
+    await runWorker("xlsx-worker.cjs", "Doko Excel reader", { source, output });
+    return JSON.parse(await readRegular(output, MAX_HTML_BYTES));
+  } catch (error) {
+    if (!error.userMessage) log(error.stack || String(error));
+    throw error;
+  } finally {
+    await fs.promises.rm(dir, { recursive: true, force: true }).catch((error) => log(error.message));
+  }
+}
+
+let workbookQueue = Promise.resolve();
+function openWorkbook(file, log = () => {}) {
+  const result = workbookQueue.then(() => readWorkbook(file, log));
+  workbookQueue = result.then(() => {}, () => {});
+  return result;
+}
+
+module.exports = { WORD_FILE, openWord, openWorkbook };

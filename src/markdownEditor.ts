@@ -16,3 +16,5 @@ export const highlighting = HighlightStyle.define([
   { tag: [tags.comment, tags.meta], class: "md-token-comment" },
   { tag: tags.monospace, class: "md-token-code" },
 ]);
+// The CSV table edits this editor's text, so its undo history serves the table too.
+export { undo, redo, isolateHistory } from "@codemirror/commands";

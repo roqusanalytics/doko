@@ -11,10 +11,10 @@ const { captureWebpage } = require("./webpage.cjs");
 const { guardSession, resolveDestination } = require("./network.cjs");
 const { safePdfName } = require("./filenames.cjs");
 const { csp } = require("./csp.cjs");
-const { WORD_FILE, openWord } = require("./convert.cjs");
+const { WORD_FILE, openWord, openWorkbook } = require("./convert.cjs");
 const { registerPrinting } = require("./printing.cjs");
 const { MAX_DOCUMENT_BYTES, checkDiskPath, readRegular } = require("./document-files.cjs");
-const { createContentFiles, MARKDOWN_FILE, IMAGE_FILE } = require("./content-files.cjs");
+const { createContentFiles, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, XLSX_FILE, IMAGE_FILE } = require("./content-files.cjs");
 
 const { createSaveFiles } = require("./save-files.cjs");
 const { fileMenuTemplate } = require("./file-menu.cjs");
@@ -37,9 +37,15 @@ const contentFiles = createContentFiles({
     return result.canceled ? null : result.filePaths[0];
   } : undefined,
   trashItem: file => shell.trashItem(file), showItemInFolder: file => shell.showItemInFolder(file),
-  chooseSavePath: async name => {
-  const result = await dialog.showSaveDialog(win, { title: "Save Markdown copy", defaultPath: name,
-    filters: [{ name: "Markdown", extensions: ["md", "markdown"] }], properties: ["showOverwriteConfirmation", "createDirectory"] });
+  // Plain-text encodings depend on the system language (see decodeText in content-files.cjs).
+  getLocale: () => app.getLocale(),
+  readWorkbook: file => openWorkbook(file, (msg) => logConvert(`${file}: ${msg}`)),
+  chooseSavePath: async (name, format) => {
+  const [title, filter] = format === "text" ? ["Save text copy", { name: "Text", extensions: ["txt"] }]
+    : format === "csv" ? ["Save CSV copy", { name: "CSV", extensions: ["csv"] }]
+    : ["Save Markdown copy", { name: "Markdown", extensions: ["md", "markdown"] }];
+  const result = await dialog.showSaveDialog(win, { title, defaultPath: name,
+    filters: [filter], properties: ["showOverwriteConfirmation", "createDirectory"] });
   return result.canceled ? null : result.filePath;
 } });
 
@@ -54,7 +60,7 @@ function updateFileMenu() {
     send: (channel, command) => win?.webContents.send(channel, command), open: async () => {
       if (!win) return;
       const result = await dialog.showOpenDialog(win, { title: "Open", properties: ["openFile", "multiSelections"],
-        filters: [{ name: "Documents and Photos", extensions: ["pdf", "doc", "docx", "md", "markdown", "jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"] }] });
+        filters: [{ name: "Documents and Photos", extensions: ["pdf", "doc", "docx", "xlsx", "xls", "md", "markdown", "txt", "csv", "jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"] }] });
       if (!result.canceled) await sendFiles(result.filePaths);
     } })));
 }
@@ -180,7 +186,7 @@ function applyWindowTransparency() {
   return enabled;
 }
 nativeTheme.on("updated", () => applyWindowTransparency());
-const OPENABLE = /\.(pdf|docx?|md|markdown|jpe?g|png|webp|gif|bmp|avif)$/i;
+const OPENABLE = /\.(pdf|docx?|xlsx?|md|markdown|txt|csv|jpe?g|png|webp|gif|bmp|avif)$/i;
 const pendingFiles = filesFromArgs(process.argv);
 let rendererReady = false;
 
@@ -216,8 +222,9 @@ async function sendFile(file) {
   const target = win;
   if (!file || !target) return;
   if (WORD_FILE.test(file)) return sendWordFile(file, target);
+  if (XLSX_FILE.test(file)) return sendWorkbookFile(file, target);
   try {
-    if (MARKDOWN_FILE.test(file) || IMAGE_FILE.test(file)) {
+    if (MARKDOWN_FILE.test(file) || TEXT_FILE.test(file) || CSV_FILE.test(file) || IMAGE_FILE.test(file)) {
       const document = await contentFiles.open(file);
       if (!target.isDestroyed()) target.webContents.send("folio:open-content", document);
       return;
@@ -242,6 +249,19 @@ async function sendWordFile(file, target) {
   } catch (error) {
     logConvert(`${file}: ${error?.stack || error}`);
     send("folio:open-failed", { token, message: `Couldn't convert “${original}” to PDF. ${error?.userMessage ?? ""}`.trim() });
+  }
+}
+
+// A workbook opens in a tab of its own that shows "Opening…" while the reader works, then fills in or shows the reason.
+async function sendWorkbookFile(file, target) {
+  const send = (channel, ...args) => { if (!target.isDestroyed()) target.webContents.send(channel, ...args); };
+  const original = path.basename(file);
+  const token = crypto.randomUUID();
+  send("folio:converting", { name: original, token });
+  try {
+    send("folio:open-content", await contentFiles.open(file), token);
+  } catch (error) {
+    send("folio:open-failed", { token, message: `Couldn't open “${original}”. ${error?.message ?? ""}`.trim() });
   }
 }
 
@@ -723,13 +743,13 @@ if (!app.requestSingleInstanceLock()) {
     updateFileMenu();
     handle("folio:save-file", (_event, request) => saveFiles.save(request));
     on("folio:file-menu", (_event, state) => {
-      if (!state || !["none", "pdf", "photo", "markdown"].includes(state.kind) || typeof state.busy !== "boolean") return;
+      if (!state || !["none", "pdf", "photo", "markdown", "workbook"].includes(state.kind) || typeof state.busy !== "boolean") return;
       fileMenuState = { kind: state.kind, busy: state.busy }; updateFileMenu();
     });
     ai.register(handle, (channel, payload) => win?.webContents.send(channel, payload));
     registerPrinting(handle, () => win);
     handle("folio:content-open", (_event, file) => contentFiles.open(file));
-    handle("folio:content-save", (_event, id, text, copy) => contentFiles.save(id, text, copy));
+    handle("folio:content-save", (_event, id, text, copy, utf8) => contentFiles.save(id, text, copy, utf8));
     handle("folio:content-reload", (_event, id) => contentFiles.reload(id));
     handle("folio:content-refresh", (_event, id, selected) => contentFiles.refresh(id, selected));
     handle("folio:content-image", (_event, id, name) => contentFiles.image(id, name));

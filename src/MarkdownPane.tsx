@@ -3,18 +3,40 @@ import type { ReactNode, Ref } from "react";
 import type { Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { markdownSections } from "./markdownSections";
+import { deleteColumn, deleteRow, insertColumn, insertRow, parseCsv, setCell } from "./csv";
+import type { CsvChange, CsvTable } from "./csv";
+import TableView from "./TableView";
+import type { TableEdit, TableViewHandle } from "./TableView";
 import "./markdown-pane.css";
 
-export interface MarkdownEditorHandle { focus(): void }
+export interface MarkdownEditorHandle {
+  focus(): void;
+  /** Commits a table cell edit in progress, so the text passed to a save is complete. */
+  flush(): void;
+}
 
-export default function MarkdownPane({ text, onChange, renderPreview, editorRef }: {
+const NO_SECTIONS: ReturnType<typeof markdownSections> = [];
+
+// Plain text (`format` "text") is only the editor: no preview, mode bar, Markdown highlighting or section rail.
+// A CSV file (`format` "csv") is the same editor plus an editable table of its text: "view" mode is the table. The editor
+// exists from the start, hidden in table mode, because every table edit is a transaction on it (and so is undo/redo).
+export default function MarkdownPane({ text, onChange, renderPreview, editorRef, format, csv, onTableVisible }: {
   text: string;
   onChange: (text: string) => void;
-  renderPreview: (headingIds: readonly string[]) => ReactNode;
+  renderPreview?: (headingIds: readonly string[]) => ReactNode;
   editorRef: Ref<MarkdownEditorHandle>;
+  format?: "text" | "csv";
+  /** `text` parsed with the pinned delimiter; required for CSV. */
+  csv?: CsvTable | null;
+  /** Tells the parent whether the CSV table is on screen, so it can skip parsing while only the source is shown. */
+  onTableVisible?: (visible: boolean) => void;
 }) {
-  const [mode, setMode] = useState<"view" | "source">("view");
-  const [requested, setRequested] = useState(false);
+  const plain = format === "text";
+  const sheet = format === "csv";
+  const [mode, setMode] = useState<"view" | "source">(plain ? "source" : "view");
+  const [requested, setRequested] = useState(plain || sheet);
+  const tableHandle = useRef<TableViewHandle>(null);
+  useLayoutEffect(() => { if (sheet) onTableVisible?.(mode === "view"); }, [sheet, mode]);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -31,12 +53,13 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef 
   currentMode.current = mode;
   const change = useRef(onChange);
   change.current = onChange;
-  const sections = useMemo(() => markdownSections(text), [text]);
+  const sections = useMemo(() => plain || sheet ? NO_SECTIONS : markdownSections(text), [text, plain, sheet]);
   const latestSections = useRef(sections);
   latestSections.current = sections;
   const headingIds = useMemo(() => sections.map(section => section.id), [sections]);
 
   const sourceSection = (view: EditorView) => {
+    if (plain || sheet) return;
     view.requestMeasure({
       key: "markdown-section",
       read(current) {
@@ -73,10 +96,12 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef 
       const { basicSetup, markdown, pythonLanguage, syntaxHighlighting, highlighting, EditorState, EditorView } = loaded;
       extensions.current = [
       basicSetup,
-      markdown({ codeLanguages: info => /^(python|py)(?:\s|$)/i.test(info) ? pythonLanguage : null }),
-      syntaxHighlighting(highlighting),
+      ...(sheet ? [] : plain ? [EditorView.lineWrapping] : [
+        markdown({ codeLanguages: info => /^(python|py)(?:\s|$)/i.test(info) ? pythonLanguage : null }),
+        syntaxHighlighting(highlighting),
+      ]),
       EditorState.tabSize.of(2),
-      EditorView.contentAttributes.of({ "aria-label": "Markdown source", spellcheck: "false" }),
+      EditorView.contentAttributes.of({ "aria-label": plain ? "Text document" : sheet ? "CSV source" : "Markdown source", spellcheck: "false" }),
       EditorView.updateListener.of(update => {
         if (update.docChanged) change.current(update.state.doc.toString());
         if (update.viewportChanged || update.docChanged) sourceSection(update.view);
@@ -107,8 +132,39 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef 
   }, [mode, sections]);
 
   useImperativeHandle(editorRef, () => ({
-    focus() { if (mode === "source") editor.current?.focus(); else rendered.current?.focus(); },
-  }), [mode]);
+    focus() { if (mode === "source") editor.current?.focus(); else if (sheet) tableHandle.current?.focus(); else rendered.current?.focus(); },
+    flush() { tableHandle.current?.commit(); },
+  }), [mode, sheet]);
+
+  const csvRows = useMemo(() => csv?.rows.map(row => row.cells.map(cell => cell.value)) ?? [], [csv]);
+  // Rows shorter than the widest row; a blank line is not a short row.
+  const ragged = useMemo(() => !!csv && csv.rows.some(row => row.cells.length < csv.columns && !(row.cells.length === 1 && row.to === row.from)), [csv]);
+  const applyEdit = (edit: TableEdit) => {
+    const view = editor.current;
+    if (!view || !csv) return;
+    // Offsets must match the editor's text exactly, so a table that is one update behind is parsed again.
+    const current = view.state.doc.toString();
+    const table = current === text ? csv : parseCsv(current, csv.delimiter);
+    const last = table.rows.length;
+    let changes: CsvChange[];
+    if (edit.type === "cell") changes = edit.row < last ? setCell(table, edit.row, edit.col, edit.value) : [];
+    else if (edit.type === "insertRow") changes = edit.index <= last ? insertRow(table, current, edit.index) : [];
+    else if (edit.type === "deleteRow") changes = edit.index < last ? deleteRow(table, edit.index) : [];
+    else if (edit.type === "insertColumn") changes = insertColumn(table, edit.index);
+    else changes = deleteColumn(table, edit.index);
+    // One transaction per table operation, and its own undo step.
+    if (changes.length) view.dispatch({ changes, userEvent: "input.table", annotations: modules.current!.isolateHistory.of("full") });
+  };
+  // Ctrl/Cmd+Z and redo in the table run the editor's history; inside a cell the field has its own native undo.
+  const tableKeys = (event: React.KeyboardEvent) => {
+    const view = editor.current;
+    if (!view || !(event.metaKey || event.ctrlKey) || event.altKey || (event.target as HTMLElement).closest("textarea")) return;
+    const key = event.key.toLowerCase();
+    if (key === "z" || key === "y") {
+      event.preventDefault();
+      (key === "y" || event.shiftKey ? modules.current!.redo : modules.current!.undo)(view);
+    }
+  };
 
   const jump = (index: number) => {
     const section = sections[index];
@@ -132,10 +188,10 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef 
   };
 
   return <div className="markdown-pane" data-mode={mode} data-sections={sections.length > 0}>
-    <div className="markdown-mode-bar" role="group" aria-label="Markdown mode">
-      <button className="markdown-mode-button" aria-pressed={mode === "view"} onClick={() => setMode("view")}>View</button>
-      <button className="markdown-mode-button" aria-pressed={mode === "source"} onClick={() => { setRequested(true); setMode("source"); }}>View source</button>
-    </div>
+    {!plain && <div className="markdown-mode-bar" role="group" aria-label={sheet ? "CSV mode" : "Markdown mode"}>
+      <button className="markdown-mode-button" aria-pressed={mode === "view"} onClick={() => setMode("view")}>{sheet ? "Table" : "View"}</button>
+      <button className="markdown-mode-button" aria-pressed={mode === "source"} onClick={() => { setRequested(true); setMode("source"); }}>{sheet ? "Source" : "View source"}</button>
+    </div>}
     <div className="markdown-pane-body">
       {sections.length > 0 && <nav className="markdown-section-rail" aria-label="Document sections" onScroll={() => setLabel(null)} onKeyDown={event => {
         const buttons = Array.from(event.currentTarget.querySelectorAll("button"));
@@ -151,9 +207,14 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef 
           <span className="markdown-section-mark" style={{ width: `${28 - (section.depth - 1) * 3}px` }} />
         </button>)}
       </nav>}
-      <div ref={rendered} className="markdown-rendered" hidden={mode !== "view"} tabIndex={0} aria-label="Markdown document" onScroll={previewSection}>
-        {mode === "view" && renderPreview(headingIds)}
-      </div>
+      {sheet && <div className="markdown-table" hidden={mode !== "view"} onKeyDown={tableKeys}>
+        {ragged && <div className="table-notice" role="status">Some rows have fewer columns than the widest row. They show empty cells and stay as they are until you edit them.</div>}
+        {loadError && <div className="table-notice" role="alert">Couldn't load the editor, so the table can't be edited. <button className="content-inline-button" onClick={() => setAttempt(value => value + 1)}>Retry</button></div>}
+        <TableView rows={csvRows} columns={csv?.columns ?? 0} readOnly={!ready} label="CSV table" empty="This file is empty. Add a row to start." onEdit={applyEdit} handle={tableHandle} />
+      </div>}
+      {!plain && !sheet && <div ref={rendered} className="markdown-rendered" hidden={mode !== "view"} tabIndex={0} aria-label="Markdown document" onScroll={previewSection}>
+        {mode === "view" && renderPreview?.(headingIds)}
+      </div>}
       <div className="markdown-source" hidden={mode !== "source"}>
         {loadError && <div role="alert">Couldn't load the editor. <button onClick={() => setAttempt(value => value + 1)}>Retry</button></div>}
         {!ready && !loadError && <div role="status">Loading editor…</div>}

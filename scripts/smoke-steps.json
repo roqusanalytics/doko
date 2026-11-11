@@ -36,6 +36,12 @@
     "scripts/smoke-content.mjs"
   ],
   [
+    "scripts/smoke-workbook.mjs"
+  ],
+  [
+    "scripts/smoke-table-keyboard.mjs"
+  ],
+  [
     "scripts/smoke-word-network.mjs"
   ],
   [

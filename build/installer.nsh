@@ -2,7 +2,7 @@
 ;
 ; Word documents (.doc, .docx) get Doko in "Open with", which converts them to PDF. They're registered here rather
 ; than in package.json's fileAssociations, which would also make Doko the default app and take double-click away
-; from Word.
+; from Word. Text, CSV and Excel files (.txt, .csv, .xlsx) are registered the same way, so the default app stays.
 
 ; Restart uses --updated /S --force-run. Keep the old image from starting again while the
 ; uninstaller moves it aside. A write handle prevents execution, and sharing delete lets the
@@ -44,6 +44,18 @@ Var /GLOBAL previousExeHandle
   WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.WordDocument\shell\open\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "%1"'
   WriteRegNone SHELL_CONTEXT "Software\Classes\.docx\OpenWithProgids" "FolioLocal.WordDocument"
   WriteRegNone SHELL_CONTEXT "Software\Classes\.doc\OpenWithProgids" "FolioLocal.WordDocument"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.TextDocument" "" "Text Document"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.TextDocument\DefaultIcon" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME},0"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.TextDocument\shell\open\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "%1"'
+  WriteRegNone SHELL_CONTEXT "Software\Classes\.txt\OpenWithProgids" "FolioLocal.TextDocument"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.CsvDocument" "" "CSV Document"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.CsvDocument\DefaultIcon" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME},0"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.CsvDocument\shell\open\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "%1"'
+  WriteRegNone SHELL_CONTEXT "Software\Classes\.csv\OpenWithProgids" "FolioLocal.CsvDocument"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.ExcelWorkbook" "" "Excel Workbook"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.ExcelWorkbook\DefaultIcon" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME},0"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.ExcelWorkbook\shell\open\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "%1"'
+  WriteRegNone SHELL_CONTEXT "Software\Classes\.xlsx\OpenWithProgids" "FolioLocal.ExcelWorkbook"
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
   ${If} ${Silent}
   ${AndIf} ${isUpdated}
@@ -63,5 +75,11 @@ Var /GLOBAL previousExeHandle
   DeleteRegValue SHELL_CONTEXT "Software\Classes\.docx\OpenWithProgids" "FolioLocal.WordDocument"
   DeleteRegValue SHELL_CONTEXT "Software\Classes\.doc\OpenWithProgids" "FolioLocal.WordDocument"
   DeleteRegKey SHELL_CONTEXT "Software\Classes\FolioLocal.WordDocument"
+  DeleteRegValue SHELL_CONTEXT "Software\Classes\.txt\OpenWithProgids" "FolioLocal.TextDocument"
+  DeleteRegKey SHELL_CONTEXT "Software\Classes\FolioLocal.TextDocument"
+  DeleteRegValue SHELL_CONTEXT "Software\Classes\.csv\OpenWithProgids" "FolioLocal.CsvDocument"
+  DeleteRegKey SHELL_CONTEXT "Software\Classes\FolioLocal.CsvDocument"
+  DeleteRegValue SHELL_CONTEXT "Software\Classes\.xlsx\OpenWithProgids" "FolioLocal.ExcelWorkbook"
+  DeleteRegKey SHELL_CONTEXT "Software\Classes\FolioLocal.ExcelWorkbook"
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
 !macroend
