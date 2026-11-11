@@ -5,6 +5,7 @@ import type { EditorView } from "@codemirror/view";
 import { markdownSections } from "./markdownSections";
 import { deleteColumn, deleteRow, insertColumn, insertRow, parseCsv, setCell } from "./csv";
 import type { CsvChange, CsvTable } from "./csv";
+import { Icon } from "./icons";
 import TableView from "./TableView";
 import type { TableEdit, TableViewHandle } from "./TableView";
 import "./markdown-pane.css";
@@ -192,8 +193,13 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
 
   return <div className="markdown-pane" data-mode={mode} data-sections={sections.length > 0}>
     {!plain && <div className="markdown-mode-bar" role="group" aria-label={sheet ? "CSV mode" : svg ? "SVG mode" : "Markdown mode"}>
-      <button className="markdown-mode-button" aria-pressed={mode === "view"} onClick={() => setMode("view")}>{sheet ? "Table" : svg ? "Image" : "View"}</button>
-      <button className="markdown-mode-button" aria-pressed={mode === "source"} onClick={() => { setRequested(true); setMode("source"); }}>{sheet || svg ? "Source" : "View source"}</button>
+      {sheet || svg ? <>
+        <button className="markdown-mode-button" aria-pressed={mode === "view"} onClick={() => setMode("view")}>{sheet ? "Table" : "Image"}</button>
+        <button className="markdown-mode-button" aria-pressed={mode === "source"} onClick={() => { setRequested(true); setMode("source"); }}>Source</button>
+      </> : <button className="markdown-mode-button" onClick={() => { setRequested(true); setMode(mode === "view" ? "source" : "view"); }}>
+        {/* One toggle: it names the mode a click switches to. */}
+        <Icon name={mode === "view" ? "code" : "eye"} size={16} />{mode === "view" ? "View source" : "View"}
+      </button>}
     </div>}
     <div className="markdown-pane-body">
       {sections.length > 0 && <nav className="markdown-section-rail" aria-label="Document sections" onScroll={() => setLabel(null)} onKeyDown={event => {
