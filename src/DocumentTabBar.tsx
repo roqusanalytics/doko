@@ -31,7 +31,7 @@ export function DocumentTabBar({ tabs, tabKey }: { tabs: ReaderContext["tabs"]; 
           </button>
           <button className="close-document-tab" title={tab.dirty ? "Unsaved changes · Close tab" : "Close tab"}
             aria-label={`Close ${name}${tab.dirty ? ", unsaved changes" : ""}`} onClick={() => void tabs.close(tab.key)}>
-            {tab.dirty && <span className="dirty-dot" aria-hidden="true" />}<Icon name="close" size={13} />
+            {(tab.dirty || active) && <span className={tab.dirty ? "dirty-dot" : "selected-dot"} aria-hidden="true" />}<Icon name="close" size={13} />
           </button>
         </div>;
       })}
