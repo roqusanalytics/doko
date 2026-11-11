@@ -74,6 +74,63 @@ try {
     else await page.keyboard.press("ControlOrMeta+w");
   };
 
+  // HTML stays in an opaque, script-free frame; even active markup cannot leave the document.
+  const htmlRequests = [];
+  const htmlBeacon = createServer((request, response) => { htmlRequests.push(request.url); response.end("unexpected"); });
+  await new Promise(resolve => htmlBeacon.listen(0, "127.0.0.1", resolve));
+  try {
+    const remote = `http://127.0.0.1:${htmlBeacon.address().port}`;
+    const htmlPath = path.join(temp, "Report.HTML");
+    writeFileSync(htmlPath, `<!doctype html><html lang="lt" dir="ltr" style="--report-color: rgb(10, 80, 30)"><head><noscript><meta http-equiv="refresh" content="0;url=${remote}/noscript-refresh"></noscript><style>body.report h1 { color: var(--report-color); } @import url('${remote}/css');</style><meta http-equiv="refresh" content="0;url=${remote}/refresh"></head><body class="report" style="background: rgb(240, 245, 240)"><h1>HTML Žinutė</h1><p>${"Long content ".repeat(10000)}</p><img src="${remote}/image"><iframe src="${remote}/frame"></iframe><script>parent.__htmlEscaped = true; fetch('${remote}/script')</script><a href="${remote}/link">External link</a><a href="#end">Jump</a><h2 id="end">End</h2></body></html>`);
+    await open(htmlPath);
+    const html = page.locator("iframe.html-preview").contentFrame();
+    await html.getByRole("heading", { name: "HTML Žinutė", exact: true }).waitFor();
+    assert.equal(await html.getByRole("heading", { name: "HTML Žinutė" }).evaluate(node => getComputedStyle(node).color), "rgb(10, 80, 30)");
+    assert.equal(await page.locator("iframe.html-preview").getAttribute("sandbox"), "");
+    assert.equal(await page.evaluate(() => window.__htmlEscaped), undefined);
+    assert.equal(await html.locator("a").first().getAttribute("href"), null);
+    assert.equal(await html.locator("iframe, script, meta[http-equiv=refresh]").count(), 0);
+    assert.equal(await html.locator("html").getAttribute("lang"), "lt");
+    assert.equal(await html.locator("body").evaluate(node => getComputedStyle(node).backgroundColor), "rgb(240, 245, 240)");
+    await html.getByRole("link", { name: "Jump", exact: true }).click();
+    await html.getByRole("heading", { name: "End", exact: true }).waitFor();
+    await html.getByRole("heading", { name: "HTML Žinutė", exact: true }).waitFor({ state: "attached" });
+    await page.keyboard.press("ControlOrMeta+s");
+    assert.equal(await page.getByRole("dialog").count(), 0);
+    assert.equal(await page.locator(".markdown-source").count(), 0);
+    await html.getByRole("heading", { name: "HTML Žinutė", exact: true }).scrollIntoViewIfNeeded();
+    for (const [width, height] of [[390, 844], [1100, 800]]) {
+      await page.window.setViewportSize({ width, height });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await page.screenshot({ path: path.join(shots, `content-html-${width}.png`) });
+    }
+    await close("Report.HTML");
+    await docs.getByRole("tab", { name: /Report.HTML/ }).waitFor({ state: "detached" });
+    assert.match(readFileSync(htmlPath, "utf8"), /<script>/, "viewing does not rewrite the original file");
+    for (const [name, content, message] of [["Empty.htm", "", "This HTML document is empty."], ["Broken.html", "<h1>Unclosed heading", "Unclosed heading"]]) {
+      const file = path.join(temp, name); writeFileSync(file, content); await open(file);
+      if (content) await page.locator("iframe.html-preview").contentFrame().getByRole("heading", { name: message }).waitFor();
+      else await page.getByRole("status").filter({ hasText: message }).waitFor();
+      await close(name); await docs.getByRole("tab", { name: new RegExp(name) }).waitFor({ state: "detached" });
+    }
+    await app.evaluate(({ dialog }) => {
+      globalThis.htmlOpenErrors = []; globalThis.htmlOriginalErrorBox = dialog.showErrorBox;
+      dialog.showErrorBox = (title, detail) => globalThis.htmlOpenErrors.push({ title, detail });
+    });
+    try {
+      for (const [name, bytes, message] of [["Binary.html", Buffer.from("x\0y"), /isn't plain text/], ["Large.htm", Buffer.alloc(5 * 1024 * 1024 + 1, 65), /HTML is limited to 5 MB/]]) {
+        const file = path.join(temp, name); writeFileSync(file, bytes);
+        const before = await app.evaluate(() => globalThis.htmlOpenErrors.length);
+        await open(file, false);
+        await assertEventually(async () => await app.evaluate(() => globalThis.htmlOpenErrors.length) > before, "bad HTML must report an error");
+        assert.match(await app.evaluate(() => globalThis.htmlOpenErrors.at(-1).detail), message);
+      }
+    } finally { await app.evaluate(({ dialog }) => { dialog.showErrorBox = globalThis.htmlOriginalErrorBox; }); }
+    await page.window.setViewportSize({ width: 1100, height: 800 });
+    assert.deepEqual(htmlRequests, [], "HTML makes no network requests");
+    console.log("ok  HTML/HTM preview: styled, read-only, empty/malformed/long documents, responsive and no scripts or requests");
+  } finally { await new Promise(resolve => htmlBeacon.close(resolve)); }
+
   await open(first);
   await preview().getByRole("heading", { name: "Field notes", exact: true }).waitFor();
   assert.equal(await editor().isVisible(), false, "Markdown must open in rendered View");

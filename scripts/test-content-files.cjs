@@ -58,6 +58,29 @@ function formats() {
     const second = await files.open(secondFile);
     assert.notEqual(first.id, second.id, "equal content in different files stays separate");
 
+    // HTML shares bounded text loading and file identity, but never grants write access.
+    for (const name of ["report.html", "Report.HTM"]) {
+      const htmlFile = path.join(root, name);
+      const html = "<!doctype html>\r\n<h1>Žinutė</h1>\r\n";
+      await fs.writeFile(htmlFile, html);
+      const doc = await files.open(htmlFile);
+      assert.deepEqual([doc.kind, doc.format, doc.encoding, doc.text], ["markdown", "html", "UTF-8", html.replace(/\r\n/g, "\n")]);
+      assert.equal((await files.open(htmlFile)).id, doc.id);
+      await assert.rejects(files.asset(doc.id, "image.png"), /cannot load local images/);
+      assert.match((await files.save(doc.id, "changed")).error, /read-only/);
+      assert.match((await files.save(doc.id, "changed", true)).error, /read-only/);
+      assert.equal(await fs.readFile(htmlFile, "utf8"), html);
+      await fs.writeFile(htmlFile, "<p>Reloaded</p>");
+      assert.equal((await files.reload(doc.id)).text, "<p>Reloaded</p>");
+      files.release(doc.id);
+    }
+    const htmlLimit = path.join(root, "huge.html");
+    await fs.writeFile(htmlLimit, Buffer.alloc(MAX_MARKDOWN_BYTES + 1, 32));
+    await assert.rejects(files.open(htmlLimit), /HTML is limited to 5 MB/);
+    const binaryHtml = path.join(root, "binary.htm");
+    await fs.writeFile(binaryHtml, Buffer.from([0, 1, 2]));
+    await assert.rejects(files.open(binaryHtml), /isn't plain text/);
+
     const initialSave = await files.save(first.id, "# Edited\nText\n");
     assert.equal(initialSave.ok, true, JSON.stringify(initialSave));
     assert.equal(await fs.readFile(file, "utf8"), "\ufeff# Edited\r\nText\r\n");
@@ -206,7 +229,7 @@ function formats() {
     await fs.rm(textDestination);
     locale = "en-US";
     texts.clear();
-    await assert.rejects(texts.open(path.join(root, "plain.rtf")), /Markdown file, text file, CSV file, SVG file, or supported image/);
+    await assert.rejects(texts.open(path.join(root, "plain.rtf")), /Markdown file, text file, CSV file, SVG file, HTML file, or supported image/);
 
     // CSV: the same record and encodings as text, with its own format marker, wording and file filter.
     let csvDestination = null, csvPrompts = [];
@@ -412,7 +435,7 @@ function formats() {
     files.release(gallery.id);
     await assert.rejects(files.image(gallery.id, "photo1.png"), /no longer open/);
     await assert.rejects(files.open("relative.md"), /local file/);
-    await assert.rejects(files.open(path.join(root, "ignored.zip")), /Markdown file, text file, CSV file, SVG file, or supported image/);
+    await assert.rejects(files.open(path.join(root, "ignored.zip")), /Markdown file, text file, CSV file, SVG file, HTML file, or supported image/);
     files.clear();
     await assert.rejects(files.reload(second.id), /no longer open/);
 

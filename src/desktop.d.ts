@@ -1,7 +1,7 @@
 type ContentDocument = MarkdownDocument | GalleryDocument | WorkbookDocument;
-// `format` marks a content document that is not Markdown ("text" is a .txt file, "csv" a .csv file, "svg" an .svg file shown as an image with its XML as the source; absent means Markdown).
+// `format` marks a content document that is not Markdown ("text" is a .txt file, "csv" a .csv file, "svg" an .svg file shown as an image with its XML as the source; "html" is a read-only HTML preview; absent means Markdown).
 // `encoding` is the label of the file's encoding on desktop (for example "UTF-8" or "Windows-1257").
-interface MarkdownDocument { kind: "markdown"; id?: string; name: string; text: string; format?: "text" | "csv" | "svg"; encoding?: string;
+interface MarkdownDocument { kind: "markdown"; id?: string; name: string; text: string; format?: "text" | "csv" | "svg" | "html"; encoding?: string;
   // A .txt, .csv or .svg file's original BOM and line endings (rows, and for CSV also breaks inside quoted cells); each is absent when
   // it is the default (no BOM, "\n"). The editor text always uses "\n"; saving or exporting a copy restores them.
   bom?: boolean; eol?: string; cellEol?: string }
@@ -25,7 +25,7 @@ type FileSaveFormat = "pdf" | "png" | "jpg" | "webp" | "html" | "txt" | "csv" | 
 type FileSaveResult = { ok?: boolean; cancelled?: boolean; id?: string; name?: string; error?: string; conflict?: boolean };
 interface FolioDesktop {
   saveFile(request: { name: string; data: Uint8Array; format: FileSaveFormat; id?: string; saveAs?: boolean }): Promise<FileSaveResult>;
-  setFileMenu(state: { kind: "none" | "pdf" | "photo" | "markdown" | "workbook"; busy: boolean }): void;
+  setFileMenu(state: { kind: "none" | "pdf" | "photo" | "markdown" | "workbook" | "html"; busy: boolean }): void;
   onFileCommand(callback: (command: FileCommand) => void): () => void;
   content: {
     open(file: File): Promise<ContentDocument>;

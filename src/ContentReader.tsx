@@ -17,6 +17,7 @@ import { normalizeMathDelimiters } from "./chatMath";
 import { UpdateSettings } from "./SettingsDialog";
 import { updateSummary } from "./updates";
 import MarkdownPane, { type MarkdownEditorHandle } from "./MarkdownPane";
+import HtmlView from "./HtmlView";
 import WorkbookView from "./WorkbookView";
 import SvgView, { useSvgImage } from "./SvgView";
 import { parseCsv, parseCsvPinned } from "./csv";
@@ -141,6 +142,7 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
   const closeAnswer = useRef<((answer: boolean) => void) | null>(null);
   const actions = useRef({ save: (_copy = false): Promise<boolean> => Promise.resolve(false), canClose: (): Promise<boolean> => Promise.resolve(true) });
   const dirty = doc.kind === "markdown" && text !== saved;
+  const html = doc.format === "html";
   const plain = doc.format === "text";
   const sheet = doc.format === "csv";
   const svg = doc.format === "svg";
@@ -178,7 +180,7 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
     editor.current?.flush();
     if (pendingSave.current) return pendingSave.current;
     const current = state.current;
-    if (current.doc.kind !== "markdown" || workbook) return Promise.resolve(true);
+    if (current.doc.kind !== "markdown" || workbook || html) return Promise.resolve(true);
     const markdown = current.doc;
     let savedText = current.text;
     setSaving(true); setError(""); setUnencodable(null);
@@ -312,6 +314,7 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
   };
   const fileCommand = (command: FileCommand) => {
     if (saving || dialog) return;
+    if (html) { if (command === "recent") tabs.library(); return; }
     if (workbook) {
       if (command === "print" && workbook.sheets.length) void printSheet();
       else if (command === "recent") tabs.library();
@@ -323,7 +326,7 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
     else if (command === "properties") setDialog("properties");
     else if (command === "recent") tabs.library();
   };
-  useFileCommands(tabs.active === tabKey, workbook ? "workbook" : "markdown", saving || !!dialog, fileCommand);
+  useFileCommands(tabs.active === tabKey, html ? "html" : workbook ? "workbook" : "markdown", saving || !!dialog, fileCommand);
   const cancelDialog = () => dialog === "close" ? answerClose(false) : setDialog(null);
   useEffect(() => {
     if (!dialog) return;
@@ -350,13 +353,13 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
       <div className="topbar-right">
         <MoreMenu label="File" items={[
           { kind: "action", icon: "upload", label: "Open…", onSelect: () => input.current?.click() },
-          ...(workbook ? [] : [
+          ...(workbook || html ? [] : [
             { kind: "action" as const, icon: "download" as const, label: "Save", onSelect: () => fileCommand("save") },
             { kind: "action" as const, icon: "download" as const, label: "Save As…", onSelect: () => fileCommand("save-as") },
             { kind: "action" as const, icon: "download" as const, label: "Export / Convert…", onSelect: () => fileCommand("export") },
           ]),
-          { kind: "action", icon: "print", label: "Print…", onSelect: () => fileCommand("print") },
-          ...(workbook ? [] : [{ kind: "action" as const, icon: "info" as const, label: "Properties…", onSelect: () => fileCommand("properties") }]),
+          ...(!html ? [{ kind: "action" as const, icon: "print" as const, label: "Print…", onSelect: () => fileCommand("print") }] : []),
+          ...(workbook || html ? [] : [{ kind: "action" as const, icon: "info" as const, label: "Properties…", onSelect: () => fileCommand("properties") }]),
         ]} />
         {window.folioDesktop && <button className="btn ghost" onClick={() => setDialog("updates")}>Updates</button>}
         <button className="icon-btn" aria-label="Open file" title="Open file" onClick={() => input.current?.click()}><Icon name="upload" /></button>
@@ -375,7 +378,10 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
           else window.folioDesktop?.checkForUpdates();
         }}>{updateStatus.state === "ready" ? "Restart and update" : updateStatus.state === "available" ? `Download ${updateStatus.version}` : updateStatus.state === "downloading" ? "Downloading…" : "Retry"}</button>
       </div>}
-      {workbook ? <>
+      {html ? <>
+        <div className="content-toolbar"><span className="content-save-status" role="status">Read-only · HTML · Scripts and external resources are blocked</span></div>
+        <HtmlView text={text} name={doc.name} />
+      </> : workbook ? <>
         <div className="content-toolbar"><span className="content-save-status" role="status">Read-only · {workbook.sheets.length === 1 ? "1 sheet" : `${workbook.sheets.length} sheets`}</span></div>
         <WorkbookView workbook={workbook} selected={sheetIndex} onSelect={setSheetIndex} />
       </> : <>
@@ -387,7 +393,7 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
           </div>
         </div>
         {error && <div className="content-notice" role="alert"><span>{error}</span>{conflict && <button className="btn ghost" disabled={saving} onClick={() => setDialog("reload")}>Reload from disk</button>}{unencodable && <button className="btn ghost" disabled={saving} onClick={() => void save(unencodable.copy, true)}>Save as UTF-8</button>}</div>}
-        <MarkdownPane text={text} editorRef={editor} format={doc.format} csv={csvTable} onTableVisible={setTableVisible} onChange={value => {
+        <MarkdownPane text={text} editorRef={editor} format={doc.format === "html" ? undefined : doc.format} csv={csvTable} onTableVisible={setTableVisible} onChange={value => {
           state.current.text = value; setText(value); tabs.markDirty(tabKey, value !== state.current.saved);
         }} renderPreview={plain || sheet ? undefined : svg ? () => <SvgView image={svgImage} name={doc.name} /> : headingIds => <MarkdownPreview doc={doc} text={text} headingIds={headingIds} />} />
       </>}

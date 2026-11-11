@@ -353,6 +353,10 @@ This source tree also includes a local Markdown editor and a photo-folder viewer
 to edit and preview it, then use Save (⌘S / Ctrl+S) to write the original file. Save copy is available when you
 want another file; outside changes produce a conflict instead of being silently overwritten.
 
+Open `.html` or `.htm` documents up to 5 MB for a read-only preview in the desktop or browser edition.
+Embedded styles and data images are supported. Scripts, external links, and resources from the network or
+neighboring files are blocked; HTML files are never modified. The browser edition reads UTF-8 files.
+
 Open a JPG, PNG, WebP, GIF, BMP, or AVIF to browse the supported images in its folder. Scroll vertically or use
 the previous/next buttons and arrow keys. Refresh updates the folder listing. HEIC, TIFF, and RAW are not included.
 In the browser edition, only selected images are available and Markdown saving downloads a copy.

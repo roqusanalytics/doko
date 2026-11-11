@@ -10,6 +10,7 @@ const MARKDOWN_FILE = /\.(md|markdown)$/i;
 const TEXT_FILE = /\.txt$/i;
 const CSV_FILE = /\.csv$/i;
 const SVG_FILE = /\.svg$/i;
+const HTML_FILE = /\.html?$/i;
 // .xls is routed here too, so the reader can tell the user to save it as .xlsx.
 const XLSX_FILE = /\.xlsx?$/i;
 const IMAGE_FILE = /\.(jpe?g|png|webp|gif|bmp|avif)$/i;
@@ -18,9 +19,9 @@ const MAX_IMAGE_BYTES = 100 * 1024 * 1024;
 const MAX_IMAGE_PIXELS = 80_000_000;
 const ENCODING_LABELS = { "utf-8": "UTF-8", "utf-16le": "UTF-16 LE", "utf-16be": "UTF-16 BE", "windows-1252": "Windows-1252", "windows-1257": "Windows-1257" };
 const NOT_TEXT = "This file isn't plain text or uses an encoding Doko can't read.";
-// `txt`, `csv` and `svg` records are plain text for I/O (same encodings); a CSV table or an SVG image is only a view of that text.
-const kindName = format => format === "text" ? "Text" : format === "csv" ? "CSV" : format === "svg" ? "SVG" : "Markdown";
-const fileFormat = file => TEXT_FILE.test(file) ? "text" : CSV_FILE.test(file) ? "csv" : SVG_FILE.test(file) ? "svg" : undefined;
+// `txt`, `csv`, `svg` and `html` records are plain text for I/O (same encodings); a CSV table or an SVG image is only a view of that text.
+const kindName = format => format === "text" ? "Text" : format === "csv" ? "CSV" : format === "svg" ? "SVG" : format === "html" ? "HTML" : "Markdown";
+const fileFormat = file => TEXT_FILE.test(file) ? "text" : CSV_FILE.test(file) ? "csv" : SVG_FILE.test(file) ? "svg" : HTML_FILE.test(file) ? "html" : undefined;
 // What a copy of each text-based format must be named: the pattern it must match and the words for the error.
 const COPY_NAME = { text: [TEXT_FILE, "a .txt"], csv: [CSV_FILE, "a .csv"], svg: [SVG_FILE, "a .svg"] };
 const hash = data => crypto.createHash("sha256").update(data).digest("hex");
@@ -269,7 +270,7 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
   }
   async function open(file) {
     if (XLSX_FILE.test(file)) return openWorkbook(file);
-    if (!MARKDOWN_FILE.test(file) && !fileFormat(file) && !IMAGE_FILE.test(file)) throw new Error("Choose a Markdown file, text file, CSV file, SVG file, or supported image.");
+    if (!MARKDOWN_FILE.test(file) && !fileFormat(file) && !IMAGE_FILE.test(file)) throw new Error("Choose a Markdown file, text file, CSV file, SVG file, HTML file, or supported image.");
     const resolved = await regular(file);
     const root = path.dirname(resolved), markdown = MARKDOWN_FILE.test(resolved) || !!fileFormat(resolved);
     const key = `${markdown ? "markdown" : "gallery"}:${markdown ? resolved : root}`;
@@ -295,6 +296,7 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
   }
   async function asset(id, relative, galleryOnly = false) {
     const record = get(id, galleryOnly ? "gallery" : "markdown");
+    if (record.format === "html") throw new Error("HTML previews cannot load local images.");
     if (!galleryOnly && typeof relative === "string") {
       try { relative = decodeURIComponent(relative).replace(/^(\.\/)+/, ""); }
       catch { throw new Error("This image path is invalid."); }
@@ -365,6 +367,7 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
     let record, acquired = false;
     try {
       record = get(id, "markdown");
+      if (record.format === "html") throw new Error("HTML documents are read-only.");
       if (record.busy) return { error: "This document is still saving." };
       const name = kindName(record.format);
       if (typeof text !== "string" || typeof copy !== "boolean" || typeof utf8 !== "boolean") throw new Error(`Invalid ${name} save request.`);
@@ -437,4 +440,4 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
     clear() { records.clear(); identities.clear(); } };
 }
 
-module.exports = { createContentFiles, imageInfo, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, SVG_FILE, XLSX_FILE, IMAGE_FILE, MAX_MARKDOWN_BYTES, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS };
+module.exports = { createContentFiles, imageInfo, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, SVG_FILE, HTML_FILE, XLSX_FILE, IMAGE_FILE, MAX_MARKDOWN_BYTES, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS };

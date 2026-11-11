@@ -14,7 +14,7 @@ const { csp } = require("./csp.cjs");
 const { WORD_FILE, openWord, openWorkbook } = require("./convert.cjs");
 const { registerPrinting } = require("./printing.cjs");
 const { MAX_DOCUMENT_BYTES, checkDiskPath, readRegular } = require("./document-files.cjs");
-const { createContentFiles, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, SVG_FILE, XLSX_FILE, IMAGE_FILE } = require("./content-files.cjs");
+const { createContentFiles, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, SVG_FILE, HTML_FILE, XLSX_FILE, IMAGE_FILE } = require("./content-files.cjs");
 
 const { createSaveFiles } = require("./save-files.cjs");
 const { fileMenuTemplate } = require("./file-menu.cjs");
@@ -61,7 +61,7 @@ function updateFileMenu() {
     send: (channel, command) => win?.webContents.send(channel, command), open: async () => {
       if (!win) return;
       const result = await dialog.showOpenDialog(win, { title: "Open", properties: ["openFile", "multiSelections"],
-        filters: [{ name: "Documents and Photos", extensions: ["pdf", "doc", "docx", "xlsx", "xls", "md", "markdown", "txt", "csv", "svg", "jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"] }] });
+        filters: [{ name: "Documents and Photos", extensions: ["pdf", "doc", "docx", "xlsx", "xls", "md", "markdown", "txt", "csv", "svg", "html", "htm", "jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"] }] });
       if (!result.canceled) await sendFiles(result.filePaths);
     } })));
 }
@@ -187,7 +187,7 @@ function applyWindowTransparency() {
   return enabled;
 }
 nativeTheme.on("updated", () => applyWindowTransparency());
-const OPENABLE = /\.(pdf|docx?|xlsx?|md|markdown|txt|csv|svg|jpe?g|png|webp|gif|bmp|avif)$/i;
+const OPENABLE = /\.(pdf|docx?|xlsx?|md|markdown|txt|csv|svg|html?|jpe?g|png|webp|gif|bmp|avif)$/i;
 const pendingFiles = filesFromArgs(process.argv);
 let rendererReady = false;
 
@@ -225,7 +225,7 @@ async function sendFile(file) {
   if (WORD_FILE.test(file)) return sendWordFile(file, target);
   if (XLSX_FILE.test(file)) return sendWorkbookFile(file, target);
   try {
-    if (MARKDOWN_FILE.test(file) || TEXT_FILE.test(file) || CSV_FILE.test(file) || SVG_FILE.test(file) || IMAGE_FILE.test(file)) {
+    if (MARKDOWN_FILE.test(file) || TEXT_FILE.test(file) || CSV_FILE.test(file) || SVG_FILE.test(file) || HTML_FILE.test(file) || IMAGE_FILE.test(file)) {
       const document = await contentFiles.open(file);
       if (!target.isDestroyed()) target.webContents.send("folio:open-content", document);
       return;
@@ -744,7 +744,7 @@ if (!app.requestSingleInstanceLock()) {
     updateFileMenu();
     handle("folio:save-file", (_event, request) => saveFiles.save(request));
     on("folio:file-menu", (_event, state) => {
-      if (!state || !["none", "pdf", "photo", "markdown", "workbook"].includes(state.kind) || typeof state.busy !== "boolean") return;
+      if (!state || !["none", "pdf", "photo", "markdown", "workbook", "html"].includes(state.kind) || typeof state.busy !== "boolean") return;
       fileMenuState = { kind: state.kind, busy: state.busy }; updateFileMenu();
     });
     ai.register(handle, (channel, payload) => win?.webContents.send(channel, payload));
