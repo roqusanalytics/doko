@@ -1,7 +1,7 @@
 ---
 // The whole landing page; all visible copy comes from src/i18n/<lang>.ts.
 import "../styles/landing.css";
-import { logos } from "../data/logos";
+import { logos, markdownMark } from "../data/logos";
 import { software } from "../data/software";
 import { en } from "../i18n/en";
 import { lt } from "../i18n/lt";
@@ -11,8 +11,8 @@ import appIcon from "../../../brand/doko/logos/doko-app-icon.svg?raw";
 
 // Formats that flow into Doko in the hero. Photo formats show a real photo with a format badge.
 const formats = [
-  { id: "pdf", label: "PDF", color: "#EC1C24", brand: "acrobat" },
-  { id: "docx", label: "DOCX", color: "#2B579A", brand: "word" },
+  { id: "pdf", label: "PDF", color: logos.acrobat.color, brand: "acrobat" },
+  { id: "docx", label: "DOCX", color: logos.word.color, brand: "word" },
   { id: "url", label: "URL", color: "#66625D" },
   { id: "avif", label: "AVIF", color: "#E0873A", photo: "fishing-harbour" },
   { id: "md", label: "MD", color: "#1A1A1A" },
@@ -33,8 +33,7 @@ const drift = [
   { id: "webp", photo: "forest-path", x: "24%", y: "4%", s: .6, b: 5, v: .4 },
 ];
 const tileBrand: Record<string, string> = { pdf: "acrobat", docx: "word" };
-const tileColor: Record<string, string> = { pdf: "#EC1C24", md: "#1A1A1A", docx: "#2B579A", jpg: "#D9A441", png: "#3FA7A0", webp: "#4E9A5B" };
-const markdownMark = '<svg viewBox="0 0 208 128" aria-hidden="true"><rect width="198" height="118" x="5" y="5" ry="10" fill="none" stroke="currentColor" stroke-width="10"/><path fill="currentColor" d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39zm125 0-30-33h20V30h20v35h20z"/></svg>';
+const tileColor: Record<string, string> = { pdf: logos.acrobat.color, md: "#1A1A1A", docx: logos.word.color, jpg: "#D9A441", png: "#3FA7A0", webp: "#4E9A5B" };
 
 // Brand SVGs become currentColor symbols so the logo follows light and dark mode.
 const symbol = (svg: string, id: string) => {
@@ -110,7 +109,7 @@ const faqLd = {
       <a class="link" href="#faq">{t.nav.faq}</a>
       <a class="link" href="https://github.com/roqusanalytics/doko">GitHub</a>
       <details class="lang" data-lang-menu>
-        <summary aria-label={t.nav.language}>
+        <summary aria-label={`${t.nav.language}: ${t === lt ? "LT" : "EN"}`}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z"/></svg>
           <span>{t === lt ? "LT" : "EN"}</span>
           <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
@@ -202,7 +201,7 @@ const faqLd = {
       <p>{t.ai.p}</p>
     </div>
     <div class="flow-card" data-reveal>
-      <svg class="flow flow-h" viewBox="0 0 1000 360" role="img" aria-label={t.ai.flowLabel}>
+      <svg class="flow flow-h" viewBox="0 0 1000 360" role="group" aria-label={t.ai.flowLabel}>
         <path id="fh1" class="wire a" d="M230 70 C340 70 330 180 440 180"/>
         <path id="fh2" class="wire a" d="M230 180 L440 180"/>
         <path id="fh3" class="wire a" d="M230 290 C340 290 330 180 440 180"/>
@@ -219,7 +218,7 @@ const faqLd = {
         <circle class="dot" r="5" data-path="fh1"/><circle class="dot" r="5" data-path="fh2"/><circle class="dot" r="5" data-path="fh3"/>
         <circle class="dot" r="5" data-path="fh4"/><circle class="dot" r="5" data-path="fh5"/><circle class="dot" r="5" data-path="fh6"/>
       </svg>
-      <svg class="flow flow-v" viewBox="0 0 360 600" role="img" aria-label={t.ai.flowLabel}>
+      <svg class="flow flow-v" viewBox="0 0 360 600" role="group" aria-label={t.ai.flowLabel}>
         <path id="fv1" class="wire a" d="M60 86 C60 170 180 160 180 245"/>
         <path id="fv2" class="wire a" d="M180 86 L180 245"/>
         <path id="fv3" class="wire a" d="M300 86 C300 170 180 160 180 245"/>

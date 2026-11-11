@@ -29,9 +29,11 @@ tabs.forEach((t, i) => {
 });
 document.querySelectorAll('.tagx[data-tab]').forEach(p => p.addEventListener('click', () => { stop(); show(+p.dataset.tab); }));
 if (!calm) {
-  timer = setInterval(() => { if (!document.hidden) show((current() + 1) % tabs.length); }, 4800);
+  // One pass through the three files, then it stops (WCAG 2.2.2); any hover or focus stops it sooner.
+  let steps = 0;
+  timer = setInterval(() => { if (document.hidden) return; show((current() + 1) % tabs.length); if (++steps >= tabs.length - 1) stop(); }, 4800);
   document.querySelector('.window').addEventListener('pointerenter', stop, { once: true });
-  document.querySelector('.tabs').addEventListener('focusin', stop, { once: true });
+  document.querySelector('.window').addEventListener('focusin', stop, { once: true });
 }
 
 // Hero scene: thin curves from every format to the Doko icon. Positions come from layout (offset*), so
@@ -137,7 +139,7 @@ addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8),
     // Formats fly out of Doko, wires draw in, then light keeps travelling into the icon.
     const delta = f => { const [tx, ty] = centre(f), [hx, hy] = centre(hubEl); return [hx - tx, hy - ty]; };
     gsap.timeline({ scrollTrigger: { trigger: scene, start: 'top 12%', end: 'bottom top', scrub: .8 } })
-      .to(fmts, { x: i => delta(fmts[i])[0] * .85, y: i => delta(fmts[i])[1] * .85, scale: .3, opacity: 0, ease: 'power2.in' }, 0)
+      .to(fmts, { x: i => delta(fmts[i])[0] * .85, y: i => delta(fmts[i])[1] * .85, scale: .3, opacity: 0, ease: 'power2.in', invalidateOnRefresh: true }, 0)
       .to(wiresSvg, { opacity: 0, ease: 'none' }, 0)
       .to(hubEl, { scale: .8, ease: 'none' }, 0);
     gsap.from(hubEl, { scale: .4, opacity: 0, duration: 1.2, ease: 'expo.out', delay: .5 });
@@ -199,7 +201,7 @@ addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8),
     enter('.faq details', '.faq', { x: -28, stagger: .06 });
     enter('.platforms li', '.platforms', { y: 60, rotateX: -22, transformPerspective: 900, transformOrigin: '50% 100%', stagger: .1 });
     // The closing picture rises out of the page edge as it scrolls in.
-    gsap.fromTo('.outro canvas', { clipPath: 'inset(100% 0% 0% 0%)' }, { clipPath: 'inset(0% 0% 0% 0%)', ease: 'none', scrollTrigger: { trigger: '.outro', start: 'top 95%', end: 'top 40%', scrub: .6 } });
+    gsap.fromTo('.outro canvas', { clipPath: 'inset(100% 0% 0% 0%)' }, { clipPath: 'inset(0% 0% 0% 0%)', ease: 'none', scrollTrigger: { trigger: '.outro', start: 'clamp(top 95%)', end: 'clamp(top 40%)', scrub: .6 } });
     enter('.outro p span', '.outro p', { y: 10, stagger: .12, scrollTrigger: { trigger: '.outro p', start: 'top 98%', once: true } });
 
     // 3. Bento cards enter together, then each one plays its own loop while visible.
@@ -268,7 +270,7 @@ addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8),
       n.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') pick(-1); });
       n.addEventListener('focus', () => pick(i));
       n.addEventListener('blur', () => pick(-1));
-      n.addEventListener('click', () => pick(n.classList.contains('sel') ? -1 : i)); // tap toggles
+      n.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') pick(i); }); // touch has no hover; focus covers keyboard and mouse
     });
     document.addEventListener('pointerdown', e => { if (!svg.contains(e.target)) pick(-1); });
   });

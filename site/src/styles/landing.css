@@ -403,7 +403,7 @@ h2 b { font-weight: 750; }
 }
 .foot-id { display: flex; flex-direction: column; gap: 10px; }
 .foot-id p { margin: 0; max-width: 46ch; font-size: .9rem; }
-.foot-id .tm { max-width: 72ch; font-size: .75rem; opacity: .8; }
+.foot-id .tm { max-width: 72ch; font-size: .75rem; }
 .btn svg { width: 16px; height: 16px; }
 
 footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding-block: 32px; color: var(--graphite); }
@@ -448,6 +448,7 @@ footer nav { display: flex; gap: 4px; flex-wrap: wrap; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0s !important; transition-duration: 1ms !important; transition-delay: 0s !important; }
+  .tagx, .dt { animation: none !important; } /* infinite bobbing would flicker at 1ms */
 }
 
 /* Monochrome textures (src/scripts/texture.js): halftone fields, dithered photos, mono indexes */

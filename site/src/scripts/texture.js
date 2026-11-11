@@ -65,7 +65,7 @@ function halftone(canvas) {
   const kick = () => { if (!raf) raf = requestAnimationFrame(frame); };
   size();
   new ResizeObserver(() => { size(); kick(); }).observe(canvas);
-  new IntersectionObserver(([e]) => { seen = e.isIntersecting; if (seen) kick(); }).observe(canvas);
+  new IntersectionObserver(es => { seen = es.at(-1).isIntersecting; if (seen) kick(); }).observe(canvas);
   dark.addEventListener('change', () => { size(); kick(); });
   if (!calm && matchMedia('(hover: hover)').matches) {
     host.addEventListener('pointermove', e => { const r = canvas.getBoundingClientRect(); px = e.clientX - r.left; py = e.clientY - r.top; });
