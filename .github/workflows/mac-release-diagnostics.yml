@@ -17,7 +17,6 @@ jobs:
           work=$(mktemp -d)
           keychain="$work/signing.keychain-db"
           cleanup() {
-            sudo security remove-trusted-cert -d "$work/cert.pem" || true
             security delete-keychain "$keychain" || true
             rm -rf "$work"
           }
@@ -44,18 +43,20 @@ jobs:
           security import "$work/cert.p12" -k "$keychain" -P fixture-password -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k fixture-password "$keychain" > /dev/null
           identity=$(openssl x509 -in "$work/cert.pem" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d ':')
+          cp /usr/bin/true "$work/signing-test"
           echo 'CASE A: imported identity without explicit trust or search registration'
           security find-identity -p codesigning "$keychain"
-          /usr/bin/codesign --dryrun --force --sign "$identity" --keychain "$keychain" /usr/bin/true && echo 'CASE A PASS' || echo 'CASE A FAIL'
+          /usr/bin/codesign --force --sign "$identity" --keychain "$keychain" --timestamp=none "$work/signing-test" && echo 'CASE A PASS' || echo 'CASE A FAIL'
           echo 'CASE B: trust only (same as release 1.20.5)'
           sudo security add-trusted-cert -d -r trustRoot -p codeSign -k "$keychain" "$work/cert.pem"
           security find-identity -p codesigning "$keychain"
-          /usr/bin/codesign --dryrun --force --sign "$identity" --keychain "$keychain" /usr/bin/true && echo 'CASE B PASS' || echo 'CASE B FAIL'
+          /usr/bin/codesign --force --sign "$identity" --keychain "$keychain" --timestamp=none "$work/signing-test" && echo 'CASE B PASS' || echo 'CASE B FAIL'
           echo 'CASE C: trust and registered signing keychain'
           security list-keychains -d user | xargs security list-keychains -d user -s "$keychain"
           security find-identity -p codesigning "$keychain"
           security find-identity -v -p codesigning "$keychain"
-          /usr/bin/codesign --dryrun --force --sign "$identity" --keychain "$keychain" /usr/bin/true
+          /usr/bin/codesign --force --sign "$identity" --keychain "$keychain" --timestamp=none "$work/signing-test"
+          /usr/bin/codesign --verify -R="certificate leaf = H\"$identity\"" "$work/signing-test"
           echo 'CASE C PASS'
   hidden-tabs:
     runs-on: macos-26-intel
