@@ -213,7 +213,8 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
           aria-current={active === index ? "location" : undefined} aria-describedby={label?.index === index ? "markdown-section-label" : undefined}
           onClick={() => jump(index)} onMouseEnter={event => showLabel(index, event.currentTarget)} onFocus={event => showLabel(index, event.currentTarget)}
           onMouseLeave={event => { if (document.activeElement !== event.currentTarget) setLabel(null); }} onBlur={() => setLabel(null)}>
-          <span className="markdown-section-mark" style={{ width: `${28 - (section.depth - 1) * 3}px` }} />
+          {/* --lift peaks at the active section and fades over 3 neighbours: the "lens" around the reading position. */}
+          <span className="markdown-section-mark" style={{ "--base": `${12 - (section.depth - 1) * 2}px`, "--lift": Math.max(0, 4 - Math.abs(index - active)) } as React.CSSProperties} />
         </button>)}
       </nav>}
       {sheet && <div className="markdown-table" hidden={mode !== "view"} onKeyDown={tableKeys}>
