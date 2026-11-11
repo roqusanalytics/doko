@@ -74,7 +74,7 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
 | --- | --- |
 | Windows installer | electron-updater reads `latest.yml`, installs silently |
 | Windows portable | none (download again) |
-| macOS | electron-updater reads `latest-mac.yml`; installs itself only when built with the Developer ID secrets (see SIGNING.md), otherwise shows a download link |
+| macOS | electron-updater reads `latest-mac.yml`; 1.20.0 and newer install updates signed with the same persistent certificate (see SIGNING.md); changing its identity requires a planned reinstall migration |
 | Linux AppImage | electron-updater reads `latest-linux.yml`, replaces itself |
 | Linux .deb | apt: the package adds Doko's signed repository (`Packages`/`InRelease` on each release, signed with the `APT_SIGNING_KEY` secret) |
 

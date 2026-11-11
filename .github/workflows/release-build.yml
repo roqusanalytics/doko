@@ -3,11 +3,11 @@
 # Nothing is published from here: the maintainer's release script downloads these and creates the release.
 #
 # Signing is automatic once its secrets exist (see SIGNING.md):
-#   macOS:   MAC_CERTIFICATE_P12_BASE64, MAC_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
+#   macOS:   MAC_SELF_SIGNED_P12_BASE64, MAC_SELF_SIGNED_PASSWORD (same certificate as 1.20.0)
 #   Windows: AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT,
 #            AZURE_SIGNING_PROFILE, AZURE_SIGNING_PUBLISHER
 #   Linux:   APT_SIGNING_KEY (signs the apt repository published with each release)
-# Without them, macOS builds are ad-hoc signed and Windows builds are unsigned.
+# macOS requires a persistent certificate; Windows builds can be unsigned.
 name: Release build
 
 on:
@@ -113,20 +113,31 @@ jobs:
         shell: bash
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          MAC_CERTIFICATE_P12_BASE64: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
-          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MAC_SELF_SIGNED_P12_BASE64: ${{ secrets.MAC_SELF_SIGNED_P12_BASE64 }}
+          MAC_SELF_SIGNED_PASSWORD: ${{ secrets.MAC_SELF_SIGNED_PASSWORD }}
+          # Changing this certificate breaks updates from 1.20.0; migration needs a separate plan.
+          DOKO_MAC_SIGN_IDENTITY: C1D1C0D9EC7D8B849C48DADC2F9E278B40C33919
         run: |
-          extra=()
-          if [ -n "$MAC_CERTIFICATE_P12_BASE64" ]; then
-            echo "Signing with the Developer ID certificate and notarizing"
-            export CSC_LINK="$MAC_CERTIFICATE_P12_BASE64" CSC_KEY_PASSWORD="$MAC_CERTIFICATE_PASSWORD" CSC_IDENTITY_AUTO_DISCOVERY=true
-            # Signed builds install their own updates (Squirrel.Mac requires a Developer ID signature).
-            extra+=(-c.mac.identity="Developer ID Application" -c.mac.hardenedRuntime=true -c.mac.notarize=true -c.extraMetadata.folioMacSigned=true)
+          : "${MAC_SELF_SIGNED_P12_BASE64:?The existing macOS signing certificate is required}" "${MAC_SELF_SIGNED_PASSWORD:?Missing certificate password}"
+          export DOKO_MAC_SIGN_KEYCHAIN="$RUNNER_TEMP/doko-signing.keychain-db"
+          keychain_password=$(openssl rand -hex 32)
+          echo "::add-mask::$keychain_password"
+          printf '%s' "$MAC_SELF_SIGNED_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/doko-signing.p12"
+          security create-keychain -p "$keychain_password" "$DOKO_MAC_SIGN_KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$DOKO_MAC_SIGN_KEYCHAIN"
+          security unlock-keychain -p "$keychain_password" "$DOKO_MAC_SIGN_KEYCHAIN"
+          security import "$RUNNER_TEMP/doko-signing.p12" -k "$DOKO_MAC_SIGN_KEYCHAIN" -P "$MAC_SELF_SIGNED_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$DOKO_MAC_SIGN_KEYCHAIN" > /dev/null
+          rm "$RUNNER_TEMP/doko-signing.p12"
+          npx electron-builder --mac -c.mac.identity=- -c.mac.sign=./scripts/mac-sign.cjs -c.extraMetadata.folioMacSigned=true --publish never
+          codesign --verify --deep --strict -R="certificate leaf = H\"$DOKO_MAC_SIGN_IDENTITY\"" "release/mac-universal/Doko.app"
+      - name: Remove temporary signing keychain
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/doko-signing.p12"
+          if [ -f "$RUNNER_TEMP/doko-signing.keychain-db" ]; then
+            security delete-keychain "$RUNNER_TEMP/doko-signing.keychain-db"
           fi
-          npx electron-builder --mac "${extra[@]}" --publish never
       - name: Packaged app starts (macOS)
         run: |
           codesign --verify --deep --verbose=2 "release/mac-universal/Doko.app"

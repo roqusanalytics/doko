@@ -22,8 +22,8 @@ approval. The three environments need the same review policy.
 For an existing deployment, provision the environment secrets from your signing credential store, verify the
 expected credential names in each environment, then remove the repository-level copies. Rotate credentials that
 may have been exposed previously. If the apt key exists only as a non-exportable GitHub secret, retain the
-working key until a planned signing-key transition can reach installed clients. Windows builds can run unsigned
-and macOS builds use an ad-hoc signature until those platform credentials are configured.
+working key until a planned signing-key transition can reach installed clients. Windows builds can run unsigned;
+macOS releases require the existing certificate to preserve installed clients' automatic updates.
 
 ## macOS: self-signed certificate (current)
 
@@ -35,6 +35,11 @@ installs updates automatically and refuses builds signed with any other certific
 The certificate, its `.p12`, a dedicated keychain and their passwords live in `~/.local/share/doko-release/macsign/`
 on the release Mac. Keep an offline backup: losing the key, or signing with another certificate (including a later
 Developer ID), stops automatic updates until users reinstall by hand.
+
+For GitHub releases, store the same certificate in the `release-macos` environment as
+`MAC_SELF_SIGNED_P12_BASE64` and its password as `MAC_SELF_SIGNED_PASSWORD`. The workflow imports it into a
+temporary keychain, checks the packaged app against the pinned 1.20.0 fingerprint, and deletes the keychain.
+Missing signing credentials fail the release instead of producing an ad-hoc update.
 
 ```sh
 D=~/.local/share/doko-release/macsign
@@ -67,8 +72,8 @@ build sets `folioMacSigned`, which turns on silent updates in `electron/main.cjs
    gh secret set APPLE_TEAM_ID --env release-macos --repo roqusanalytics/doko
    ```
 
-The next `npm run release` produces a signed, notarized Mac app. Macs running an earlier, unsigned Doko still see the
-"download" prompt once; after installing the signed version, updates are automatic.
+Switching from the current self-signed certificate to Developer ID requires a separate migration plan and a workflow
+change. Existing self-signed clients must reinstall once; later updates can use the new Developer ID identity.
 
 ## Windows: Azure Trusted Signing
 

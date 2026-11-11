@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.20.4
+
+- Switch between Markdown preview and source with one button and a matching icon.
+- Keep selected drawings beneath dialogs, with a thin grey selection frame and visible handles.
+- Mark the selected document tab with a dot that becomes the close button on hover.
+- Preserve the existing macOS signing certificate in automated releases so installed apps can keep updating.
+
 ## 1.18.2
 
 - Download and install Doko under its new name on Windows, macOS, and Linux.
