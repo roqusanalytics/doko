@@ -25,6 +25,25 @@ may have been exposed previously. If the apt key exists only as a non-exportable
 working key until a planned signing-key transition can reach installed clients. Windows builds can run unsigned
 and macOS builds use an ad-hoc signature until those platform credentials are configured.
 
+## macOS: self-signed certificate (current)
+
+Since 1.20.0 the macOS app is signed with a free self-signed certificate. Gatekeeper still blocks the first download
+("Open Anyway" in Privacy & Security), but its designated requirement is stable across builds, so electron-updater
+installs updates automatically and refuses builds signed with any other certificate. Users on an ad-hoc build
+(1.19.0 and earlier) install one self-signed version by hand; later versions arrive on their own.
+
+The certificate, its `.p12`, a dedicated keychain and their passwords live in `~/.local/share/doko-release/macsign/`
+on the release Mac. Keep an offline backup: losing the key, or signing with another certificate (including a later
+Developer ID), stops automatic updates until users reinstall by hand.
+
+```sh
+D=~/.local/share/doko-release/macsign
+security unlock-keychain -p "$(cat "$D/keychain-password.txt")" "$D/doko-signing.keychain-db"
+DOKO_MAC_SIGN_KEYCHAIN="$D/doko-signing.keychain-db" DOKO_MAC_SIGN_IDENTITY=C1D1C0D9EC7D8B849C48DADC2F9E278B40C33919 \
+  CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --publish never \
+  -c.mac.identity=- -c.mac.sign=./scripts/mac-sign.cjs -c.extraMetadata.folioMacSigned=true
+```
+
 ## macOS: Apple Developer ID (signing + notarization)
 
 What it fixes: no "can't verify the developer" block on first launch, and **Macs install updates automatically** (the
