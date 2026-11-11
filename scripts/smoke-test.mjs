@@ -288,6 +288,15 @@ try {
   assert.equal(await docs.getByRole("tab").count(), 5);
   for (const name of ["Drop A.pdf", "Drop B.pdf", "One.pdf", "Two.pdf"]) {
     const close = docs.getByRole("button", { name: "Close " + name, exact: true });
+    console.log('DIAG close state', name, await close.evaluate(element => {
+      const rect = element.getBoundingClientRect(), css = getComputedStyle(element);
+      return { ready: document.readyState, visibility: document.visibilityState, x: rect.x, y: rect.y,
+        width: rect.width, height: rect.height, display: css.display, cssVisibility: css.visibility, opacity: css.opacity };
+    }));
+    console.log('DIAG two frames', name, await Promise.race([
+      close.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve('PASS'))))),
+      new Promise(resolve => setTimeout(() => resolve('RAF TIMEOUT'), 2000)),
+    ]));
     await close.click(); await close.waitFor({ state: "detached" });
   }
   await page.locator(".doc-title", { hasText: "Another.pdf" }).waitFor();
