@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
@@ -64,5 +65,6 @@ try {
   console.log("PASS reader drop: empty/invalid text, long URL review, internal drag, operation gate and retry; zero automatic URL opens; hidden isolated app");
 } finally {
   if (app) await closeHidden(app);
-  rmSync(profile, { recursive: true, force: true });
+  // Windows rmSync can fail with EPERM before using its retry budget.
+  await rm(profile, { recursive: true, force: true, maxRetries: 5 });
 }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 
 // Windows/Linux render hidden tests off-screen; isVisible alone does not mean the user can see them.
 export async function assertHidden(app) {
@@ -20,6 +21,8 @@ export async function closeHidden(app) {
     app.removeAllListeners("window-all-closed");
     BrowserWindow.getAllWindows().forEach(window => window.destroy());
   });
-  app.process().kill("SIGKILL");
+  // Playwright uses a cmd.exe launcher on Windows; killing only it leaves Electron alive.
+  if (process.platform === "win32") execFileSync("taskkill", ["/PID", String(app.process().pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+  else app.process().kill("SIGKILL");
   await app.close();
 }

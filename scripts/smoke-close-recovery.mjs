@@ -95,13 +95,14 @@ async function fixture(page, mode = "save", delay = 300) {
   await page.waitForFunction(() => window.fixtureTabs.all.every(tab => tab.frame.contentDocument?.querySelector("input")));
   await page.evaluate(({ mode, delay }) => {
     const tabs = document.querySelector("iframe.document-reader").readerContext.tabs;
-    window.closeTest = { mode, calls: 0, tabs };
+    window.closeTest = { mode, calls: 0, tabs, releases: [] };
     for (const [index, tab] of tabs.all.entries()) {
       tabs.rename(tab.key, index ? "Background notes" : "Notes and AI");
       tabs.bind(tab.key, { open() {}, canClose: async () => window.closeTest.mode !== "cancel", flush: async () => {
         window.closeTest.calls++;
         if (window.closeTest.mode === "fail") throw new Error("Synthetic storage failure");
-        if (window.closeTest.mode === "timeout") await new Promise(resolve => setTimeout(resolve, 16000));
+        if (window.closeTest.mode === "gated") await new Promise(resolve => { window.closeTest.releases[index] = resolve; });
+        else if (window.closeTest.mode === "timeout") await new Promise(resolve => setTimeout(resolve, 16000));
         else await new Promise(resolve => setTimeout(resolve, delay));
         localStorage.setItem(`close-fixture-${index}`, "Saved note and conversation");
         console.log(`CLOSE_FIXTURE_SAVED:${index}`);
@@ -111,16 +112,22 @@ async function fixture(page, mode = "save", delay = 300) {
 }
 const close = () => app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].close(); });
 const state = () => app.evaluate(() => global.closeFixture);
+const waitClosed = () => app.evaluate(({ BrowserWindow }) => new Promise((resolve, reject) => {
+  const window = BrowserWindow.getAllWindows()[0];
+  if (!window) return resolve();
+  const timeout = setTimeout(() => reject(new Error("Window did not close after reader flushes")), 10000);
+  window.once("closed", () => { clearTimeout(timeout); resolve(); });
+}));
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 try {
   await server.listen();
   let page;
   if (!process.argv.includes("--import-retry-only")) {
   page = await launch("native");
-  await fixture(page);
+  await fixture(page, "gated");
   await close();
   await close();
-  await sleep(75);
+  await page.waitForFunction(() => typeof window.closeTest.releases[0] === "function");
   const pending = await state();
   assert.equal(pending.closed, false, "window closed before delayed saves completed");
   assert.equal(pending.requests, 1, "repeated close started duplicate preparation");
@@ -132,14 +139,17 @@ try {
     ipcMain.emit("folio:prepared-close", { sender, senderFrame: sender.mainFrame }, "wrong-token", "ready");
     ipcMain.emit("folio:prepared-close", { sender, senderFrame: sender.mainFrame }, id, "invalid-result");
   });
-  await sleep(75);
   assert.equal((await state()).closed, false, "invalid or child-frame acknowledgement closed the window");
-  await sleep(225);
+  assert.deepEqual((await state()).flushes, [], "the first reader must remain unsaved until released");
+  await page.evaluate(() => window.closeTest.releases[0]());
+  await page.waitForFunction(() => typeof window.closeTest.releases[1] === "function");
+  assert.equal((await state()).closed, false, "window closed while the second reader was still saving");
   assert.deepEqual((await state()).flushes, ["0"], "fixture must be between first and second reader flushes");
   await page.evaluate(() => document.querySelector("iframe").contentDocument.querySelector("input").focus());
   await page.keyboard.type("LATE EDIT");
   assert.equal(await page.evaluate(() => document.querySelector("iframe").contentDocument.querySelector("input").value), "Saved value");
-  await sleep(800);
+  await page.evaluate(() => window.closeTest.releases[1]());
+  await waitClosed();
   assert.deepEqual((await state()).flushes, ["0", "1"]);
   assert.equal((await state()).closed, true);
   console.log("PASS native close flushes active/background notes and AI, deduplicates requests, rejects spoofed acknowledgements");
@@ -156,7 +166,7 @@ try {
   assert.equal((await state()).closed, false);
   assert.equal((await state()).dialogs.length, 1, "cancel was incorrectly shown as a saving failure");
   await page.evaluate(() => { window.closeTest.mode = "save"; });
-  await close(); await sleep(800);
+  await close(); await waitClosed();
   assert.equal((await state()).closed, true);
   console.log("PASS storage failure retains tabs and shows error; cancel retains window; retry flushes and closes");
   await closeHidden(app); app = undefined;
@@ -171,7 +181,7 @@ try {
   await page.evaluate(() => { window.closeTest.mode = "save"; });
   await page.waitForFunction(() => !window.closeTest.tabs.preparingClose);
   assert.equal((await state()).closed, false, "late acknowledgement bypassed timed-out close");
-  await close(); await sleep(800);
+  await close(); await waitClosed();
   assert.equal((await state()).closed, true);
   console.log("PASS bounded timeout retains usable window, ignores late completion, permits retry");
   await closeHidden(app); app = undefined;
@@ -214,7 +224,7 @@ try {
   await close(); await sleep(100);
   assert.equal((await state()).closed, false, "failed update retained close approval and bypassed later consent");
   await page.evaluate(() => { window.closeTest.mode = "save"; });
-  await close(); await sleep(800);
+  await close(); await waitClosed();
   assert.equal((await state()).closed, true);
   console.log("PASS failed updater unfreezes readers and restores save/consent gate for the next close");
   await closeHidden(app); app = undefined;
@@ -255,7 +265,7 @@ try {
   await close(); await sleep(100);
   assert.equal((await state()).closed, false, "crashed reader closed without explicit consent");
   await app.evaluate(() => { global.fixtureDialogResponse = 1; });
-  await close(); await sleep(100);
+  await close(); await waitClosed();
   assert.equal((await state()).closed, true);
   console.log("PASS React recovery UI retries; renderer crash logged; one reload only; repeated crash stops recovery");
   await closeHidden(app); app = undefined;

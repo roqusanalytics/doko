@@ -39,12 +39,13 @@ try {
     tabs.library();
   });
   await page.getByRole("button", { name: /Try a sample/ }).waitFor();
-  assert.equal(await window.evaluate(async first => {
+  // A reader rebind during flushing safely defers suspension; wait for the inactive reader to settle.
+  await window.waitForFunction(async first => {
     const tabs = window.suspensionTabs, tab = tabs.all.find(tab => tab.key === first);
     if (tab.suspendTimer === undefined) throw new Error("Inactive tab did not schedule suspension");
     await tabs.suspend(tab);
     return !tab.frame && !tab.reader && tab.source?.kind === "blob";
-  }, first), true);
+  }, first);
   await window.evaluate(first => window.suspensionTabs.select(first), first);
   await page.getByRole("textbox", { name: "Page number" }).waitFor();
   await page.waitForFunction(() => document.querySelector('input[aria-label="Page number"]').value === "2");
