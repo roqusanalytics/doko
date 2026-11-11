@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.20.5
+
+- Keep automatic Mac updates working with the existing signing certificate when building on a fresh release runner.
+
 ## 1.20.4
 
 - Switch between Markdown preview and source with one button and a matching icon.
