@@ -1,7 +1,15 @@
-type ContentDocument = MarkdownDocument | GalleryDocument;
-interface MarkdownDocument { kind: "markdown"; id?: string; name: string; text: string }
+type ContentDocument = MarkdownDocument | GalleryDocument | WorkbookDocument;
+// `format` marks a content document that is not Markdown ("text" is a .txt file, "csv" a .csv file; absent means Markdown).
+// `encoding` is the label of the file's encoding on desktop (for example "UTF-8" or "Windows-1257").
+interface MarkdownDocument { kind: "markdown"; id?: string; name: string; text: string; format?: "text" | "csv"; encoding?: string;
+  // A .txt or .csv file's original BOM and line endings (rows, and for CSV also breaks inside quoted cells); each is absent when
+  // it is the default (no BOM, "\n"). The editor text always uses "\n"; saving or exporting a copy restores them.
+  bom?: boolean; eol?: string; cellEol?: string }
+// A read-only Excel workbook (desktop only): each worksheet as plain display text. Rows are ragged: a row ends at its last
+// value and an empty row is []. `truncated` marks a sheet, or the workbook, that was too large to read completely.
+interface WorkbookDocument { kind: "workbook"; id?: string; name: string; sheets: { name: string; rows: string[][]; truncated: boolean }[]; truncated: boolean }
 interface GalleryDocument { kind: "gallery"; id?: string; name: string; files: string[]; selected: string; blobs?: Record<string, Blob> }
-type ContentSaveResult = { ok?: boolean; document?: MarkdownDocument; cancelled?: boolean; conflict?: boolean; error?: string };
+type ContentSaveResult = { ok?: boolean; document?: MarkdownDocument; cancelled?: boolean; conflict?: boolean; unencodable?: boolean; error?: string };
 
 interface UpdateStatus {
   state: "idle" | "unsupported" | "checking" | "latest" | "available" | "downloading" | "ready" | "error";
@@ -13,16 +21,17 @@ interface UpdateStatus {
 
 // Present only when Doko runs as the desktop app (see electron/preload.cjs).
 type FileCommand = "save" | "save-as" | "export" | "compress" | "print" | "properties" | "recent" | "hand";
-type FileSaveFormat = "pdf" | "png" | "jpg" | "webp" | "html" | "txt" | "md" | "zip" | "json";
+type FileSaveFormat = "pdf" | "png" | "jpg" | "webp" | "html" | "txt" | "csv" | "md" | "zip" | "json";
 type FileSaveResult = { ok?: boolean; cancelled?: boolean; id?: string; name?: string; error?: string; conflict?: boolean };
 interface FolioDesktop {
   saveFile(request: { name: string; data: Uint8Array; format: FileSaveFormat; id?: string; saveAs?: boolean }): Promise<FileSaveResult>;
-  setFileMenu(state: { kind: "none" | "pdf" | "photo" | "markdown"; busy: boolean }): void;
+  setFileMenu(state: { kind: "none" | "pdf" | "photo" | "markdown" | "workbook"; busy: boolean }): void;
   onFileCommand(callback: (command: FileCommand) => void): () => void;
   content: {
     open(file: File): Promise<ContentDocument>;
-    onOpen(callback: (document: ContentDocument) => void): () => void;
-    save(id: string, text: string, copy?: boolean): Promise<ContentSaveResult>;
+    /** `token` is set when the tab was already open as "Opening…" (see onConverting). */
+    onOpen(callback: (document: ContentDocument, token?: string) => void): () => void;
+    save(id: string, text: string, copy?: boolean, utf8?: boolean): Promise<ContentSaveResult>;
     reload(id: string): Promise<MarkdownDocument>;
     refresh(id: string, selected: string): Promise<GalleryDocument>;
     image(id: string, name: string): Promise<{ data: Uint8Array; mime: string }>;

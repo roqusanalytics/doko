@@ -23,7 +23,7 @@
     "test:reader-security": "node scripts/test-reader-security.mjs && node scripts/test-url-client-certificates.mjs",
     "test:chat-math": "node scripts/test-chat-math.mjs",
     "test:thumbnails": "node scripts/test-thumbnails.mjs",
-    "test:content": "node --test scripts/test-content-files.cjs scripts/test-markdown-sections.mjs && node scripts/smoke-content.mjs && node scripts/smoke-markdown-modes.mjs && node scripts/test-photo-codec.mjs && node scripts/smoke-photo-tools.mjs && node scripts/smoke-photo-view.mjs && node scripts/smoke-pen-width.mjs",
+    "test:content": "node --test scripts/test-content-files.cjs scripts/test-content-source.mjs scripts/test-csv.mjs scripts/test-xlsx-files.cjs scripts/test-markdown-sections.mjs && node scripts/smoke-content.mjs && node scripts/smoke-markdown-modes.mjs && node scripts/test-photo-codec.mjs && node scripts/smoke-photo-tools.mjs && node scripts/smoke-photo-view.mjs && node scripts/smoke-pen-width.mjs",
     "build:local": "npm run build && electron-builder --config electron-builder.local.cjs --mac zip --arm64 --publish never",
     "test:document-tools": "node scripts/test-text-markup.mjs && node scripts/test-pdf-pages.mjs && node scripts/test-pdf-security.mjs"
   },
@@ -197,6 +197,24 @@
           "name": "Word Document",
           "role": "Viewer",
           "rank": "Alternate"
+        },
+        {
+          "ext": "txt",
+          "name": "Text Document",
+          "role": "Editor",
+          "rank": "Alternate"
+        },
+        {
+          "ext": "csv",
+          "name": "CSV Document",
+          "role": "Editor",
+          "rank": "Alternate"
+        },
+        {
+          "ext": "xlsx",
+          "name": "Excel Workbook",
+          "role": "Viewer",
+          "rank": "Alternate"
         }
       ],
       "identity": "-",
@@ -221,6 +239,9 @@
         "application/msword",
         "text/markdown",
         "text/x-markdown",
+        "text/plain",
+        "text/csv",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "image/jpeg",
         "image/png",
         "image/webp",

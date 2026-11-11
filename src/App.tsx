@@ -16,7 +16,7 @@ import { FIT_SCALES, flushViews, readView, writeView, type ReadingView } from ".
 import { DocumentTabBar } from "./DocumentTabBar";
 import { trackTitlebar } from "./titlebar";
 import type { DocumentTabs, OpenSource } from "./documentTabs";
-import { CONTENT_ACCEPT, localSources } from "./content-source";
+import { BROWSER_ACCEPT, CONTENT_ACCEPT, IPC_PREFIX, localSources } from "./content-source";
 import { SearchResults } from "./SearchResults";
 import { Icon, type IconName } from "./icons";
 import { Welcome } from "./Welcome";
@@ -604,7 +604,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     const input = document.createElement("input");
     input.type = "file";
     input.multiple = true;
-    input.accept = window.folioDesktop ? CONTENT_ACCEPT : CONTENT_ACCEPT.replace(",.doc,.docx", "");
+    input.accept = window.folioDesktop ? CONTENT_ACCEPT : BROWSER_ACCEPT;
     input.onchange = () => { if (input.files?.length) openFiles(input.files); };
     input.click();
   }, [openFiles]);
@@ -1215,9 +1215,24 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
           }
           break;
         }
+        case "workbook": {
+          const signal = beginOpen();
+          setLoading(true); setError(null); setToast(`Opening ${source.name}…`);
+          try {
+            const document = await window.folioDesktop!.content.open(source.file);
+            if (signal.aborted) return;
+            setToast(null);
+            tabs.finishConversion(tabKey, { kind: "content", name: document.name, document });
+          } catch (error) {
+            if (signal.aborted) return;
+            setToast(null); setLoading(false); tabs.failed(tabKey);
+            setError(`Couldn't open “${source.name}”. ${(error as Error).message.replace(IPC_PREFIX, "")}`);
+          }
+          break;
+        }
         case "sample": await openSample(); break;
         case "url": await openUrl(source.url); break;
-        case "converting": setLoading(true); setToast(`Converting ${source.name} to PDF…`); break;
+        case "converting": setLoading(true); setToast(/\.docx?$/i.test(source.name) ? `Converting ${source.name} to PDF…` : `Opening ${source.name}…`); break;
         case "error": setLoading(false); setToast(null); setError(source.message); tabs.failed(tabKey); break;
       }
     };

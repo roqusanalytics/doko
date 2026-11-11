@@ -38,11 +38,11 @@ contextBridge.exposeInMainWorld("folioDesktop", {
   content: {
     open: file => ipcRenderer.invoke("folio:content-open", webUtils.getPathForFile(file)),
     onOpen(callback) {
-      const listener = (_event, document) => callback(document);
+      const listener = (_event, document, token) => callback(document, token);
       ipcRenderer.on("folio:open-content", listener);
       return () => ipcRenderer.removeListener("folio:open-content", listener);
     },
-    save: (id, text, copy = false) => ipcRenderer.invoke("folio:content-save", id, text, copy),
+    save: (id, text, copy = false, utf8 = false) => ipcRenderer.invoke("folio:content-save", id, text, copy, utf8),
     reload: id => ipcRenderer.invoke("folio:content-reload", id),
     refresh: (id, selected) => ipcRenderer.invoke("folio:content-refresh", id, selected),
     async image(id, name) {

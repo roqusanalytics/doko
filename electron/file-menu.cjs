@@ -1,5 +1,7 @@
 function fileMenuTemplate({ platform, send, open, state = { kind: 'none', busy: false } }) {
   const active = state.kind !== 'none' && !state.busy;
+  // A workbook is read-only: only Print applies.
+  const writable = active && state.kind !== 'workbook';
   const action = (label, command, accelerator, enabled = active) => ({ label, enabled, accelerator, click: () => send('folio:file-command', command) });
   return [
     ...(platform === 'darwin' ? [{ role: 'appMenu', label: 'Doko', submenu: [
@@ -12,13 +14,13 @@ function fileMenuTemplate({ platform, send, open, state = { kind: 'none', busy: 
       { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: open },
       action('Open Recent…', 'recent', undefined, true),
       { type: 'separator' },
-      action('Save', 'save', 'CmdOrCtrl+S'),
-      action('Save As…', 'save-as', 'CmdOrCtrl+Shift+S'),
-      action('Export / Convert…', 'export'),
+      action('Save', 'save', 'CmdOrCtrl+S', writable),
+      action('Save As…', 'save-as', 'CmdOrCtrl+Shift+S', writable),
+      action('Export / Convert…', 'export', undefined, writable),
       action('Reduce File Size…', 'compress', undefined, active && ['pdf', 'photo'].includes(state.kind)),
       { type: 'separator' },
       action('Print…', 'print', 'CmdOrCtrl+P'),
-      action('Properties…', 'properties'),
+      action('Properties…', 'properties', undefined, writable),
       { type: 'separator' },
       { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: () => send('folio:tab-command', 'close') },
       ...(platform === 'darwin' ? [] : [{ type: 'separator' }, { role: 'quit' }]),

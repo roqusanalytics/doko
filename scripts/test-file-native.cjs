@@ -164,6 +164,10 @@ test('native menus dispatch commands and enable only applicable actions on every
       assert.equal(disabled.find(item => item.label === 'Open Recent…').enabled, true);
     }
     assert.equal(build({ kind: 'markdown', busy: false }).find(item => item.label === 'File').submenu.find(item => item.label === 'Reduce File Size…').enabled, false);
+    // A read-only workbook can only be printed.
+    const workbook = build({ kind: 'workbook', busy: false }).find(item => item.label === 'File').submenu;
+    for (const [label, enabled] of [['Print…', true], ['Open Recent…', true], ['Save', false], ['Save As…', false], ['Export / Convert…', false], ['Properties…', false]])
+      assert.equal(workbook.find(item => item.label === label).enabled, enabled, label);
   }
 });
 

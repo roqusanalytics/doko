@@ -7,6 +7,7 @@ export type OpenSource =
   | { kind: "bytes"; name: string; data: Uint8Array; note?: string; password?: string }
   | { kind: "blob"; name: string; blob: Blob; recentId?: string }
   | { kind: "word"; name: string; file: File }
+  | { kind: "workbook"; name: string; file: File }
   | { kind: "url"; name: string; url: string }
   | { kind: "sample" | "converting"; name: string }
   | { kind: "error"; name: string; message: string };
@@ -140,12 +141,7 @@ export class DocumentTabs {
       }
       const current = this.entry(this.active);
       const tab = !first && current && !current.name && !current.closing ? current : this.create();
-      if (source.kind === "content" && tab.frame) {
-        tab.frame.disposeReader?.();
-        tab.frame.remove();
-        tab.frame = undefined;
-        tab.reader = undefined;
-      }
+      if (source.kind === "content") this.resetFrame(tab);
       tab.name = source.name;
       if (source.kind === "content") tab.content = source.document;
       tab.source = source;
@@ -154,6 +150,14 @@ export class DocumentTabs {
     }
     this.select(first);
     return first;
+  }
+  // A content document needs a reader of its own, so a tab that already has a reader gets a new frame.
+  private resetFrame(tab: Tab) {
+    if (!tab.frame) return;
+    tab.frame.disposeReader?.();
+    tab.frame.remove();
+    tab.frame = undefined;
+    tab.reader = undefined;
   }
   private deliver(tab: Tab) {
     if (!tab.reader || !tab.source) return;
@@ -184,9 +188,12 @@ export class DocumentTabs {
     const tab = this.entry(key);
     if (!tab || tab.closing) return;
     tab.name = source.name;
+    if (source.kind === "content") { tab.content = source.document; this.resetFrame(tab); }
     tab.source = source;
     this.deliver(tab);
-    this.changed();
+    // select() builds the content reader's frame, and announces the change itself.
+    if (source.kind === "content" && key === this.active) this.select(key);
+    else this.changed();
   }
   opened(key: number, id: string, name: string) {
     const tab = this.entry(key);
@@ -300,7 +307,6 @@ export class DocumentTabs {
     this.library();
     const initial = this.revision;
     const desktop = window.folioDesktop;
-    desktop?.content.onOpen(document => this.open([{ kind: "content", name: document.name, document }]));
     desktop?.onPrepareClose(() => this.prepareClose());
     desktop?.onCloseCancelled(() => this.cancelClose());
     desktop?.onTabCommand(command => {
@@ -310,6 +316,12 @@ export class DocumentTabs {
       else this.cycle(command === "next" ? 1 : -1);
     });
     const conversions = new Map<string, number>();
+    desktop?.content.onOpen((document, token) => {
+      const source: OpenSource = { kind: "content", name: document.name, document };
+      const key = token && conversions.get(token);
+      if (token && key) { conversions.delete(token); this.finishConversion(key, source); }
+      else this.open([source]);
+    });
     desktop?.onConverting((name, token) => conversions.set(token, this.open([{ kind: "converting", name }])));
     desktop?.onOpenFile((name, data, note, token) => {
       const source: OpenSource = { kind: "bytes", name, data, note };

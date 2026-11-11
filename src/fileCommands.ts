@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-export function useFileCommands(active: boolean, kind: "none" | "pdf" | "photo" | "markdown", busy: boolean, run: (command: FileCommand) => void) {
+export function useFileCommands(active: boolean, kind: "none" | "pdf" | "photo" | "markdown" | "workbook", busy: boolean, run: (command: FileCommand) => void) {
   const current = useRef({ active, busy, run });
   current.current = { active, busy, run };
   useEffect(() => window.folioDesktop?.onFileCommand(command => {

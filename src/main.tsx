@@ -30,7 +30,7 @@ if (reader) {
   };
   const failedImport = () => renderReader(<FailedReaderImport />);
   // Separate imports let Vite preload each reader's own styles.
-  if (content?.kind === "markdown") {
+  if (content?.kind === "markdown" || content?.kind === "workbook") {
     void import("./ContentReader").then(({ default: ContentReader }) => {
       renderReader(<ContentReader tabs={reader.tabs} tabKey={reader.key} initial={content} />);
     }).catch(failedImport);

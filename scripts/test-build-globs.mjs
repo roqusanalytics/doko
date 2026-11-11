@@ -10,7 +10,7 @@ const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
 const { FileMatcher } = require("app-builder-lib/out/fileMatcher");
 const filter = new FileMatcher(root, path.join(root, "unused-package-destination"), value => value, pkg.build.files).createFilter();
 
-for (const name of ["dist/index.html", "dist/.vite/license.md", "dist/assets/App-a.js", "dist/assets/žymė.js", "electron/main.cjs", "electron/preload.cjs", "package.json"]) {
+for (const name of ["dist/index.html", "dist/.vite/license.md", "dist/assets/App-a.js", "dist/assets/žymė.js", "electron/main.cjs", "electron/preload.cjs", "electron/xlsx-worker.cjs", "electron/xlsx-parts.cjs", "package.json"]) {
   assert.equal(filter(path.join(root, name), { isDirectory: () => false }), true, `Package must retain ${name}`);
 }
 for (const name of ["dist/assets/App-a 2.js", "dist/assets 2/App-a.js", "dist/assets/App-a 12.js", "src/App.tsx", "reports/private.html", ".env"]) {
