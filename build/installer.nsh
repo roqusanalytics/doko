@@ -2,7 +2,7 @@
 ;
 ; Word documents (.doc, .docx) get Doko in "Open with", which converts them to PDF. They're registered here rather
 ; than in package.json's fileAssociations, which would also make Doko the default app and take double-click away
-; from Word. Text, CSV and Excel files (.txt, .csv, .xlsx) are registered the same way, so the default app stays.
+; from Word. Text, CSV, SVG and Excel files (.txt, .csv, .svg, .xlsx) are registered the same way, so the default app stays.
 
 ; Restart uses --updated /S --force-run. Keep the old image from starting again while the
 ; uninstaller moves it aside. A write handle prevents execution, and sharing delete lets the
@@ -54,6 +54,10 @@
   WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.CsvDocument\DefaultIcon" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME},0"
   WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.CsvDocument\shell\open\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "%1"'
   WriteRegNone SHELL_CONTEXT "Software\Classes\.csv\OpenWithProgids" "FolioLocal.CsvDocument"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.SvgImage" "" "SVG Image"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.SvgImage\DefaultIcon" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME},0"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.SvgImage\shell\open\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "%1"'
+  WriteRegNone SHELL_CONTEXT "Software\Classes\.svg\OpenWithProgids" "FolioLocal.SvgImage"
   WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.ExcelWorkbook" "" "Excel Workbook"
   WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.ExcelWorkbook\DefaultIcon" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME},0"
   WriteRegStr SHELL_CONTEXT "Software\Classes\FolioLocal.ExcelWorkbook\shell\open\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "%1"'
@@ -81,6 +85,8 @@
   DeleteRegKey SHELL_CONTEXT "Software\Classes\FolioLocal.TextDocument"
   DeleteRegValue SHELL_CONTEXT "Software\Classes\.csv\OpenWithProgids" "FolioLocal.CsvDocument"
   DeleteRegKey SHELL_CONTEXT "Software\Classes\FolioLocal.CsvDocument"
+  DeleteRegValue SHELL_CONTEXT "Software\Classes\.svg\OpenWithProgids" "FolioLocal.SvgImage"
+  DeleteRegKey SHELL_CONTEXT "Software\Classes\FolioLocal.SvgImage"
   DeleteRegValue SHELL_CONTEXT "Software\Classes\.xlsx\OpenWithProgids" "FolioLocal.ExcelWorkbook"
   DeleteRegKey SHELL_CONTEXT "Software\Classes\FolioLocal.ExcelWorkbook"
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'

@@ -1,0 +1,17 @@
+[
+  { "name": "ISO-8859-1, double quotes", "input": "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<svg/>", "output": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg/>" },
+  { "name": "iso-8859-1, single quotes keep their quotes", "input": "<?xml version='1.0' encoding='iso-8859-1'?>\n<svg/>", "output": "<?xml version='1.0' encoding='UTF-8'?>\n<svg/>" },
+  { "name": "windows-1252 before standalone keeps the other attributes", "input": "<?xml version=\"1.0\" encoding=\"windows-1252\" standalone=\"yes\"?><svg/>", "output": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><svg/>" },
+  { "name": "UTF-16", "input": "<?xml version=\"1.0\" encoding=\"UTF-16\"?>\n<svg/>", "output": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg/>" },
+  { "name": "spaces around the equals sign", "input": "<?xml version=\"1.0\" encoding = 'latin1' ?><svg/>", "output": "<?xml version=\"1.0\" encoding = 'UTF-8' ?><svg/>" },
+  { "name": "BOM and leading whitespace before the declaration", "input": "﻿ \n<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><svg/>", "output": "﻿ \n<?xml version=\"1.0\" encoding=\"UTF-8\"?><svg/>" },
+  { "name": "no declaration", "input": "<svg xmlns=\"http://www.w3.org/2000/svg\"/>\n", "output": "<svg xmlns=\"http://www.w3.org/2000/svg\"/>\n" },
+  { "name": "declaration without encoding", "input": "<?xml version=\"1.0\"?>\n<svg/>", "output": "<?xml version=\"1.0\"?>\n<svg/>" },
+  { "name": "UTF-8 declaration stays as written", "input": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><svg/>", "output": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><svg/>" },
+  { "name": "lowercase utf-8 declaration stays as written", "input": "<?xml version='1.0' encoding='utf-8'?><svg/>", "output": "<?xml version='1.0' encoding='utf-8'?><svg/>" },
+  { "name": "xml-stylesheet is not a declaration", "input": "<?xml-stylesheet href=\"a.css\" encoding=\"ISO-8859-1\"?><svg/>", "output": "<?xml-stylesheet href=\"a.css\" encoding=\"ISO-8859-1\"?><svg/>" },
+  { "name": "a declaration after other content is not the document's declaration", "input": "<!-- c --><?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><svg/>", "output": "<!-- c --><?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><svg/>" },
+  { "name": "declaration-like text inside content, no real declaration", "input": "<svg><text>&lt;?xml version=\"1.0\" encoding=\"ISO-8859-1\"?&gt;</text><![CDATA[<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>]]></svg>", "output": "<svg><text>&lt;?xml version=\"1.0\" encoding=\"ISO-8859-1\"?&gt;</text><![CDATA[<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>]]></svg>" },
+  { "name": "declaration-like text inside content after a UTF-8 declaration", "input": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><svg><!-- <?xml version=\"1.0\" encoding=\"ISO-8859-1\"?> --></svg>", "output": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><svg><!-- <?xml version=\"1.0\" encoding=\"ISO-8859-1\"?> --></svg>" },
+  { "name": "encoding attribute on the root element is not touched", "input": "<?xml version=\"1.0\"?><svg encoding=\"ISO-8859-1\"/>", "output": "<?xml version=\"1.0\"?><svg encoding=\"ISO-8859-1\"/>" }
+]

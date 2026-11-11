@@ -20,12 +20,14 @@ const NO_SECTIONS: ReturnType<typeof markdownSections> = [];
 // Plain text (`format` "text") is only the editor: no preview, mode bar, Markdown highlighting or section rail.
 // A CSV file (`format` "csv") is the same editor plus an editable table of its text: "view" mode is the table. The editor
 // exists from the start, hidden in table mode, because every table edit is a transaction on it (and so is undo/redo).
+// An SVG file (`format` "svg") is the editor (plain text, no Markdown language) plus its rendered image from `renderPreview`:
+// "view" mode is the image, and the editor exists from the start, hidden, as for CSV.
 export default function MarkdownPane({ text, onChange, renderPreview, editorRef, format, csv, onTableVisible }: {
   text: string;
   onChange: (text: string) => void;
   renderPreview?: (headingIds: readonly string[]) => ReactNode;
   editorRef: Ref<MarkdownEditorHandle>;
-  format?: "text" | "csv";
+  format?: "text" | "csv" | "svg";
   /** `text` parsed with the pinned delimiter; required for CSV. */
   csv?: CsvTable | null;
   /** Tells the parent whether the CSV table is on screen, so it can skip parsing while only the source is shown. */
@@ -33,8 +35,9 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
 }) {
   const plain = format === "text";
   const sheet = format === "csv";
+  const svg = format === "svg";
   const [mode, setMode] = useState<"view" | "source">(plain ? "source" : "view");
-  const [requested, setRequested] = useState(plain || sheet);
+  const [requested, setRequested] = useState(plain || sheet || svg);
   const tableHandle = useRef<TableViewHandle>(null);
   useLayoutEffect(() => { if (sheet) onTableVisible?.(mode === "view"); }, [sheet, mode]);
   const [ready, setReady] = useState(false);
@@ -53,13 +56,13 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
   currentMode.current = mode;
   const change = useRef(onChange);
   change.current = onChange;
-  const sections = useMemo(() => plain || sheet ? NO_SECTIONS : markdownSections(text), [text, plain, sheet]);
+  const sections = useMemo(() => plain || sheet || svg ? NO_SECTIONS : markdownSections(text), [text, plain, sheet, svg]);
   const latestSections = useRef(sections);
   latestSections.current = sections;
   const headingIds = useMemo(() => sections.map(section => section.id), [sections]);
 
   const sourceSection = (view: EditorView) => {
-    if (plain || sheet) return;
+    if (plain || sheet || svg) return;
     view.requestMeasure({
       key: "markdown-section",
       read(current) {
@@ -96,12 +99,12 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
       const { basicSetup, markdown, pythonLanguage, syntaxHighlighting, highlighting, EditorState, EditorView } = loaded;
       extensions.current = [
       basicSetup,
-      ...(sheet ? [] : plain ? [EditorView.lineWrapping] : [
+      ...(sheet ? [] : plain || svg ? [EditorView.lineWrapping] : [
         markdown({ codeLanguages: info => /^(python|py)(?:\s|$)/i.test(info) ? pythonLanguage : null }),
         syntaxHighlighting(highlighting),
       ]),
       EditorState.tabSize.of(2),
-      EditorView.contentAttributes.of({ "aria-label": plain ? "Text document" : sheet ? "CSV source" : "Markdown source", spellcheck: "false" }),
+      EditorView.contentAttributes.of({ "aria-label": plain ? "Text document" : sheet ? "CSV source" : svg ? "SVG source" : "Markdown source", spellcheck: "false" }),
       EditorView.updateListener.of(update => {
         if (update.docChanged) change.current(update.state.doc.toString());
         if (update.viewportChanged || update.docChanged) sourceSection(update.view);
@@ -188,9 +191,9 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
   };
 
   return <div className="markdown-pane" data-mode={mode} data-sections={sections.length > 0}>
-    {!plain && <div className="markdown-mode-bar" role="group" aria-label={sheet ? "CSV mode" : "Markdown mode"}>
-      <button className="markdown-mode-button" aria-pressed={mode === "view"} onClick={() => setMode("view")}>{sheet ? "Table" : "View"}</button>
-      <button className="markdown-mode-button" aria-pressed={mode === "source"} onClick={() => { setRequested(true); setMode("source"); }}>{sheet ? "Source" : "View source"}</button>
+    {!plain && <div className="markdown-mode-bar" role="group" aria-label={sheet ? "CSV mode" : svg ? "SVG mode" : "Markdown mode"}>
+      <button className="markdown-mode-button" aria-pressed={mode === "view"} onClick={() => setMode("view")}>{sheet ? "Table" : svg ? "Image" : "View"}</button>
+      <button className="markdown-mode-button" aria-pressed={mode === "source"} onClick={() => { setRequested(true); setMode("source"); }}>{sheet || svg ? "Source" : "View source"}</button>
     </div>}
     <div className="markdown-pane-body">
       {sections.length > 0 && <nav className="markdown-section-rail" aria-label="Document sections" onScroll={() => setLabel(null)} onKeyDown={event => {
@@ -212,7 +215,8 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
         {loadError && <div className="table-notice" role="alert">Couldn't load the editor, so the table can't be edited. <button className="content-inline-button" onClick={() => setAttempt(value => value + 1)}>Retry</button></div>}
         <TableView rows={csvRows} columns={csv?.columns ?? 0} readOnly={!ready} label="CSV table" empty="This file is empty. Add a row to start." onEdit={applyEdit} handle={tableHandle} />
       </div>}
-      {!plain && !sheet && <div ref={rendered} className="markdown-rendered" hidden={mode !== "view"} tabIndex={0} aria-label="Markdown document" onScroll={previewSection}>
+      {svg && <div ref={rendered} className="svg-view" role="region" hidden={mode !== "view"} tabIndex={0} aria-label="SVG image">{renderPreview?.([])}</div>}
+      {!plain && !sheet && !svg && <div ref={rendered} className="markdown-rendered" hidden={mode !== "view"} tabIndex={0} aria-label="Markdown document" onScroll={previewSection}>
         {mode === "view" && renderPreview?.(headingIds)}
       </div>}
       <div className="markdown-source" hidden={mode !== "source"}>

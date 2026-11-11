@@ -9,6 +9,7 @@ const { createSaveTemp, copySaveTemp } = require("./save-metadata.cjs");
 const MARKDOWN_FILE = /\.(md|markdown)$/i;
 const TEXT_FILE = /\.txt$/i;
 const CSV_FILE = /\.csv$/i;
+const SVG_FILE = /\.svg$/i;
 // .xls is routed here too, so the reader can tell the user to save it as .xlsx.
 const XLSX_FILE = /\.xlsx?$/i;
 const IMAGE_FILE = /\.(jpe?g|png|webp|gif|bmp|avif)$/i;
@@ -17,9 +18,11 @@ const MAX_IMAGE_BYTES = 100 * 1024 * 1024;
 const MAX_IMAGE_PIXELS = 80_000_000;
 const ENCODING_LABELS = { "utf-8": "UTF-8", "utf-16le": "UTF-16 LE", "utf-16be": "UTF-16 BE", "windows-1252": "Windows-1252", "windows-1257": "Windows-1257" };
 const NOT_TEXT = "This file isn't plain text or uses an encoding Doko can't read.";
-// `txt` and `csv` records are plain text for I/O (same encodings); a CSV table is only a view of that text.
-const kindName = format => format === "text" ? "Text" : format === "csv" ? "CSV" : "Markdown";
-const fileFormat = file => TEXT_FILE.test(file) ? "text" : CSV_FILE.test(file) ? "csv" : undefined;
+// `txt`, `csv` and `svg` records are plain text for I/O (same encodings); a CSV table or an SVG image is only a view of that text.
+const kindName = format => format === "text" ? "Text" : format === "csv" ? "CSV" : format === "svg" ? "SVG" : "Markdown";
+const fileFormat = file => TEXT_FILE.test(file) ? "text" : CSV_FILE.test(file) ? "csv" : SVG_FILE.test(file) ? "svg" : undefined;
+// What a copy of each text-based format must be named: the pattern it must match and the words for the error.
+const COPY_NAME = { text: [TEXT_FILE, "a .txt"], csv: [CSV_FILE, "a .csv"], svg: [SVG_FILE, "a .svg"] };
 const hash = data => crypto.createHash("sha256").update(data).digest("hex");
 const conflict = () => Object.assign(new Error("The file changed on disk. Reload it or save a copy."), { conflict: true });
 const compareNames = (a, b) => a.localeCompare(b, "en", { numeric: true, sensitivity: "base" }) || (a < b ? -1 : a > b ? 1 : 0);
@@ -101,6 +104,10 @@ function decodeText(data, locale, csv = false) {
   const endings = csv ? csvEndings(text) : { eol: text.match(/\r\n|\n|\r/)?.[0] ?? "\n" };
   return { text: text.replace(/\r\n|\r/g, "\n"), bom, ...endings, encoding };
 }
+
+// Bytes re-encoded as UTF-8 must not sit under another encoding's XML declaration: a browser would read them as mojibake.
+// Only a leading <?xml ... encoding="..."?> naming a non-UTF-8 encoding changes; same regex and vectors as src/content-source.ts.
+const xmlUtf8 = text => text.replace(/^(\ufeff?\s*<\?xml\s[^?]*?\bencoding\s*=\s*)(["'])(?!utf-?8\2)[^"']*\2/i, "$1$2UTF-8$2");
 
 // The reverse of a single-byte page comes from the decoder itself, so no table is shipped.
 const legacyTables = new Map();
@@ -215,7 +222,7 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
     if (!record || kind && record.kind !== kind) throw new Error("This document is no longer open.");
     return record;
   };
-  // Text and CSV documents carry their BOM and line endings (absent when default), so exported copies can keep them.
+  // Text, CSV and SVG documents carry their BOM and line endings (absent when default), so exported copies can keep them.
   const document = record => ({ kind: "markdown", id: record.id, name: path.basename(record.file), text: record.text,
     ...(record.format && { format: record.format, encoding: ENCODING_LABELS[record.encoding],
       ...(record.bom && { bom: true }), ...(record.eol !== "\n" && { eol: record.eol }), ...(record.cellEol && record.cellEol !== "\n" && { cellEol: record.cellEol }) }) });
@@ -262,9 +269,9 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
   }
   async function open(file) {
     if (XLSX_FILE.test(file)) return openWorkbook(file);
-    if (!MARKDOWN_FILE.test(file) && !TEXT_FILE.test(file) && !CSV_FILE.test(file) && !IMAGE_FILE.test(file)) throw new Error("Choose a Markdown file, text file, CSV file, or supported image.");
+    if (!MARKDOWN_FILE.test(file) && !fileFormat(file) && !IMAGE_FILE.test(file)) throw new Error("Choose a Markdown file, text file, CSV file, SVG file, or supported image.");
     const resolved = await regular(file);
-    const root = path.dirname(resolved), markdown = MARKDOWN_FILE.test(resolved) || TEXT_FILE.test(resolved) || CSV_FILE.test(resolved);
+    const root = path.dirname(resolved), markdown = MARKDOWN_FILE.test(resolved) || !!fileFormat(resolved);
     const key = `${markdown ? "markdown" : "gallery"}:${markdown ? resolved : root}`;
     const existing = identities.get(key);
     if (existing) return markdown ? document(get(existing)) : gallery(get(existing), path.basename(resolved), path.basename(resolved));
@@ -365,7 +372,9 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
       // Cheap bound before encoding: every supported encoding needs at least one byte per character.
       if (text.length > MAX_MARKDOWN_BYTES) throw new Error(`${name} is limited to 5 MB.`);
       const encoding = utf8 ? "utf-8" : record.encoding;
-      const normalized = text.replace(/\r\n|\r/g, "\n");
+      const unified = text.replace(/\r\n|\r/g, "\n");
+      // An SVG moving to UTF-8 from another encoding gets its XML declaration updated; the record then holds the rewritten text.
+      const normalized = record.format === "svg" && encoding !== record.encoding ? xmlUtf8(unified) : unified;
       const data = encodeText(record.format === "csv" ? csvRestore(normalized, record.eol, record.cellEol) : normalized.replace(/\n/g, record.eol), encoding, record.bom);
       if (data.length > MAX_MARKDOWN_BYTES) throw new Error(`${name} is limited to 5 MB.`);
       record.busy = true;
@@ -375,7 +384,8 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
       if (copy) {
         file = await chooseSavePath?.(path.basename(record.file), record.format);
         if (!file) return { cancelled: true };
-        if (!path.isAbsolute(file) || !(record.format === "text" ? TEXT_FILE : record.format === "csv" ? CSV_FILE : MARKDOWN_FILE).test(file)) throw new Error(record.format === "text" ? "Save the copy with a .txt extension." : record.format === "csv" ? "Save the copy with a .csv extension." : "Save the copy with a .md or .markdown extension.");
+        const [copyName, copyWords] = COPY_NAME[record.format] ?? [MARKDOWN_FILE, "a .md or .markdown"];
+        if (!path.isAbsolute(file) || !copyName.test(file)) throw new Error(`Save the copy with ${copyWords} extension.`);
         checkDiskPath(file);
         file = path.join(await fsp.realpath(path.dirname(file)), path.basename(file));
         if (file === record.file) throw new Error("Choose a different file name to save a copy.");
@@ -427,4 +437,4 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
     clear() { records.clear(); identities.clear(); } };
 }
 
-module.exports = { createContentFiles, imageInfo, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, XLSX_FILE, IMAGE_FILE, MAX_MARKDOWN_BYTES, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS };
+module.exports = { createContentFiles, imageInfo, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, SVG_FILE, XLSX_FILE, IMAGE_FILE, MAX_MARKDOWN_BYTES, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS };

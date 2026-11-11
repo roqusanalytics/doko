@@ -14,7 +14,7 @@ const { csp } = require("./csp.cjs");
 const { WORD_FILE, openWord, openWorkbook } = require("./convert.cjs");
 const { registerPrinting } = require("./printing.cjs");
 const { MAX_DOCUMENT_BYTES, checkDiskPath, readRegular } = require("./document-files.cjs");
-const { createContentFiles, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, XLSX_FILE, IMAGE_FILE } = require("./content-files.cjs");
+const { createContentFiles, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, SVG_FILE, XLSX_FILE, IMAGE_FILE } = require("./content-files.cjs");
 
 const { createSaveFiles } = require("./save-files.cjs");
 const { fileMenuTemplate } = require("./file-menu.cjs");
@@ -43,6 +43,7 @@ const contentFiles = createContentFiles({
   chooseSavePath: async (name, format) => {
   const [title, filter] = format === "text" ? ["Save text copy", { name: "Text", extensions: ["txt"] }]
     : format === "csv" ? ["Save CSV copy", { name: "CSV", extensions: ["csv"] }]
+    : format === "svg" ? ["Save SVG copy", { name: "SVG", extensions: ["svg"] }]
     : ["Save Markdown copy", { name: "Markdown", extensions: ["md", "markdown"] }];
   const result = await dialog.showSaveDialog(win, { title, defaultPath: name,
     filters: [filter], properties: ["showOverwriteConfirmation", "createDirectory"] });
@@ -60,7 +61,7 @@ function updateFileMenu() {
     send: (channel, command) => win?.webContents.send(channel, command), open: async () => {
       if (!win) return;
       const result = await dialog.showOpenDialog(win, { title: "Open", properties: ["openFile", "multiSelections"],
-        filters: [{ name: "Documents and Photos", extensions: ["pdf", "doc", "docx", "xlsx", "xls", "md", "markdown", "txt", "csv", "jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"] }] });
+        filters: [{ name: "Documents and Photos", extensions: ["pdf", "doc", "docx", "xlsx", "xls", "md", "markdown", "txt", "csv", "svg", "jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"] }] });
       if (!result.canceled) await sendFiles(result.filePaths);
     } })));
 }
@@ -186,7 +187,7 @@ function applyWindowTransparency() {
   return enabled;
 }
 nativeTheme.on("updated", () => applyWindowTransparency());
-const OPENABLE = /\.(pdf|docx?|xlsx?|md|markdown|txt|csv|jpe?g|png|webp|gif|bmp|avif)$/i;
+const OPENABLE = /\.(pdf|docx?|xlsx?|md|markdown|txt|csv|svg|jpe?g|png|webp|gif|bmp|avif)$/i;
 const pendingFiles = filesFromArgs(process.argv);
 let rendererReady = false;
 
@@ -224,7 +225,7 @@ async function sendFile(file) {
   if (WORD_FILE.test(file)) return sendWordFile(file, target);
   if (XLSX_FILE.test(file)) return sendWorkbookFile(file, target);
   try {
-    if (MARKDOWN_FILE.test(file) || TEXT_FILE.test(file) || CSV_FILE.test(file) || IMAGE_FILE.test(file)) {
+    if (MARKDOWN_FILE.test(file) || TEXT_FILE.test(file) || CSV_FILE.test(file) || SVG_FILE.test(file) || IMAGE_FILE.test(file)) {
       const document = await contentFiles.open(file);
       if (!target.isDestroyed()) target.webContents.send("folio:open-content", document);
       return;
