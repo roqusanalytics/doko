@@ -46,7 +46,7 @@ try {
  const input=path.join(temp,'undo-content.pdf'),fixture=await PDFDocument.create();
  fixture.addPage([300,400]).drawText('ORIGINAL SAMPLE TEXT',{x:30,y:300,size:15});writeFileSync(input,await fixture.save());
  await app.evaluate(({app},file)=>app.emit('open-file',{preventDefault(){}},file),input);
- await page.waitForFunction(()=>document.querySelector('.textLayer')?.textContent.includes('ORIGINAL SAMPLE TEXT'));
+ await page.locator('.textLayer').filter({hasText:'ORIGINAL SAMPLE TEXT'}).waitFor();
  await select();await page.getByRole('button',{name:'Text marking style',exact:true}).click();
  await page.getByRole('menuitemradio',{name:'Underline',exact:true}).click();await page.getByRole('button',{name:'Highlight yellow',exact:true}).click();
  const undo=page.getByRole('button',{name:'Undo document edit',exact:true});await undo.waitFor();assert.ok(await undo.isEnabled());
