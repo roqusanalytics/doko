@@ -177,6 +177,17 @@ export function parseCsv(text: string, forceDelimiter?: CsvDelimiter): CsvTable 
  * Quote only when needed: the delimiter or any detectable delimiter (so a reopened file is never re-split by detection),
  * quote, CR/LF, or leading/trailing space.
  */
+
+/**
+ * Parses with the delimiter pinned for this file, so editing a cell cannot change how it is split. A pin that leaves the
+ * table with one column is released and the text is detected again: that is how a rewritten separator is followed.
+ */
+export function parseCsvPinned(text: string, pinned?: CsvDelimiter): CsvTable {
+  const table = parseCsv(text, pinned);
+  if (table.columns > 1 || !pinned) return table;
+  const detected = parseCsv(text);
+  return detected.columns > 1 ? detected : table;
+}
 export function encodeCell(value: string, delimiter: CsvDelimiter): string {
   if (!value) return value;
   const needs = value.includes(delimiter) || /[,;\t|]/.test(value) || value.includes('"') || value.includes("\n") || value.includes("\r")

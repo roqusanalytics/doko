@@ -18,7 +18,7 @@ import { UpdateSettings } from "./SettingsDialog";
 import { updateSummary } from "./updates";
 import MarkdownPane, { type MarkdownEditorHandle } from "./MarkdownPane";
 import WorkbookView from "./WorkbookView";
-import { parseCsv } from "./csv";
+import { parseCsv, parseCsvPinned } from "./csv";
 import "katex/dist/katex.min.css";
 import "./content-reader.css";
 
@@ -146,10 +146,11 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
   const csvTable = useMemo(() => {
     if (!sheet) return null;
     if (!tableVisible && dialog !== "properties" && lastTable.current) return lastTable.current;
-    const table = parseCsv(text, delimiter.current);
+    const table = parseCsvPinned(text, delimiter.current);
     if (table.columns > 1) delimiter.current = table.delimiter;
     return lastTable.current = table;
-  }, [sheet, text, tableVisible, dialog === "properties"]);
+    // `doc` changes on every reload, so a reload that returns identical text still parses again.
+  }, [sheet, doc, text, tableVisible, dialog === "properties"]);
 
   useEffect(() => window.folioDesktop?.onUpdateStatus(setUpdateStatus), []);
   useEffect(() => { tabs.markDirty(tabKey, dirty); }, [tabs, tabKey, dirty]);

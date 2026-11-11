@@ -6,7 +6,7 @@ import { createServer } from "vite";
 const server = await createServer({ root: path.resolve(import.meta.dirname, ".."), server: { middlewareMode: true }, appType: "custom" });
 after(() => server.close());
 const csv = await server.ssrLoadModule("/src/csv.ts");
-const { parseCsv, encodeCell, applyChanges, setCell, insertRow, deleteRow, insertColumn, deleteColumn } = csv;
+const { parseCsv, parseCsvPinned, encodeCell, applyChanges, setCell, insertRow, deleteRow, insertColumn, deleteColumn } = csv;
 
 const values = table => table.rows.map(row => row.cells.map(cell => cell.value));
 
@@ -404,4 +404,18 @@ test("performance: ~5 MB, 100k rows parse quickly", () => {
   const t2 = performance.now();
   applyChanges(text, setCell(table, 50_000, 2, "edited"));
   assert.ok(performance.now() - t2 < 1000);
+});
+
+test("a pinned delimiter follows a rewritten separator, and still protects multi-column files", () => {
+  // Pinned `;`, then the whole text is replaced by comma-separated rows: the pin must not leave one column of whole lines.
+  assert.deepEqual(values(parseCsvPinned("x,y,z\n1,2,3\n", ";")), [["x", "y", "z"], ["1", "2", "3"]]);
+  assert.equal(parseCsvPinned("x,y,z\n1,2,3\n", ";").delimiter, ",");
+  // A genuine one-column file stays one column with the pin.
+  assert.deepEqual(values(parseCsvPinned("a\nb\n", ";")), [["a"], ["b"]]);
+  // A multi-column table keeps its pin even when an edited cell would tip detection elsewhere.
+  const pinned = parseCsvPinned("a;b,c\n1;2,3\n", ";");
+  assert.equal(pinned.delimiter, ";");
+  assert.deepEqual(values(pinned), [["a", "b,c"], ["1", "2,3"]]);
+  // No pin: plain detection.
+  assert.equal(parseCsvPinned("a;b\n", undefined).delimiter, ";");
 });
