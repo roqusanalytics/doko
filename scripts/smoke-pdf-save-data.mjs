@@ -85,6 +85,8 @@ try {
  await page.getByRole('tab',{name:'Pages',exact:true}).click();assert.equal(await page.getByRole('button',{name:'Bookmark page 1',exact:true}).getAttribute('aria-pressed'),'true');
  await page.getByRole('button',{name:'Ask AI',exact:true}).click();await page.getByText('SYNTHETIC SAVED CHAT',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Close Ask AI',exact:true}).click();
+ // Fixed zoom keeps the panel-close refit from replacing the selection during the save check.
+ await page.getByTitle('Zoom',{exact:true}).click();await page.getByRole('menuitem',{name:'100%',exact:true}).click();
  await page.evaluate(()=>{
   const span=[...document.querySelectorAll('.textLayer span')].find(span=>span.textContent.includes('SYNTHETIC'));
   const range=document.createRange();range.selectNodeContents(span);const selection=document.getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange'));

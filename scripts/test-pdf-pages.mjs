@@ -267,6 +267,7 @@ if (process.argv.includes("--ui")) {
     await dialog.getByRole("checkbox", { name: "Select page 2", exact: true }).check();
     await dialog.getByRole("button", { name: "Blank page", exact: true }).click(); await check(initial + 1);
     await app.evaluate(({ BrowserWindow }) => { const window = BrowserWindow.getAllWindows()[0]; window.setMinimumSize(320, 400); window.setSize(390, 844); });
+    await page.window.setViewportSize({ width: 390, height: 844 });
     await page.waitForFunction(() => window.innerWidth <= 390);
     assert.equal(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth), true, "page dialog overflows narrow screen");
     assert.equal(await dialog.getByRole("button", { name: "Apply changes", exact: true }).evaluate(element => { const box = element.getBoundingClientRect(); return box.top >= 0 && box.bottom <= innerHeight; }), true, "Apply action is outside the mobile viewport");
@@ -274,6 +275,7 @@ if (process.argv.includes("--ui")) {
     await dialog.getByRole("button", { name: "Apply changes", exact: true }).click();
     await page.waitForFunction(count => !document.querySelector('[role="dialog"][aria-label="Manage pages"]') && document.querySelector(".page-total")?.textContent === `of ${count}`, initial + 1);
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 800));
+    await page.window.setViewportSize({ width: 1000, height: 800 });
     await page.waitForFunction(() => innerWidth > 760);
     await page.locator(".sidebar-scroll").evaluate(element => { element.scrollTop = element.scrollHeight; });
     assert.equal(await page.getByRole("button", { name: `Bookmark page ${initial + 1}`, exact: true }).getAttribute("aria-pressed"), "true", "reading bookmark was not remapped after insertion");
