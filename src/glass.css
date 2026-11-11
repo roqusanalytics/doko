@@ -82,21 +82,33 @@
 .annotationEditorLayer, .drawLayer {
   --outline-color: var(--accent-text);
   --hover-outline-color: var(--accent-text);
-  --resizer-bg-color: var(--accent-text);
-  --resizer-border-radius: 50%;
+  --resizer-size: 8px;
+  --resizer-border-radius: 2px;
+  /* Mid grey keeps ~3:1 contrast against both black and white, so the frame reads on any page or photo. */
+  --editor-frame: rgb(138 138 138 / 0.9);
+  --editor-fill: rgb(128 128 128 / 0.1);
+  --editor-fill-hover: rgb(128 128 128 / 0.06);
+}
+/* Handles: white squares with a grey hairline and soft shadow, visible on dark and light content. */
+.annotationEditorLayer .resizers > .resizer {
+  --resizer-bg-color: #fff;
+  --outline-around-color: var(--editor-frame);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.12), 0 1px 3px rgb(0 0 0 / 0.3);
 }
 .annotationEditorLayer :is(.freeTextEditor, .inkEditor, .stampEditor, .signatureEditor) {
   border-radius: var(--radius);
   &:is(.selectedEditor, :hover):not(.editing) {
     border-color: transparent;
-    outline: none;
-    background: var(--object-hover);
+    outline: 1px solid var(--editor-frame);
+    outline-offset: 0;
+    background: var(--editor-fill-hover);
     &::before { border-color: transparent; border-radius: inherit; }
   }
   &.selectedEditor:not(.editing), &.freeTextEditor:focus-within {
     border-color: transparent;
-    outline: none;
-    background: var(--object-selection);
+    outline: 1px solid var(--editor-frame);
+    outline-offset: 0;
+    background: var(--editor-fill);
     &::before { border-color: transparent; border-radius: inherit; }
   }
   &:is(.selectedEditor, :hover, :focus-within):focus-visible {

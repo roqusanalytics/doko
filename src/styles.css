@@ -550,6 +550,8 @@ kbd {
 .viewer-container {
   position: absolute;
   inset: 0;
+  /* pdf.js lifts selected editors to z-index 100000; keep that inside the page area, under dialogs. */
+  isolation: isolate;
   overflow: auto;
   outline: none;
   scrollbar-width: thin;
