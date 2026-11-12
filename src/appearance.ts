@@ -2,11 +2,8 @@ import { readSetting, writeSetting } from "./preferences";
 
 export const WINDOW_TRANSPARENCY_KEY = "folio:window-transparency";
 export const APPEARANCE_KEY = "folio:appearance";
-/** Optional exact colors for the app frame and the panels inside it; unset follows the theme and palette. */
+/** Optional exact color for the panels inside the app; unset follows the theme and palette. The frame always follows the background. */
 export const SURFACE_COLORS = [
-  { key: "folio:frame-color", property: "--frame", label: "Frame",
-    // Over native window material the frame is mostly the system backdrop, so its text follows the theme there.
-    selector: ":root:not([data-window-material]) :is(.topbar, .document-tabs)" },
   { key: "folio:panel-color", property: "--stage", label: "Work area",
     selector: ":is(.stage, .sidebar, .welcome, .ai-panel, .version-panel, .content-body, .document-tab.selected)" },
 ] as const;
@@ -86,7 +83,7 @@ export function applyAppearance(value = readSetting(APPEARANCE_KEY) || "default"
     const palette = appearancePalette(color, !normalizeColor(value) && root.dataset.theme === "dark");
     Object.entries(palette).forEach(([property, color]) => root.style.setProperty(property, color));
   }
-  // Exact frame and work-area colors win over the palette in both themes, and the text on them adapts.
+  // An exact work-area color wins over the palette in both themes, and the text on them adapts.
   const rules: string[] = [];
   for (const { key, property, selector } of SURFACE_COLORS) {
     const custom = normalizeColor(readSetting(key) || "");
