@@ -28,6 +28,16 @@
   margin-bottom: 8px;
 }
 .app[data-sidebar] .sidebar { margin-left: 8px; }
+/* Ask AI and version history are panels like the sidebar: work-area colour, rounded, no border. */
+:is(.ai-panel, .version-panel) {
+  background: var(--stage);
+  border-left: 0;
+  border-radius: var(--radius);
+  margin: 0 8px 8px 0;
+}
+/* Overlay layouts keep the same inset as the docked panel. */
+@media (max-width: 900px) { .ai-panel { top: 0; right: 8px; bottom: 8px; margin: 0; } }
+@media (max-width: 760px) { .version-panel { inset: 0 8px 8px auto; margin: 0; } }
 :is(.pill, .color-pill, .searchbar, .menu, .selection-popover, .scan-picker-panel, .image-menu, .exit-focus) {
   background: var(--glass);
   backdrop-filter: var(--glass-filter);
@@ -160,8 +170,9 @@
 .sidebar { backdrop-filter: none; }
 [data-theme="dark"] { --glass-chrome: var(--frame); }
 [data-window-transparency] { --glass-chrome: color-mix(in srgb, var(--frame) 22%, transparent); }
-/* With window transparency the sidebar shows the native material, like the rest of the chrome. */
-[data-window-transparency] .sidebar { backdrop-filter: var(--glass-filter); background: var(--glass-chrome); }
+/* With window transparency the sidebar stays a panel but lets the native material through: a light
+   work-area tint (alpha kept under 25%) separates it from the frame. */
+[data-window-transparency] .sidebar { backdrop-filter: var(--glass-filter); background: color-mix(in srgb, var(--stage) 24%, transparent); }
 /* Selected controls need their own solid surface above variable native material. */
 [data-window-transparency] :is(.topbar .segmented button.on, .topbar .icon-btn.on, .sidebar-tabs button.on) {
   background: color-mix(in srgb, var(--bg) 16%, #c5cec7);
