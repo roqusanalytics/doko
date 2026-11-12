@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.20.12
+
+- Offer two appearance colors, Background and Work area; the frame now always follows the background.
+
 ## 1.20.11
 
 - Paint the frame in one tone around the whole window, including with window transparency or reduced transparency.
