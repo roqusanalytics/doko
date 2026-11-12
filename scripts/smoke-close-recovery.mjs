@@ -119,6 +119,13 @@ const waitClosed = () => app.evaluate(({ BrowserWindow }) => new Promise((resolv
   window.once("closed", () => { clearTimeout(timeout); resolve(); });
 }));
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const waitForState = async (ready, description) => {
+  const deadline = Date.now() + 10000;
+  while (!ready(await state())) {
+    assert.ok(Date.now() < deadline, `Timed out waiting for ${description}`);
+    await sleep(25);
+  }
+};
 try {
   await server.listen();
   let page;
@@ -157,7 +164,7 @@ try {
 
   page = await launch("failure");
   await fixture(page, "fail");
-  await close(); await sleep(150);
+  await close(); await waitForState(state => state.dialogs.length > 0, "saving failure dialog");
   assert.equal((await state()).closed, false);
   assert.match((await state()).dialogs[0].message, /Couldn't finish saving/);
   assert.equal(await page.evaluate(() => window.closeTest.tabs.all.length), 2);
@@ -191,7 +198,7 @@ try {
   await app.evaluate(({ app }) => { app.quit(); });
   await sleep(75);
   assert.equal((await state()).quit, 0);
-  await sleep(800);
+  await waitForState(state => state.quit > 0, "reader flushes before quit");
   assert.equal((await state()).quit, 1);
   assert.deepEqual((await state()).flushes, ["0", "1"]);
   console.log("PASS native quit awaits every reader flush");
@@ -205,7 +212,7 @@ try {
   await page.evaluate(() => window.folioDesktop.installUpdate());
   await sleep(75);
   assert.equal((await state()).update, 0);
-  await sleep(800);
+  await waitForState(state => state.update > 0, "reader flushes before update");
   assert.equal((await state()).update, 1);
   assert.deepEqual((await state()).flushes, ["0", "1"]);
   console.log("PASS update restart awaits every reader flush without invoking installer/network");
@@ -214,11 +221,12 @@ try {
   page = await launch("update-failure");
   await fixture(page);
   await app.evaluate(() => {
-    global.fixtureUpdater.quitAndInstall = () => { global.fixtureUpdater.emit("error", new Error("Synthetic installer failure")); };
+    global.fixtureUpdater.quitAndInstall = () => { global.closeFixture.update++; global.fixtureUpdater.emit("error", new Error("Synthetic installer failure")); };
     global.fixtureUpdater.emit("update-downloaded", { version: "99.0.0" });
   });
   await page.evaluate(() => window.folioDesktop.installUpdate());
-  await sleep(800);
+  await waitForState(state => state.update > 0, "failing installer call");
+  await page.waitForFunction(() => !document.getElementById("root").inert);
   assert.equal(await page.evaluate(() => document.getElementById("root").inert), false, "update error left readers frozen");
   await page.evaluate(() => { window.closeTest.mode = "cancel"; });
   await close(); await sleep(100);
@@ -254,8 +262,16 @@ try {
     return contents.executeJavaScript('Boolean(window.fixtureTabs && document.querySelector("iframe.document-reader"))');
   }), true);
   assert.equal((await state()).dialogs.length, 1);
-  await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].webContents.forcefullyCrashRenderer(); });
-  await sleep(400);
+  await app.evaluate(({ BrowserWindow }) => new Promise((resolve, reject) => {
+    const contents = BrowserWindow.getAllWindows()[0].webContents;
+    const gone = () => { clearTimeout(timer); resolve(true); };
+    const timer = setTimeout(() => {
+      contents.removeListener("render-process-gone", gone);
+      reject(new Error("Second renderer crash did not emit render-process-gone within 10 seconds"));
+    }, 10_000);
+    contents.once("render-process-gone", gone);
+    contents.forcefullyCrashRenderer();
+  }));
   const crashes = await state();
   assert.equal(crashes.dialogs.length, 2);
   assert.deepEqual(crashes.dialogs[1].buttons, ["Keep open"]);

@@ -288,6 +288,14 @@ try {
   assert.equal(await docs.getByRole("tab").count(), 5);
   for (const name of ["Drop A.pdf", "Drop B.pdf", "One.pdf", "Two.pdf"]) {
     const close = docs.getByRole("button", { name: "Close " + name, exact: true });
+    // The newly activated reader needs a paint before pointer actionability in hidden macOS windows.
+    let paintTimeout;
+    try {
+      await Promise.race([
+        close.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))),
+        new Promise((_, reject) => { paintTimeout = setTimeout(() => reject(new Error(`Reader did not paint before closing ${name}`)), 5000); }),
+      ]);
+    } finally { clearTimeout(paintTimeout); }
     await close.click(); await close.waitFor({ state: "detached" });
   }
   await page.locator(".doc-title", { hasText: "Another.pdf" }).waitFor();

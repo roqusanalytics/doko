@@ -4,9 +4,17 @@ export function readerPage(window) {
   const selector = "iframe.document-reader.active";
   const reader = window.frameLocator(selector);
   const frame = async () => {
-    const element = await reader.locator(":root").elementHandle();
-    try { return await element.ownerFrame(); }
-    finally { await element.dispose(); }
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const element = await reader.locator(":root").elementHandle();
+      try {
+        // Opening a document can replace its iframe between handle acquisition and ownerFrame().
+        const owner = await element.ownerFrame();
+        if (owner) return owner;
+      } catch (error) {
+        if (!error.message.includes("Frame was detached") || attempt === 2) throw error;
+      } finally { await element.dispose(); }
+    }
+    throw new Error("Reader frame was detached during acquisition");
   };
   return {
     window, keyboard: window.keyboard, mouse: window.mouse,

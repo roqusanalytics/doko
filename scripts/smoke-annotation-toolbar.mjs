@@ -96,12 +96,14 @@ try {
     await editor.hover({ force: true });
     const css = await editor.evaluate(element => {
       const css = getComputedStyle(element);
-      return { radius: css.borderRadius, background: css.backgroundColor, border: css.borderColor, outline: css.outlineStyle };
+      return { radius: css.borderRadius, background: css.backgroundColor, border: css.borderColor, outline: css.outlineStyle, outlineWidth: css.outlineWidth, outlineColor: css.outlineColor };
     });
     assert.equal(css.radius, '12px', `${label}: rounded object selection`);
     assert.notEqual(css.background, 'rgba(0, 0, 0, 0)', `${label}: soft selection fill`);
     assert.equal(css.border, 'rgba(0, 0, 0, 0)', `${label}: no decorative border`);
-    assert.equal(css.outline, 'none', `${label}: no pointer selection outline`);
+    assert.equal(css.outline, 'solid', `${label}: visible pointer selection frame`);
+    assert.equal(css.outlineWidth, '1px', `${label}: thin pointer selection frame`);
+    assert.equal(css.outlineColor, 'rgba(138, 138, 138, 0.9)', `${label}: neutral grey selection frame`);
     await page.keyboard.press('Tab');
     await editor.focus();
     const focus = await editor.evaluate(element => {

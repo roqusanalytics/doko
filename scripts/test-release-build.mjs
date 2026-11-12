@@ -17,6 +17,54 @@ const select = (...runs) => selectBuild({ total_count: runs.length, workflow_run
 const ci = { ...build, id: 50, path: ".github/workflows/ci.yml", head_branch: "main" };
 const ciHistory = (...runs) => ({ total_count: runs.length, workflow_runs: runs });
 
+test("macOS packaging rejects unsigned releases and verifies the persistent certificate", { skip: process.platform === "win32" }, (t) => {
+  const folder = mkdtempSync(path.join(tmpdir(), "doko-signing-test-"));
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  const workflow = readFileSync(new URL("../.github/workflows/release-build.yml", import.meta.url), "utf8");
+  const block = workflow.split("      - name: Package macOS\n")[1].split("      - name: Remove temporary signing keychain\n")[0];
+  const identity = "C1D1C0D9EC7D8B849C48DADC2F9E278B40C33919";
+  assert.match(block, new RegExp(`DOKO_MAC_SIGN_IDENTITY: ${identity}\\n`));
+  const script = block.split("        run: |\n")[1].replace(/^          /gm, "");
+  const mocks = `
+    sudo() { "$@"; }
+    security() {
+      echo "$1" >> "$RUNNER_TEMP/calls";
+      if [ "$1" = list-keychains ] && [ "$#" = 3 ]; then printf '    "/fixture/My Login.keychain-db"\\n'; fi;
+      if [ "$1" = list-keychains ] && [ "$#" -gt 3 ]; then printf '%s\\n' "$@" > "$RUNNER_TEMP/keychain-args"; fi;
+      if [ "$1" = delete-keychain ]; then return "\${MOCK_DELETE_STATUS:-0}"; fi;
+    }
+    npx() { printf '%s\\n' "$@" >> "$RUNNER_TEMP/package-args"; }
+    codesign() { printf '%s\\n' "$@" >> "$RUNNER_TEMP/verify-args"; return "\${MOCK_VERIFY_STATUS:-0}"; }
+  `;
+  const env = { ...process.env, RUNNER_TEMP: folder, MAC_SELF_SIGNED_P12_BASE64: "", MAC_SELF_SIGNED_PASSWORD: "", DOKO_MAC_SIGN_IDENTITY: identity, MAC_CERTIFICATE_P12_BASE64: "" };
+  const run = (values) => spawnSync("bash", ["-eu", "-c", mocks + script], { env: { ...env, ...values }, encoding: "utf8" });
+  const unsigned = run({});
+  assert.notEqual(unsigned.status, 0);
+  assert.match(unsigned.stderr, /existing macOS signing certificate is required/);
+  assert.notEqual(run({ MAC_CERTIFICATE_P12_BASE64: "developer-id-fixture" }).status, 0);
+  const missingPassword = run({ MAC_SELF_SIGNED_P12_BASE64: Buffer.from("fixture").toString("base64") });
+  assert.notEqual(missingPassword.status, 0);
+  assert.match(missingPassword.stderr, /Missing certificate password/);
+  const signed = run({ MAC_SELF_SIGNED_P12_BASE64: Buffer.from("fixture").toString("base64"), MAC_SELF_SIGNED_PASSWORD: "fixture-password", DOKO_MAC_SIGN_IDENTITY: identity });
+  assert.equal(signed.status, 0, signed.stderr);
+  assert.match(readFileSync(path.join(folder, "calls"), "utf8"), /create-keychain\nunlock-keychain|create-keychain\nset-keychain-settings\nunlock-keychain/);
+  assert.match(readFileSync(path.join(folder, "calls"), "utf8"), /find-certificate\nadd-trusted-cert\nlist-keychains\nlist-keychains/);
+  assert.equal(readFileSync(path.join(folder, "keychain-args"), "utf8").trim().split("\n").at(-1), "/fixture/My Login.keychain-db");
+  assert.match(readFileSync(path.join(folder, "package-args"), "utf8"), /-c\.mac\.sign=\.\/scripts\/mac-sign\.cjs\n-c\.extraMetadata\.folioMacSigned=true/);
+  assert.ok(readFileSync(path.join(folder, "verify-args"), "utf8").includes(`certificate leaf = H"${identity}"`));
+  assert.notEqual(run({ MAC_SELF_SIGNED_P12_BASE64: Buffer.from("fixture").toString("base64"), MAC_SELF_SIGNED_PASSWORD: "fixture-password", MOCK_VERIFY_STATUS: "1" }).status, 0);
+  const cleanup = workflow.split("      - name: Remove temporary signing keychain\n")[1].split("      - name:")[0].split("        run: |\n")[1].replace(/^          /gm, "");
+  const cleaned = spawnSync("bash", ["-eu", "-c", mocks + cleanup], { env, encoding: "utf8" });
+  assert.equal(cleaned.status, 0, cleaned.stderr);
+  writeFileSync(path.join(folder, "doko-signing.crt"), "fixture");
+  writeFileSync(path.join(folder, "doko-signing.p12"), "fixture");
+  writeFileSync(path.join(folder, "doko-signing.keychain-db"), "fixture");
+  const cleanupFailure = spawnSync("bash", ["-eu", "-c", mocks + cleanup], { env: { ...env, MOCK_DELETE_STATUS: "1" }, encoding: "utf8" });
+  assert.equal(cleanupFailure.status, 1);
+  assert.throws(() => readFileSync(path.join(folder, "doko-signing.p12")), /ENOENT/);
+  assert.match(readFileSync(path.join(folder, "calls"), "utf8"), /delete-keychain\n$/);
+});
+
 test("full CI must be from the exact main push, repository and workflow", () => {
   successfulCI(selectCI(ciHistory(ci), commit));
   assert.equal(selectCI(ciHistory(), commit), null);
