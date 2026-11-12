@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.20.8
+
+- Give the app frame its own color, with the sidebar and work area as borderless rounded panels inside it.
+- Choose separate Frame and Work area colors in Settings; they are saved and apply to every tab.
+- Simplify background palettes to five: Paper, Sand, Sage, Ocean, and Slate.
+
 ## 1.20.7
 
 - Switch between Markdown preview and source with one button and a matching icon.
