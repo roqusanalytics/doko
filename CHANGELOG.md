@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.20.11
+
+- Paint the frame in one tone around the whole window, including with window transparency or reduced transparency.
+- Adapt text, lines, and surfaces to custom Frame and Work area colors so they stay readable with good contrast.
+
 ## 1.20.10
 
 - Check for, download, and install updates from one toolbar button whose icon shows the state; hover it to see what's new.
