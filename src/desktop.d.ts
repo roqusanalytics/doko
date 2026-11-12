@@ -17,6 +17,8 @@ interface UpdateStatus {
   percent?: number;
   message?: string;
   checkedAt?: number;
+  /** Plain-text release notes of the offered update. */
+  notes?: string;
 }
 
 // Present only when Doko runs as the desktop app (see electron/preload.cjs).

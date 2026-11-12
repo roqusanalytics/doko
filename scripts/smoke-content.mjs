@@ -138,7 +138,7 @@ try {
   assert.equal(await editorText(), original);
   await page.window.waitForFunction(() => document.querySelectorAll('.window-drag-area').length === 1);
   assert.equal(await page.evaluate(() => {
-    const update = [...document.querySelectorAll('.topbar button')].find(button => button.textContent === "Updates");
+    const update = [...document.querySelectorAll('.topbar button')].find(button => button.getAttribute("aria-label") === "Updates");
     const a = parent.document.querySelector('.window-drag-area');
     if (!update || !a) return false;
     const center = frameElement.getBoundingClientRect().left + update.getBoundingClientRect().left + update.getBoundingClientRect().width / 2;
@@ -146,7 +146,9 @@ try {
       const b = h.getBoundingClientRect(); return center >= b.left - 1 && center <= b.right + 1;
     });
   }), true, "Markdown Updates button needs a hole in the native drag region");
-  await page.getByRole("button", { name: "Updates", exact: true }).click();
+  // Update settings open from the File menu; the modal (like every modal) suspends the window drag region.
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Update settings…", exact: true }).click();
   await page.getByRole("dialog", { name: "Updates", exact: true }).waitFor();
   await page.window.waitForFunction(() => document.querySelectorAll('.window-drag-area').length === 0);
   await page.keyboard.press("Escape");

@@ -40,6 +40,7 @@ import { ContentEditor, type ContentEditorHandle, type NextSelection } from "./C
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { saveVersion, type PdfChange } from "./versionHistory";
 import { SettingsDialog } from "./SettingsDialog";
+import { UpdateButton } from "./UpdateButton";
 import { ChangelogDialog } from "./ChangelogDialog";
 import type { TextMarkupStyle } from "./textMarkup";
 const PhotoEditDialog = lazy(() => import("./PhotoEditDialog"));
@@ -1619,6 +1620,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         </div>
 
         <div className="topbar-right">
+          <UpdateButton />
           {doc && (
             <>
               <IconButton icon="sparkle" label="Ask AI" active={aiOpen} onClick={() => { setHistoryOpen(false); setAiOpen(!aiOpen); }} />

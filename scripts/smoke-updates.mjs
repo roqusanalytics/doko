@@ -27,7 +27,7 @@ const server = http.createServer((request, response) => {
   if (fail) { response.writeHead(503); response.end("Unavailable"); return; }
   assert.equal(new URL(request.url, "http://127.0.0.1").pathname, expectedFeed, "unexpected artifact download");
   response.setHeader("Content-Type", "text/yaml");
-  response.end(`version: ${version}\nfiles:\n  - url: Doko-mac.zip\n    sha512: ${Buffer.alloc(64).toString("base64")}\n    size: 1\npath: Doko-mac.zip\nsha512: ${Buffer.alloc(64).toString("base64")}\nreleaseDate: '2026-11-09T00:00:00.000Z'\n`);
+  response.end(`version: ${version}\nfiles:\n  - url: Doko-mac.zip\n    sha512: ${Buffer.alloc(64).toString("base64")}\n    size: 1\npath: Doko-mac.zip\nsha512: ${Buffer.alloc(64).toString("base64")}\nreleaseDate: '2026-11-09T00:00:00.000Z'\nreleaseNotes: '<p>Faster tabs &amp; panels</p><h2>Download</h2><p>Installers</p>'\n`);
 });
 await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 writeFileSync(config, `provider: generic\nurl: http://127.0.0.1:${server.address().port}/\nupdaterCacheDirName: folio-update-test\n`);
@@ -84,7 +84,16 @@ try {
   writeFileSync(markdown, "# Update check\n\nKeep this document open.\n");
   await app.evaluate(({ app }, file) => app.emit("open-file", { preventDefault() {} }, file), markdown);
   await page.getByLabel("Markdown preview", { exact: true }).getByRole("heading", { name: "Update check", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Updates", exact: true }).click();
+  // The toolbar update button checks on click; hovering it shows the current state.
+  const beforeClick = requests.length;
+  await window.evaluate(() => { window.updateStates = []; });
+  await page.getByRole("button", { name: "Check for updates", exact: true }).click();
+  await state("latest");
+  assert.ok(requests.length > beforeClick, "clicking the toolbar update button did not check the feed");
+  await page.getByRole("button", { name: "Check for updates", exact: true }).hover();
+  await page.locator(".update-tip").getByText("You're up to date.", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Update settings…", exact: true }).click();
   const modal = page.getByRole("dialog", { name: "Updates", exact: true });
   await modal.getByText("You're up to date.", { exact: true }).waitFor();
   const toggle = modal.getByRole("switch", { name: "Automatic updates" });
@@ -111,7 +120,17 @@ try {
   if (process.platform === "darwin") {
     assert.equal(await window.evaluate(async () => (await window.folioDesktop.getAppInfo()).notifyOnly), true);
     version = "99.0.0";
-    assert.equal((await check("available")).version, version);
+    const offered = await check("available");
+    assert.equal(offered.version, version);
+    assert.equal(offered.notes, "Faster tabs & panels", "release notes reach the renderer as plain text without the download section");
+    // The same toolbar button now offers the update; hovering it lists the release notes and the next step.
+    const offer = page.getByRole("button", { name: `Get Doko ${version}`, exact: true });
+    await offer.hover();
+    const tip = page.locator(".update-tip");
+    await tip.getByText("Faster tabs & panels", { exact: true }).waitFor();
+    await tip.getByText("Click to open the download page.", { exact: true }).waitFor();
+    await page.mouse.move(0, 400);
+    console.log("ok  a released update changes the toolbar button, whose tooltip lists the release notes and the next step");
     const download = () => page.getByRole("button", { name: `Download ${version}`, exact: true });
     await download().click();
     await window.waitForFunction(() => window.updateStates.at(-1)?.state === "available");

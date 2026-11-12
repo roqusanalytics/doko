@@ -16,6 +16,7 @@ import { BROWSER_ACCEPT, CONTENT_ACCEPT, IPC_PREFIX, localSources, restoreText, 
 import { normalizeMathDelimiters } from "./chatMath";
 import { UpdateSettings } from "./SettingsDialog";
 import { updateSummary } from "./updates";
+import { UpdateButton } from "./UpdateButton";
 import MarkdownPane, { type MarkdownEditorHandle } from "./MarkdownPane";
 import HtmlView from "./HtmlView";
 import WorkbookView from "./WorkbookView";
@@ -360,8 +361,10 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
           ]),
           ...(!html ? [{ kind: "action" as const, icon: "print" as const, label: "Print…", onSelect: () => fileCommand("print") }] : []),
           ...(workbook || html ? [] : [{ kind: "action" as const, icon: "info" as const, label: "Properties…", onSelect: () => fileCommand("properties") }]),
+          // Update settings sit apart from the file actions; the toolbar update button itself only checks and installs.
+          ...(window.folioDesktop ? [{ kind: "divider" as const }, { kind: "action" as const, icon: "settings" as const, label: "Update settings…", onSelect: () => setDialog("updates") }] : []),
         ]} />
-        {window.folioDesktop && <button className="btn ghost" onClick={() => setDialog("updates")}>Updates</button>}
+        <UpdateButton />
         <button className="icon-btn" aria-label="Open file" title="Open file" onClick={() => input.current?.click()}><Icon name="upload" /></button>
         <button className="icon-btn" aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"} title="Toggle theme" onClick={() => {
           const next = theme === "dark" ? "light" : "dark"; setTheme(next); writeSetting("folio:theme", next);

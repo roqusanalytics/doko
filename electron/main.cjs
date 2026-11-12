@@ -18,6 +18,7 @@ const { createContentFiles, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, SVG_FILE, HTML_F
 
 const { createSaveFiles } = require("./save-files.cjs");
 const { fileMenuTemplate } = require("./file-menu.cjs");
+const { releaseNotesText } = require("./release-notes.cjs");
 
 const LOCAL_COPY = require("../package.json").folioLocal === true;
 if (LOCAL_COPY) {
@@ -279,6 +280,9 @@ function logConvert(msg) {
 // logged to update.log in the app's user-data folder.
 let updateReady = null;
 let updateStatus = { state: "idle" };
+// Plain-text release notes of the update being offered, shown in the renderer's update popover.
+let updateNotes = "";
+
 let updatesEnabled = false;
 let automaticUpdates = true;
 let activeUpdate = null;
@@ -321,11 +325,12 @@ async function checkForUpdates(manual = false) {
   activeUpdate = operation;
   try {
     const result = await autoUpdater.checkForUpdates();
+    if (result?.isUpdateAvailable) updateNotes = releaseNotesText(result.updateInfo.releaseNotes);
     if (result?.isUpdateAvailable && NOTIFY_ONLY) {
-      setUpdateStatus({ state: "available", version: result.updateInfo.version });
+      setUpdateStatus({ state: "available", version: result.updateInfo.version, notes: updateNotes });
     } else if (result?.isUpdateAvailable && (manual || automaticUpdates)) {
       operation.token = result.cancellationToken;
-      setUpdateStatus({ state: "downloading", version: result.updateInfo.version, percent: 0 });
+      setUpdateStatus({ state: "downloading", version: result.updateInfo.version, notes: updateNotes, percent: 0 });
       await autoUpdater.downloadUpdate(result.cancellationToken);
       if (operation.token?.cancelled && !updateReady) setUpdateStatus({ state: "idle" });
     } else if (result?.isUpdateAvailable) setUpdateStatus({ state: "idle" });
@@ -380,11 +385,11 @@ function setupAutoUpdate() {
   autoUpdater.on("checking-for-update", () => setUpdateStatus({ state: "checking" }));
   autoUpdater.on("update-not-available", () => setUpdateStatus({ state: "latest", checkedAt: Date.now() }));
   autoUpdater.on("download-progress", (p) =>
-    setUpdateStatus({ state: "downloading", version: updateStatus.version, percent: Math.round(p.percent) }),
+    setUpdateStatus({ state: "downloading", version: updateStatus.version, notes: updateNotes, percent: Math.round(p.percent) }),
   );
   autoUpdater.on("update-downloaded", (info) => {
     updateReady = info.version;
-    setUpdateStatus({ state: "ready", version: info.version });
+    setUpdateStatus({ state: "ready", version: info.version, notes: releaseNotesText(info.releaseNotes) || updateNotes });
   });
   autoUpdater.on("error", (err) => {
     if (closeAction === "update") {
