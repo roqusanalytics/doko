@@ -43,7 +43,7 @@ export function AppearanceSettings({ dark }: { dark: boolean }) {
       <small id="appearance-color-hint">Your exact color is used in Light and Dark themes.</small>
     </div>}
     {error && <p className="form-error" role="alert">{error}</p>}
-    <div className="appearance-heading appearance-surfaces"><div><strong>Frame and work area</strong><p>Pick separate colors for the frame around the app and the panels inside it. Auto follows the background above.</p></div></div>
+    <div className="appearance-heading appearance-surfaces"><div><strong>Work area</strong><p>Pick a color for the panels inside the app. Auto follows the background above.</p></div></div>
     {SURFACE_COLORS.map(surface => <SurfaceColor key={surface.key} surface={surface} />)}
   </div>;
 }
