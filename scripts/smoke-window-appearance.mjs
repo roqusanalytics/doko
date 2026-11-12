@@ -131,7 +131,7 @@ try {
     }
   }
   const paletteFills = [];
-  for (const palette of ['Ocean','Rose','Sage']) {
+  for (const palette of ['Ocean','Slate','Sage']) {
     await settings();
     await page.getByRole('radio', {name:'Light',exact:true}).click();
     await page.getByRole('button', {name:`${palette} background`,exact:true}).click();

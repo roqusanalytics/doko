@@ -14,8 +14,8 @@ export const lt: Copy = {
   },
   nav: { home: "Doko pradžia", features: "Funkcijos", compare: "Palyginimas", faq: "DUK", download: "Atsisiųsti", language: "Kalba" },
   hero: {
-    lines: ["PDF, nuotraukos ir", "Markdown."],
-    bold: "Viena skaityklė.",
+    lines: ["Dokumentai, nuotraukos", "ir lentelės"],
+    bold: "Viena skaityklė",
     lede: "Nemokama atvirojo kodo PDF skaityklė, Markdown redaktorius ir nuotraukų peržiūra Mac, Windows ir Linux. Be reklamų, be mokamų priedų, be paskyros.",
     get: "Atsisiųsti Doko",
     getMac: "Atsisiųsti Mac versiją",
@@ -31,7 +31,7 @@ export const lt: Copy = {
     },
   },
   ai: {
-    h2: ["Klauskite DI.", "Su savo planu."],
+    h2: ["Klauskite DI", "su savo planu"],
     p: "Doko veikia su ChatGPT per jūsų ChatGPT planą, su Claude per jūsų Claude Code arba su bet kuriuo OpenRouter modeliu. Atsakymai nurodo puslapį, iš kurio paimta informacija, ir niekas neišsiunčiama, kol nepaklausiate.",
     flowLabel: "Jūsų PDF, pažymėta ištrauka ir klausimas per Doko keliauja į ChatGPT, Claude arba OpenRouter, o atsakymas grįžta su nuorodomis į puslapius.",
     inputs: ["Ataskaita.pdf", "Pažymėta dalis", "Jūsų klausimas"],
@@ -41,7 +41,7 @@ export const lt: Copy = {
     cite: "3 psl.",
   },
   bento: {
-    h2: ["Skaitykite, žymėkite,", "užbaikite."],
+    h2: ["Skaitykite, žymėkite,", "užbaikite"],
     p: "Viskas, ko reikia dokumentui perskaityti, pažymėti ir pasirašyti, viename ramiame lange.",
     sheet: {
       title: "Pavasario stebėjimas",
@@ -60,7 +60,7 @@ export const lt: Copy = {
     photoAlts: ["Jūros uolos saulėlydžio metu", "Žvejų uostas auštant", "Švyturys žaliame kyšulyje", "Tripirščiai kirai, perintys ant uolos atbrailos", "Rūke paskendęs miško takas prie jūros", "Pajūrinės armerijos žiedai virš kranto"],
     photo: ["Naršykite nuotraukų aplankus", "Atidarykite vieną nuotrauką ir slinkite per visą aplanką. Apkirpkite, keiskite dydį, koreguokite."],
     local: {
-      say: ["Be paskyros.", "Dokumentai ir pastabos lieka jūsų kompiuteryje."],
+      say: ["Be paskyros,", "dokumentai ir pastabos lieka jūsų kompiuteryje"],
       label: "Jūsų failai atsidaro Doko, o pastabos išsaugomos tame pačiame kompiuteryje.",
       computer: "Šis kompiuteris",
       files: "Jūsų failai",
@@ -75,7 +75,7 @@ export const lt: Copy = {
     ],
   },
   compare: {
-    h2: ["Tik įrankiai.", "Nieko nepiršame."],
+    h2: ["Tik įrankiai,", "nieko nepiršame"],
     p: "Be reklamų, bandomųjų versijų, raginimų pirkti ir paskyros. Visos funkcijos jau įtrauktos: atidarote dokumentą ir dirbate.",
     promises: ["Be reklamų", "Be raginimų pirkti", "Be paskyros", "Be telemetrijos"],
     caption: "Doko kaip Adobe Acrobat alternatyva: palyginimas",
@@ -91,7 +91,7 @@ export const lt: Copy = {
     source: ["Adobe kainos ir planų funkcijos iš ", "adobe.com", " (JAV, mokant kas mėnesį), tikrinta 2026 m. lapkritį. Adobe ir Acrobat yra Adobe Inc. prekių ženklai."],
   },
   details: {
-    h2: ["Pilnavertė PDF skaityklė.", "Ir dar daugiau."],
+    h2: ["Pilnavertė PDF skaityklė", "ir dar daugiau"],
     p: "Doko vienoje nemokamoje programoje sujungia PDF skaityklę, Markdown redaktorių ir nuotraukų peržiūrą.",
     items: [
       ["PDF skaityklė ir žymėjimas", "Ištisinis slinkimas, paieška rašant, turinys, miniatiūros, dviejų puslapių rodinys ir susitelkimo režimas. Žymėkite penkiomis spalvomis, rašykite pastabas, pieškite ir kurkite teksto laukus. Žymos išsaugomos automatiškai ir eksportuojamos per „Save a copy“."],
@@ -103,7 +103,7 @@ export const lt: Copy = {
     ],
   },
   faq: {
-    h2: ["Klausimai ir", "atsakymai."],
+    h2: ["Klausimai ir", "atsakymai"],
     items: [
       { q: "Ar Doko nemokama?", a: "Taip. Doko yra nemokama atvirojo kodo PDF skaitymo programa, platinama pagal MIT licenciją. Nėra mokamos versijos, prenumeratos ar paskyros." },
       { q: "Ar Doko rodo reklamas ar raginimus pirkti?", a: "Ne. Doko neturi reklamų, bandomųjų versijų, mokamos versijos ir raginimų pirkti. Visos funkcijos prieinamos visiems." },
@@ -116,7 +116,7 @@ export const lt: Copy = {
     ],
   },
   download: {
-    h2: ["Atsisiųskite", "Doko."],
+    h2: ["Atsisiųskite", "Doko"],
     mac: ["Atsisiųsti .dmg", "12 ar naujesnė, Apple silicon ir Intel"],
     win: ["Atsisiųsti .exe", "10 ir 11, 64 bitų"],
     linux: ["Visi failai", ".deb ir AppImage"],

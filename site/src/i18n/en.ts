@@ -15,8 +15,8 @@ export const en = {
   },
   nav: { home: "Doko home", features: "Features", compare: "Compare", faq: "FAQ", download: "Download", language: "Language" },
   hero: {
-    lines: ["PDFs, photos and", "Markdown."],
-    bold: "One reader.",
+    lines: ["Documents, photos", "and spreadsheets"],
+    bold: "One reader",
     lede: "A free, open-source PDF reader, Markdown editor and photo viewer for Mac, Windows and Linux. No ads, no upsells, no account.",
     get: "Download Doko",
     getMac: "Download for Mac",
@@ -32,7 +32,7 @@ export const en = {
     },
   },
   ai: {
-    h2: ["Ask AI.", "Bring your own plan."],
+    h2: ["Ask AI,", "bring your own plan"],
     p: "Doko works with ChatGPT through your ChatGPT plan, with Claude through your own Claude Code, or with any model on OpenRouter. Answers cite the page they came from, and nothing is sent until you ask.",
     flowLabel: "Your PDF, a selected passage and your question go through Doko to ChatGPT, Claude or OpenRouter, and the answer comes back with page citations.",
     inputs: ["Report.pdf", "Selected text", "Your question"],
@@ -42,7 +42,7 @@ export const en = {
     cite: "p. 3",
   },
   bento: {
-    h2: ["Read it, mark it,", "finish it."],
+    h2: ["Read it, mark it,", "finish it"],
     p: "Everything you need to read, annotate and sign a document, in one calm window.",
     sheet: {
       title: "Spring survey",
@@ -61,7 +61,7 @@ export const en = {
     photoAlts: ["Sea cliffs at sunset", "Fishing harbour at dawn", "Lighthouse on a green headland", "Kittiwakes nesting on a cliff ledge", "Misty forest path near the sea", "Sea thrift flowers above the coast"],
     photo: ["Browse photo folders", "Open one image, scroll the folder. Crop, resize, adjust."],
     local: {
-      say: ["No account.", "Documents and notes stay on your computer."],
+      say: ["No account,", "documents and notes stay on your computer"],
       label: "Your files open in Doko and your notes are saved on the same computer.",
       computer: "This computer",
       files: "Your files",
@@ -76,7 +76,7 @@ export const en = {
     ] as Word[],
   },
   compare: {
-    h2: ["Just the tools.", "No upsell."],
+    h2: ["Just the tools,", "no upsell"],
     p: "No ads, no trials, no upgrade prompts and no account. Every feature is included, so you open a document and get to work.",
     promises: ["No ads", "No trials or upgrade prompts", "No account", "No telemetry"],
     caption: "Doko compared with Adobe Acrobat",
@@ -92,7 +92,7 @@ export const en = {
     source: ["Adobe prices and plan features from ", "adobe.com", " (US, billed monthly), checked November 2026. Adobe and Acrobat are trademarks of Adobe Inc."],
   },
   details: {
-    h2: ["A complete PDF reader.", "And more."],
+    h2: ["A complete PDF reader", "and more"],
     p: "Doko replaces a PDF reader, a Markdown editor and a photo viewer with one free app.",
     items: [
       ["PDF reader and annotator", "Continuous scrolling, search as you type, outline, thumbnails, two-page spreads and focus mode. Highlight in five colors, add notes, draw and type text boxes. Annotations save on their own and export with Save a copy."],
@@ -105,7 +105,7 @@ export const en = {
   },
   // Single source for the visible FAQ and its FAQPage structured data.
   faq: {
-    h2: ["Questions,", "answered."],
+    h2: ["Questions,", "answered"],
     items: [
       { q: "Is Doko free?", a: "Yes. Doko is free and open source under the MIT License. There is no paid tier, no subscription and no account." },
       { q: "Does Doko show ads or upgrade prompts?", a: "No. Doko has no ads, no trials, no paid tier and no upgrade prompts. Every feature is included for everyone." },
@@ -118,7 +118,7 @@ export const en = {
     ],
   },
   download: {
-    h2: ["Download", "Doko."],
+    h2: ["Download", "Doko"],
     mac: ["Download .dmg", "12 or later, Apple silicon and Intel"],
     win: ["Download .exe", "10 and 11, 64-bit"],
     linux: ["See files", ".deb and AppImage"],

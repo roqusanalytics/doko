@@ -34,10 +34,26 @@ try {
     await page.getByRole("dialog", { name: "Settings", exact: true }).waitFor();
   };
   await openSettings();
-  assert.equal(await page.locator(".appearance-card").count(), 11, "10 presets plus Custom are required");
+  assert.equal(await page.locator(".appearance-card").count(), 6, "5 presets plus Custom are required");
   await page.getByRole("radio", { name: "Light", exact: true }).click();
   await page.getByRole("button", { name: "Sage background", exact: true }).click();
   await page.waitForFunction(() => document.documentElement.style.getPropertyValue("--bg") === "#e2eadf");
+  // Frame and work-area colors: exact values win over the palette, persist, reject bad input, and Auto clears them.
+  assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue("--frame")), "#e2eadf", "the palette sets the frame");
+  const frameField = page.getByRole("textbox", { name: "Frame", exact: true });
+  await frameField.fill("#334455");
+  await page.waitForFunction(() => document.documentElement.style.getPropertyValue("--frame") === "#334455");
+  assert.equal(await page.evaluate(() => localStorage.getItem("folio:frame-color")), "#334455");
+  await page.getByRole("textbox", { name: "Work area", exact: true }).fill("#fafafa");
+  await page.waitForFunction(() => document.documentElement.style.getPropertyValue("--stage") === "#fafafa");
+  await frameField.fill("red");
+  await page.getByText("Enter a color like #A1B2C3 or #ABC.").first().waitFor();
+  assert.equal(await page.evaluate(() => localStorage.getItem("folio:frame-color")), "#334455", "bad input keeps the saved color");
+  await frameField.fill("#" + "a".repeat(5000));
+  assert.equal(await page.evaluate(() => localStorage.getItem("folio:frame-color")), "#334455");
+  for (const name of ["Frame", "Work area"]) await page.locator(".appearance-color", { has: page.getByRole("textbox", { name, exact: true }) }).getByRole("button", { name: "Auto" }).click();
+  await page.waitForFunction(() => document.documentElement.style.getPropertyValue("--frame") === "#e2eadf");
+  assert.equal(await page.evaluate(() => localStorage.getItem("folio:frame-color")), "");
   await window.waitForFunction(() => document.documentElement.style.getPropertyValue("--bg") === "#e2eadf");
   await page.getByRole("button", { name: "Custom background", exact: true }).click();
   const hex = page.getByRole("textbox", { name: "Custom color", exact: true });

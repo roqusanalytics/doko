@@ -2,17 +2,17 @@ import { readSetting, writeSetting } from "./preferences";
 
 export const WINDOW_TRANSPARENCY_KEY = "folio:window-transparency";
 export const APPEARANCE_KEY = "folio:appearance";
+/** Optional exact colors for the app frame and the panels inside it; unset follows the theme and palette. */
+export const SURFACE_COLORS = [
+  { key: "folio:frame-color", property: "--frame", label: "Frame" },
+  { key: "folio:panel-color", property: "--stage", label: "Work area" },
+] as const;
 export const APPEARANCE_PRESETS = [
   { id: "default", name: "Paper", color: "#f5f4f1" },
   { id: "sand", name: "Sand", color: "#f1e6d3" },
   { id: "sage", name: "Sage", color: "#e2eadf" },
   { id: "ocean", name: "Ocean", color: "#dceaf0" },
-  { id: "lavender", name: "Lavender", color: "#e9e2f1" },
-  { id: "rose", name: "Rose", color: "#f2e1e4" },
-  { id: "clay", name: "Clay", color: "#eddccd" },
-  { id: "mint", name: "Mint", color: "#dceee7" },
   { id: "slate", name: "Slate", color: "#dfe4ec" },
-  { id: "butter", name: "Butter", color: "#f4edce" },
 ] as const;
 
 export function normalizeColor(value: string): string | null {
@@ -47,9 +47,12 @@ export function appearancePalette(color: string, dark: boolean): Record<string, 
     const dark = Math.min(luminance(candidate), luminance(bg));
     return (light + 0.05) / (dark + 0.05) >= 4.5 ? candidate : pale ? "#000000" : "#ffffff";
   };
+  // Panels move away from the text color, so they stand apart from the frame without losing contrast.
+  const stage = mix(bg, pale ? 255 : 0, pale ? 0.55 : 0.35);
   return {
     "--appearance-scheme": pale ? "light" : "dark",
-    "--bg": bg, "--stage": mix(bg, pale ? 255 : 0, 0.06),
+    // Pure white or black leaves no room for panels to move, so the frame steps toward the text instead.
+    "--bg": bg, "--frame": stage === bg ? mix(bg, pale ? 0 : 255, 0.08) : bg, "--stage": stage,
     "--surface": surface, "--surface-2": mix(bg, pale ? 255 : 0, 0.75),
     "--text": pale ? "#000000" : "#ffffff", "--text-2": readable(pale ? "#383838" : "#ededed"),
     "--text-3": readable(pale ? "#494949" : "#dddddd"),
@@ -75,11 +78,25 @@ export function applyAppearance(value = readSetting(APPEARANCE_KEY) || "default"
   if (!color || value === "default") {
     properties.forEach(property => root.style.removeProperty(property));
     delete root.dataset.appearance;
-    return;
+  } else {
+    root.dataset.appearance = value;
+    const palette = appearancePalette(color, !normalizeColor(value) && root.dataset.theme === "dark");
+    Object.entries(palette).forEach(([property, color]) => root.style.setProperty(property, color));
   }
-  root.dataset.appearance = value;
-  const palette = appearancePalette(color, !normalizeColor(value) && root.dataset.theme === "dark");
-  Object.entries(palette).forEach(([property, color]) => root.style.setProperty(property, color));
+  // Exact frame and work-area colors win over the palette in both themes.
+  for (const { key, property } of SURFACE_COLORS) {
+    const custom = normalizeColor(readSetting(key) || "");
+    if (custom) root.style.setProperty(property, custom);
+  }
+}
+
+/** Saves an exact color for one surface, or clears it with null. Returns whether it was saved. */
+export function saveSurfaceColor(key: string, value: string | null): boolean {
+  const color = value === null ? "" : normalizeColor(value);
+  if (color === null) return false;
+  const saved = writeSetting(key, color);
+  applyAppearance();
+  return saved;
 }
 
 export function saveAppearance(value: string): boolean {
@@ -120,7 +137,7 @@ export function initializeAppearance() {
   window.addEventListener("storage", event => {
     if (event.key === "folio:theme" && (event.newValue === "light" || event.newValue === "dark")) document.documentElement.dataset.theme = event.newValue;
     if (event.key === WINDOW_TRANSPARENCY_KEY || event.key === null) applyWindowTransparency();
-    if (event.key === APPEARANCE_KEY || event.key === null) applyAppearance();
+    if (event.key === APPEARANCE_KEY || SURFACE_COLORS.some(({ key }) => key === event.key) || event.key === null) applyAppearance();
   });
   // Existing reader theme controls also update their own React state and desktop chrome.
   new MutationObserver(() => applyAppearance()).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });

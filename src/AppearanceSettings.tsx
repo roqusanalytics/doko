@@ -1,10 +1,11 @@
 import { useState, type CSSProperties } from "react";
-import { APPEARANCE_KEY, APPEARANCE_PRESETS, appearanceColor, appearancePalette, normalizeColor, saveAppearance } from "./appearance";
+import { APPEARANCE_KEY, APPEARANCE_PRESETS, SURFACE_COLORS, appearanceColor, appearancePalette, luminance, normalizeColor, saveAppearance, saveSurfaceColor } from "./appearance";
 import { readSetting } from "./preferences";
 import { Icon } from "./icons";
 
 export function AppearanceSettings({ dark }: { dark: boolean }) {
-  const [selected, setSelected] = useState(() => readSetting(APPEARANCE_KEY) || "default");
+  // A saved preset that no longer exists falls back to the default, matching how it renders.
+  const [selected, setSelected] = useState(() => { const saved = readSetting(APPEARANCE_KEY); return saved && appearanceColor(saved) ? saved : "default"; });
   const [custom, setCustom] = useState(() => normalizeColor(selected) || "#e4eaf2");
   const [error, setError] = useState("");
   const choose = (value: string) => {
@@ -42,5 +43,33 @@ export function AppearanceSettings({ dark }: { dark: boolean }) {
       <small id="appearance-color-hint">Your exact color is used in Light and Dark themes.</small>
     </div>}
     {error && <p className="form-error" role="alert">{error}</p>}
+    <div className="appearance-heading appearance-surfaces"><div><strong>Frame and work area</strong><p>Pick separate colors for the frame around the app and the panels inside it. Auto follows the background above.</p></div></div>
+    {SURFACE_COLORS.map(surface => <SurfaceColor key={surface.key} surface={surface} />)}
+  </div>;
+}
+
+function SurfaceColor({ surface: { key: storageKey, property, label } }: { surface: (typeof SURFACE_COLORS)[number] }) {
+  const [value, setValue] = useState(() => readSetting(storageKey) || "");
+  const [error, setError] = useState("");
+  const current = () => getComputedStyle(document.documentElement).getPropertyValue(property).trim();
+  const id = `surface-${property.slice(2)}`;
+  const color = normalizeColor(value);
+  const save = (next: string | null) => {
+    setValue(next ?? "");
+    const valid = next === null ? null : normalizeColor(next);
+    if (next !== null && !valid) return setError("Enter a color like #A1B2C3 or #ABC.");
+    setError(saveSurfaceColor(storageKey, valid) ? "" : "Preview applied. Couldn't save this color on this device. Try again.");
+  };
+  const text = getComputedStyle(document.documentElement).getPropertyValue("--text").trim();
+  const low = color && normalizeColor(text) && (() => {
+    const a = luminance(color), b = luminance(normalizeColor(text)!);
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) < 4.5;
+  })();
+  return <div className="appearance-color">
+    <label htmlFor={id}>{label}</label>
+    <input aria-label={`Choose ${label.toLowerCase()} color`} type="color" value={color || normalizeColor(current()) || "#808080"} onChange={event => save(event.target.value)} />
+    <input id={id} type="text" value={value} placeholder="Auto" aria-invalid={!!error && !color} aria-describedby={`${id}-hint`} spellCheck={false} autoComplete="off" onChange={event => event.target.value.trim() ? save(event.target.value) : save(null)} />
+    <button type="button" className="btn ghost" disabled={!value} onClick={() => save(null)}>Auto</button>
+    <small id={`${id}-hint`} role={error ? "alert" : undefined}>{error || (low ? "Text may be hard to read on this color. Choose a lighter or darker shade." : "Used in Light and Dark themes.")}</small>
   </div>;
 }

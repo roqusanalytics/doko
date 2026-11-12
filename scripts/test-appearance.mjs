@@ -5,8 +5,8 @@ import { createServer } from "vite";
 const server = await createServer({ root: path.resolve(import.meta.dirname, ".."), server: { middlewareMode: true }, appType: "custom" });
 try {
   const { APPEARANCE_PRESETS, normalizeColor, appearanceColor, appearancePalette, luminance } = await server.ssrLoadModule("/src/appearance.ts");
-  assert.equal(APPEARANCE_PRESETS.length, 10);
-  assert.equal(new Set(APPEARANCE_PRESETS.map(preset => preset.id)).size, 10);
+  assert.equal(APPEARANCE_PRESETS.length, 5);
+  assert.equal(new Set(APPEARANCE_PRESETS.map(preset => preset.id)).size, 5);
   assert.equal(normalizeColor(" #AbC "), "#aabbcc");
   assert.equal(normalizeColor("#A1B2C3"), "#a1b2c3");
   for (const invalid of ["", "red", "#abcd", "#zzzzzz", "#ffffff00", "x".repeat(10000), "url(javascript:alert(1))"]) {
@@ -18,7 +18,8 @@ try {
     const palette = appearancePalette(color, dark);
     assert.equal(palette["--accent"], "#c5e1cb", "custom appearances must retain the Mint brand accent");
     assert.equal(palette["--accent-foreground"], "#1a1a1a", "Mint controls need dark foreground text");
-    for (const surface of ["--bg", "--stage", "--surface", "--surface-2"]) {
+    assert.notEqual(palette["--frame"], palette["--stage"], "the frame must differ from the work area");
+    for (const surface of ["--bg", "--frame", "--stage", "--surface", "--surface-2"]) {
       for (const text of ["--text", "--text-2", "--text-3", "--accent-text"]) {
         const a = luminance(palette[surface]), b = luminance(palette[text]);
         assert.ok((Math.max(a, b) + .05) / (Math.min(a, b) + .05) >= 4.5, `${color} ${dark} ${surface} ${text} lacks contrast`);

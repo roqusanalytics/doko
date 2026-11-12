@@ -1,13 +1,13 @@
 /* Regular glass belongs to navigation and contextual controls, never document content. */
 :root {
   --glass: color-mix(in srgb, var(--surface) 88%, transparent);
-  --glass-chrome: color-mix(in srgb, var(--bg) 94%, transparent);
+  --glass-chrome: color-mix(in srgb, var(--frame) 94%, transparent);
   --glass-filter: blur(24px) saturate(1.15);
   --glass-shadow: 0 6px 22px -8px color-mix(in srgb, var(--text) 20%, transparent);
 }
 [data-theme="dark"] {
   --glass: color-mix(in srgb, var(--surface) 92%, transparent);
-  --glass-chrome: color-mix(in srgb, var(--bg) 96%, transparent);
+  --glass-chrome: color-mix(in srgb, var(--frame) 96%, transparent);
   --glass-shadow: 0 8px 26px -8px rgba(0, 0, 0, .45);
 }
 .topbar {
@@ -21,10 +21,13 @@
 }
 .sidebar {
   backdrop-filter: var(--glass-filter);
-  background: var(--glass-chrome);
+  background: var(--stage);
   border-right-color: transparent;
-  border-radius: 0 var(--radius) var(--radius) 0;
+  border-radius: var(--radius);
+  box-shadow: none;
+  margin-bottom: 8px;
 }
+.app[data-sidebar] .sidebar { margin-left: 8px; }
 :is(.pill, .color-pill, .searchbar, .menu, .selection-popover, .scan-picker-panel, .image-menu, .exit-focus) {
   background: var(--glass);
   backdrop-filter: var(--glass-filter);
@@ -51,12 +54,12 @@
 }
 /* Solid fallbacks preserve contrast when the material is unavailable or unwanted. */
 @supports not (backdrop-filter: blur(1px)) {
-  :root { --glass: var(--surface); --glass-chrome: var(--bg); }
+  :root { --glass: var(--surface); --glass-chrome: var(--frame); }
 }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
   :root {
     --glass: var(--surface);
-    --glass-chrome: var(--bg);
+    --glass-chrome: var(--frame);
     --glass-filter: none;
   }
   .exit-focus { opacity: 1; }
@@ -82,21 +85,33 @@
 .annotationEditorLayer, .drawLayer {
   --outline-color: var(--accent-text);
   --hover-outline-color: var(--accent-text);
-  --resizer-bg-color: var(--accent-text);
-  --resizer-border-radius: 50%;
+  --resizer-size: 8px;
+  --resizer-border-radius: 2px;
+  /* Mid grey keeps ~3:1 contrast against both black and white, so the frame reads on any page or photo. */
+  --editor-frame: rgb(138 138 138 / 0.9);
+  --editor-fill: rgb(128 128 128 / 0.1);
+  --editor-fill-hover: rgb(128 128 128 / 0.06);
+}
+/* Handles: white squares with a grey hairline and soft shadow, visible on dark and light content. */
+.annotationEditorLayer .resizers > .resizer {
+  --resizer-bg-color: #fff;
+  --outline-around-color: var(--editor-frame);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.12), 0 1px 3px rgb(0 0 0 / 0.3);
 }
 .annotationEditorLayer :is(.freeTextEditor, .inkEditor, .stampEditor, .signatureEditor) {
   border-radius: var(--radius);
   &:is(.selectedEditor, :hover):not(.editing) {
     border-color: transparent;
-    outline: none;
-    background: var(--object-hover);
+    outline: 1px solid var(--editor-frame);
+    outline-offset: 0;
+    background: var(--editor-fill-hover);
     &::before { border-color: transparent; border-radius: inherit; }
   }
   &.selectedEditor:not(.editing), &.freeTextEditor:focus-within {
     border-color: transparent;
-    outline: none;
-    background: var(--object-selection);
+    outline: 1px solid var(--editor-frame);
+    outline-offset: 0;
+    background: var(--editor-fill);
     &::before { border-color: transparent; border-radius: inherit; }
   }
   &:is(.selectedEditor, :hover, :focus-within):focus-visible {
@@ -141,11 +156,10 @@
 }
 
 /* Window material is revealed only through chrome; the reading canvas stays opaque. */
-:root { --glass-chrome: var(--bg); }
+:root { --glass-chrome: var(--frame); }
 .sidebar { backdrop-filter: none; }
-[data-theme="dark"] { --glass-chrome: var(--bg); }
-[data-window-transparency] { --glass-chrome: color-mix(in srgb, var(--bg) 22%, transparent); }
-[data-window-transparency] .sidebar { backdrop-filter: var(--glass-filter); }
+[data-theme="dark"] { --glass-chrome: var(--frame); }
+[data-window-transparency] { --glass-chrome: color-mix(in srgb, var(--frame) 22%, transparent); }
 /* Selected controls need their own solid surface above variable native material. */
 [data-window-transparency] :is(.topbar .segmented button.on, .topbar .icon-btn.on, .sidebar-tabs button.on) {
   background: color-mix(in srgb, var(--bg) 16%, #c5cec7);
@@ -165,6 +179,6 @@ html[data-window-material], [data-window-material] body { background: transparen
   .segmented button > span, .sidebar-tabs button > .button-label, .menu button > .menu-label, .select-trigger > span { transition: none; transform: none !important; }
 }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
-  [data-window-transparency] { --glass-chrome: var(--bg); }
+  [data-window-transparency] { --glass-chrome: var(--frame); }
   html[data-window-material], [data-window-material] body { background: var(--bg); }
 }
