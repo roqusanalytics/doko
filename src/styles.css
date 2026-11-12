@@ -27,6 +27,7 @@
   --page-shadow: 0 0 0 1px rgba(20, 18, 14, 0.05), 0 2px 4px rgba(20, 18, 14, 0.04), 0 10px 30px -8px rgba(20, 18, 14, 0.16);
 
   --topbar-h: 52px;
+  --tabs-h: 36px;
   --sidebar-w: 264px;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
@@ -134,7 +135,9 @@ kbd {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px 0;
+  /* Compact tab row on the frame: 30px pills plus a 6px gap above the panels (--tabs-h in total). */
+  height: var(--tabs-h);
+  padding: 0 8px 6px;
   background: var(--stage);
   flex: none;
   z-index: 12;
@@ -145,16 +148,16 @@ kbd {
   align-items: center;
   max-width: 200px;
   min-width: 96px;
-  border-radius: var(--radius) var(--radius) 0 0;
+  border-radius: var(--radius);
   color: var(--text-2);
 }
 .document-tab:hover { background: var(--hover); }
-.document-tab.selected { background: var(--surface); color: var(--text); }
+.document-tab.selected { background: var(--stage); color: var(--text); }
 .document-tab [role=tab] {
   display: flex;
   align-items: center;
   gap: 7px;
-  height: 36px;
+  height: 30px;
   padding: 0 4px 0 10px;
   min-width: 0;
   flex: 1;
@@ -166,14 +169,14 @@ kbd {
 .document-tab [role=tab] span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .document-tab button:focus-visible, .new-document-tab:focus-visible { outline-offset: -3px; }
 .close-document-tab {
-  display: grid; place-items: center; flex: none; width: 25px; height: 25px; margin-right: 4px; border-radius: var(--radius);
+  display: grid; place-items: center; flex: none; width: 24px; height: 24px; margin-right: 3px; border-radius: var(--radius);
 }
 .close-document-tab:hover { background: var(--active); }
 .close-document-tab:has(.dirty-dot, .selected-dot) svg,
 .document-tab:hover :is(.dirty-dot, .selected-dot), .close-document-tab:focus-visible :is(.dirty-dot, .selected-dot) { display: none; }
 .document-tab:hover .close-document-tab svg, .close-document-tab:focus-visible svg { display: block; }
-.new-document-tab { align-self: center; margin-bottom: 2px; }
-.app:has(.document-tabs) .welcome, .app:has(.document-tabs) .loading-bar { top: calc(var(--topbar-h) + 41px); }
+.new-document-tab { align-self: center; width: 28px; height: 28px; }
+.app:has(.document-tabs) .welcome, .app:has(.document-tabs) .loading-bar { top: calc(var(--topbar-h) + var(--tabs-h)); }
 
 .app {
   height: 100%;
