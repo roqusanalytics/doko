@@ -1,7 +1,7 @@
 {
   "name": "folio-local",
   "private": true,
-  "version": "1.20.11",
+  "version": "1.20.12",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
