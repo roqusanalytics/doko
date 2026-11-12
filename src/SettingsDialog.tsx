@@ -248,7 +248,7 @@ export function SettingsDialog({ initialSection = "General", theme, onTheme, nig
             <Choice label="Theme" value={theme === "dark" ? "dark" : "light"} onChange={onTheme}
               options={[{ id: "light", name: "Light" }, { id: "dark", name: "Dark" }]} />
           </Row>
-          <Row label="Window transparency" hint="Translucent sidebar and navigation. Documents stay opaque. Uses the system backdrop where supported; accessibility settings take priority.">
+          <Row label="Window transparency" hint="Translucent frame and navigation. Panels and documents stay opaque. Uses the system backdrop where supported; accessibility settings take priority.">
             <Switch label="Window transparency" checked={windowTransparency} onChange={enabled => {
               if (saveWindowTransparency(enabled)) { setWindowTransparency(enabled); setError(null); }
               else setError("Couldn't save this preference. Try again.");

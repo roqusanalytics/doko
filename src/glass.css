@@ -170,9 +170,7 @@
 .sidebar { backdrop-filter: none; }
 [data-theme="dark"] { --glass-chrome: var(--frame); }
 [data-window-transparency] { --glass-chrome: color-mix(in srgb, var(--frame) 22%, transparent); }
-/* With window transparency the sidebar stays a panel but lets the native material through: a light
-   work-area tint (alpha kept under 25%) separates it from the frame. */
-[data-window-transparency] .sidebar { backdrop-filter: var(--glass-filter); background: color-mix(in srgb, var(--stage) 24%, transparent); }
+/* With window transparency only the frame shows the native material; the sidebar stays an opaque panel. */
 /* Selected controls need their own solid surface above variable native material. */
 [data-window-transparency] :is(.topbar .segmented button.on, .topbar .icon-btn.on, .sidebar-tabs button.on) {
   background: color-mix(in srgb, var(--bg) 16%, #c5cec7);

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.20.10
+
+- Check for, download, and install updates from one toolbar button whose icon shows the state; hover it to see what's new.
+- Show the library as a panel inset in the frame, like an open document.
+- Keep the sidebar an opaque panel with window transparency on; only the frame shows the system backdrop.
+
 ## 1.20.9
 
 - Show Ask AI, version history, and Markdown and other documents as rounded panels that match the work area.

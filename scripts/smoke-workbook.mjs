@@ -84,7 +84,7 @@ try {
   for (const gone of [page.getByRole("button", { name: /^Save/ }), page.getByRole("button", { name: "Add row", exact: true }),
     page.getByRole("dialog"), page.locator(".dirty-dot")]) assert.equal(await gone.count(), 0);
   await page.getByRole("button", { name: "File", exact: true }).click();
-  assert.deepEqual(await page.getByRole("menuitem").allInnerTexts().then(items => items.map(item => item.trim())), ["Open…", "Print…"]);
+  assert.deepEqual(await page.getByRole("menuitem").allInnerTexts().then(items => items.map(item => item.trim())), ["Open…", "Print…", "Update settings…"]);
   await page.keyboard.press("Escape");
   const nativeFile = await app.evaluate(({ Menu }) => Menu.getApplicationMenu().items.find(item => item.label === "File").submenu.items
     .filter(item => ["Save", "Save As…", "Export / Convert…", "Print…"].includes(item.label)).map(item => [item.label, item.enabled]));

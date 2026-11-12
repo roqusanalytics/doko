@@ -41,7 +41,8 @@ try {
     for (const theme of ['Light', 'Dark']) {
       await settings(); await page.getByRole('radio', {name:theme,exact:true}).click(); await page.keyboard.press('Escape');
       const alpha = await measure();
-      assert.ok(alpha.navbar <= 64 && alpha.sidebar <= 64, `${theme}: enabled chrome transmits native backdrop`);
+      assert.ok(alpha.navbar <= 64, `${theme}: enabled frame transmits native backdrop`);
+      assert.equal(alpha.sidebar, 255, `${theme}: the sidebar stays an opaque panel like the work area`);
       assert.equal(alpha.canvas, 255, `${theme}: working canvas stays opaque`);
     }
     await settings();
