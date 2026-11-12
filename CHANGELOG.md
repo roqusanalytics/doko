@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.20.9
+
+- Show Ask AI, version history, and Markdown and other documents as rounded panels that match the work area.
+- Keep the sidebar a tinted panel when window transparency is on.
+- Make document tabs compact pills with less space between the toolbar and the panels.
+
 ## 1.20.8
 
 - Give the app frame its own color, with the sidebar and work area as borderless rounded panels inside it.
