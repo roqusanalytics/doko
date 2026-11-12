@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from "react";
-import { APPEARANCE_KEY, APPEARANCE_PRESETS, SURFACE_COLORS, appearanceColor, appearancePalette, luminance, normalizeColor, saveAppearance, saveSurfaceColor } from "./appearance";
+import { APPEARANCE_KEY, APPEARANCE_PRESETS, SURFACE_COLORS, appearanceColor, appearancePalette, normalizeColor, saveAppearance, saveSurfaceColor } from "./appearance";
 import { readSetting } from "./preferences";
 import { Icon } from "./icons";
 
@@ -60,16 +60,11 @@ function SurfaceColor({ surface: { key: storageKey, property, label } }: { surfa
     if (next !== null && !valid) return setError("Enter a color like #A1B2C3 or #ABC.");
     setError(saveSurfaceColor(storageKey, valid) ? "" : "Preview applied. Couldn't save this color on this device. Try again.");
   };
-  const text = getComputedStyle(document.documentElement).getPropertyValue("--text").trim();
-  const low = color && normalizeColor(text) && (() => {
-    const a = luminance(color), b = luminance(normalizeColor(text)!);
-    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) < 4.5;
-  })();
   return <div className="appearance-color">
     <label htmlFor={id}>{label}</label>
     <input aria-label={`Choose ${label.toLowerCase()} color`} type="color" value={color || normalizeColor(current()) || "#808080"} onChange={event => save(event.target.value)} />
     <input id={id} type="text" value={value} placeholder="Auto" aria-invalid={!!error && !color} aria-describedby={`${id}-hint`} spellCheck={false} autoComplete="off" onChange={event => event.target.value.trim() ? save(event.target.value) : save(null)} />
     <button type="button" className="btn ghost" disabled={!value} onClick={() => save(null)}>Auto</button>
-    <small id={`${id}-hint`} role={error ? "alert" : undefined}>{error || (low ? "Text may be hard to read on this color. Choose a lighter or darker shade." : "Used in Light and Dark themes.")}</small>
+    <small id={`${id}-hint`} role={error ? "alert" : undefined}>{error || "Used in Light and Dark themes. Text on it adapts for contrast."}</small>
   </div>;
 }

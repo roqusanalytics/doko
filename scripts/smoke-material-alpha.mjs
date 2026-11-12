@@ -26,13 +26,13 @@ try {
     const measure = async () => {
     const points = await page.evaluate(() => {
       const side = document.querySelector('.sidebar').getBoundingClientRect(), stage = document.querySelector('.stage').getBoundingClientRect();
-      return { navbar: [innerWidth - 200, 2], sidebar: [side.right - 12, side.top + side.height / 2], canvas: [stage.right - 5, stage.top + stage.height / 2],
+      return { navbar: [innerWidth - 200, 2], edge: [2, innerHeight - 3], sidebar: [side.right - 12, side.top + side.height / 2], canvas: [stage.right - 5, stage.top + stage.height / 2],
         css: { body: getComputedStyle(document.body).backgroundColor, scheme: getComputedStyle(document.documentElement).colorScheme, sidebar: getComputedStyle(document.querySelector('.sidebar')).backgroundColor } };
     });
     const png = await window.screenshot({ omitBackground: true, scale: 'css' });
     const alpha = await app.evaluate(({ nativeImage }, { png, points }) => {
       const image = nativeImage.createFromBuffer(Buffer.from(png)), { width } = image.getSize(), bytes = image.toBitmap();
-      return Object.fromEntries(['navbar', 'sidebar', 'canvas'].map(key => { const [x, y] = points[key].map(Math.floor); return [key, bytes[(y * width + x) * 4 + 3]]; }));
+      return Object.fromEntries(['navbar', 'edge', 'sidebar', 'canvas'].map(key => { const [x, y] = points[key].map(Math.floor); return [key, bytes[(y * width + x) * 4 + 3]]; }));
     }, { png:[...png], points });
     console.log(JSON.stringify({ alpha, css: points.css }));
     return alpha;
@@ -42,6 +42,7 @@ try {
       await settings(); await page.getByRole('radio', {name:theme,exact:true}).click(); await page.keyboard.press('Escape');
       const alpha = await measure();
       assert.ok(alpha.navbar <= 64, `${theme}: enabled frame transmits native backdrop`);
+      assert.equal(alpha.edge, alpha.navbar, `${theme}: the frame edge and the top bar must be one tone`);
       assert.equal(alpha.sidebar, 255, `${theme}: the sidebar stays an opaque panel like the work area`);
       assert.equal(alpha.canvas, 255, `${theme}: working canvas stays opaque`);
     }
@@ -56,7 +57,7 @@ try {
     await settings(); await page.getByRole('switch', {name:'Window transparency',exact:true}).click(); await page.keyboard.press('Escape');
     await window.waitForFunction(() => !document.documentElement.hasAttribute('data-window-material'));
     const solid = await measure();
-    assert.deepEqual(solid, {navbar:255,sidebar:255,canvas:255}, 'Disabled transparency restores fully opaque surfaces');
+    assert.deepEqual(solid, {navbar:255,edge:255,sidebar:255,canvas:255}, 'Disabled transparency restores fully opaque surfaces');
   }
   await assertHidden(app);
 } finally { await closeHidden(app); rmSync(temp, { recursive:true, force:true }); }

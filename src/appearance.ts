@@ -4,8 +4,11 @@ export const WINDOW_TRANSPARENCY_KEY = "folio:window-transparency";
 export const APPEARANCE_KEY = "folio:appearance";
 /** Optional exact colors for the app frame and the panels inside it; unset follows the theme and palette. */
 export const SURFACE_COLORS = [
-  { key: "folio:frame-color", property: "--frame", label: "Frame" },
-  { key: "folio:panel-color", property: "--stage", label: "Work area" },
+  { key: "folio:frame-color", property: "--frame", label: "Frame",
+    // Over native window material the frame is mostly the system backdrop, so its text follows the theme there.
+    selector: ":root:not([data-window-material]) :is(.topbar, .document-tabs)" },
+  { key: "folio:panel-color", property: "--stage", label: "Work area",
+    selector: ":is(.stage, .sidebar, .welcome, .ai-panel, .version-panel, .content-body, .document-tab.selected)" },
 ] as const;
 export const APPEARANCE_PRESETS = [
   { id: "default", name: "Paper", color: "#f5f4f1" },
@@ -83,11 +86,27 @@ export function applyAppearance(value = readSetting(APPEARANCE_KEY) || "default"
     const palette = appearancePalette(color, !normalizeColor(value) && root.dataset.theme === "dark");
     Object.entries(palette).forEach(([property, color]) => root.style.setProperty(property, color));
   }
-  // Exact frame and work-area colors win over the palette in both themes.
-  for (const { key, property } of SURFACE_COLORS) {
+  // Exact frame and work-area colors win over the palette in both themes, and the text on them adapts.
+  const rules: string[] = [];
+  for (const { key, property, selector } of SURFACE_COLORS) {
     const custom = normalizeColor(readSetting(key) || "");
-    if (custom) root.style.setProperty(property, custom);
+    if (!custom) continue;
+    root.style.setProperty(property, custom);
+    rules.push(`${selector} { ${Object.entries(surfaceTokens(custom)).map(([name, token]) => `${name}: ${token};`).join(" ")} }`);
   }
+  let style = document.getElementById("folio-surface-colors");
+  if (!rules.length) return style?.remove();
+  style ??= document.head.appendChild(Object.assign(document.createElement("style"), { id: "folio-surface-colors" }));
+  style.textContent = rules.join("\n");
+}
+
+/** Readable text, lines and surfaces for content on an exact background color (from the contrast-checked palette). */
+export function surfaceTokens(color: string): Record<string, string> {
+  const palette = appearancePalette(color, false);
+  const tokens: Record<string, string> = { "color-scheme": palette["--appearance-scheme"], color: "var(--text)" };
+  for (const name of ["--surface", "--surface-2", "--text", "--text-2", "--text-3", "--line", "--line-strong", "--hover", "--accent-text"]) tokens[name] = palette[name];
+  tokens["--glass"] = `color-mix(in srgb, ${palette["--surface"]} 88%, transparent)`;
+  return tokens;
 }
 
 /** Saves an exact color for one surface, or clears it with null. Returns whether it was saved. */

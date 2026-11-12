@@ -10,8 +10,9 @@
   --glass-chrome: color-mix(in srgb, var(--frame) 96%, transparent);
   --glass-shadow: 0 8px 26px -8px rgba(0, 0, 0, .45);
 }
+/* The app paints the frame (see .app below); the top bar sits on it. */
 .topbar {
-  background: var(--glass-chrome);
+  background: transparent;
   border-bottom-color: transparent;
 }
 /* One material per group: child buttons use fills rather than another glass layer. */
@@ -178,7 +179,10 @@
 }
 
 html[data-window-material], [data-window-material] body { background: transparent; }
-.document-tabs { background: var(--glass-chrome); }
+/* One painter for the frame: the app paints it, and the top bar and tab row sit on it transparently,
+   so the frame is a single tone around the whole window (also over native window material). */
+.app { background: var(--glass-chrome); }
+.document-tabs { background: transparent; }
 .segmented[role="toolbar"] { background: transparent; box-shadow: none; }
 /* Ease the label upward without moving the icon or the hit target. */
 .segmented button > span, .sidebar-tabs button > .button-label, .menu button > .menu-label, .select-trigger > span {
@@ -191,5 +195,5 @@ html[data-window-material], [data-window-material] body { background: transparen
 }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
   [data-window-transparency] { --glass-chrome: var(--frame); }
-  html[data-window-material], [data-window-material] body { background: var(--bg); }
+  html[data-window-material], [data-window-material] body { background: var(--frame); }
 }
