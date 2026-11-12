@@ -160,6 +160,8 @@
 .sidebar { backdrop-filter: none; }
 [data-theme="dark"] { --glass-chrome: var(--frame); }
 [data-window-transparency] { --glass-chrome: color-mix(in srgb, var(--frame) 22%, transparent); }
+/* With window transparency the sidebar shows the native material, like the rest of the chrome. */
+[data-window-transparency] .sidebar { backdrop-filter: var(--glass-filter); background: var(--glass-chrome); }
 /* Selected controls need their own solid surface above variable native material. */
 [data-window-transparency] :is(.topbar .segmented button.on, .topbar .icon-btn.on, .sidebar-tabs button.on) {
   background: color-mix(in srgb, var(--bg) 16%, #c5cec7);
