@@ -4,7 +4,7 @@ import { createServer } from "vite";
 
 const server = await createServer({ root: path.resolve(import.meta.dirname, ".."), server: { middlewareMode: true }, appType: "custom" });
 try {
-  const { APPEARANCE_PRESETS, normalizeColor, appearanceColor, appearancePalette, luminance } = await server.ssrLoadModule("/src/appearance.ts");
+  const { APPEARANCE_PRESETS, normalizeColor, appearanceColor, appearancePalette, luminance, surfaceTokens } = await server.ssrLoadModule("/src/appearance.ts");
   assert.equal(APPEARANCE_PRESETS.length, 5);
   assert.equal(new Set(APPEARANCE_PRESETS.map(preset => preset.id)).size, 5);
   assert.equal(normalizeColor(" #AbC "), "#aabbcc");
@@ -32,5 +32,15 @@ try {
     }
     if (!dark) assert.equal(palette["--bg"], color);
   }
-  console.log("PASS appearance: 10 unique presets, hex validation, light/dark palettes and WCAG text contrast including custom extremes");
+  // Text on an exact frame or work-area color adapts: every text tone stays readable on that color and its surfaces.
+  for (const color of [...colors, "#8ff5c0", "#1b1f24", "#2a2a2c", "#18181a", "#e2e0da", "#f4f3f0"]) {
+    const tokens = surfaceTokens(color);
+    for (const background of [color, tokens["--surface"], tokens["--surface-2"]]) for (const text of ["--text", "--text-2", "--text-3", "--accent-text"]) {
+      const a = luminance(background), b = luminance(tokens[text]);
+      assert.ok((Math.max(a, b) + .05) / (Math.min(a, b) + .05) >= 4.5, `${color}: ${text} on ${background} lacks contrast`);
+    }
+    assert.equal(tokens.color, "var(--text)");
+    assert.equal(tokens["color-scheme"], luminance(color) > 0.179 ? "light" : "dark");
+  }
+  console.log("PASS appearance: 5 unique presets, hex validation, light/dark palettes, adaptive surface text and WCAG contrast including custom extremes");
 } finally { await server.close(); }

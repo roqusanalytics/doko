@@ -54,6 +54,22 @@ try {
   for (const name of ["Frame", "Work area"]) await page.locator(".appearance-color", { has: page.getByRole("textbox", { name, exact: true }) }).getByRole("button", { name: "Auto" }).click();
   await page.waitForFunction(() => document.documentElement.style.getPropertyValue("--frame") === "#e2eadf");
   assert.equal(await page.evaluate(() => localStorage.getItem("folio:frame-color")), "");
+  // Text adapts to an exact work-area color: a dark panel in the Light theme gets light, readable text.
+  const contrastOf = selector => page.evaluate(selector => {
+    const rgb = value => value.match(/[\d.]+/g).slice(0, 3).map(Number);
+    const lum = ([r, g, b]) => [r, g, b].map(c => (c /= 255) <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4).reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+    const style = getComputedStyle(document.querySelector(selector));
+    const a = lum(rgb(style.color)), b = lum(rgb(style.backgroundColor));
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  }, selector);
+  await page.getByRole("textbox", { name: "Work area", exact: true }).fill("#1b1f24");
+  await page.waitForFunction(() => getComputedStyle(document.querySelector(".sidebar")).backgroundColor === "rgb(27, 31, 36)");
+  assert.ok(await contrastOf(".sidebar") >= 4.5, "sidebar text must stay readable on a dark work-area color in the Light theme");
+  await page.getByRole("textbox", { name: "Work area", exact: true }).fill("#8ff5c0");
+  await page.waitForFunction(() => getComputedStyle(document.querySelector(".sidebar")).backgroundColor === "rgb(143, 245, 192)");
+  assert.ok(await contrastOf(".sidebar") >= 4.5, "sidebar text must stay readable on a light work-area color");
+  await page.locator(".appearance-color", { has: page.getByRole("textbox", { name: "Work area", exact: true }) }).getByRole("button", { name: "Auto" }).click();
+  await page.waitForFunction(() => !document.getElementById("folio-surface-colors"));
   await window.waitForFunction(() => document.documentElement.style.getPropertyValue("--bg") === "#e2eadf");
   await page.getByRole("button", { name: "Custom background", exact: true }).click();
   const hex = page.getByRole("textbox", { name: "Custom color", exact: true });
