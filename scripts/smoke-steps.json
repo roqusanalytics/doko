@@ -18,6 +18,15 @@
     "scripts/smoke-annotation-toolbar.mjs"
   ],
   [
+    "scripts/test-screenshot.cjs"
+  ],
+  [
+    "scripts/smoke-screenshot.mjs"
+  ],
+  [
+    "scripts/smoke-image-paste.mjs"
+  ],
+  [
     "scripts/smoke-edit-text-groups.mjs"
   ],
   [

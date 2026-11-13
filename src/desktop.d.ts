@@ -27,6 +27,9 @@ type FileSaveFormat = "pdf" | "png" | "jpg" | "webp" | "html" | "txt" | "csv" | 
 type FileSaveResult = { ok?: boolean; cancelled?: boolean; id?: string; name?: string; error?: string; conflict?: boolean };
 interface FolioDesktop {
   saveFile(request: { name: string; data: Uint8Array; format: FileSaveFormat; id?: string; saveAs?: boolean }): Promise<FileSaveResult>;
+  /** Opens desktop area selection; returns only the selected PNG, or null on cancellation. */
+  captureDesktop(): Promise<Uint8Array<ArrayBuffer> | null>;
+  cancelScreenshot(): Promise<void>;
   setFileMenu(state: { kind: "none" | "pdf" | "photo" | "markdown" | "workbook" | "html"; busy: boolean }): void;
   onFileCommand(callback: (command: FileCommand) => void): () => void;
   content: {

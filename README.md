@@ -67,6 +67,18 @@ Doko is the rebranded continuation of [Forward-Future/folio](https://github.com/
 
 URL opening, webpage conversion, and Word conversion require the desktop app. Failed downloads leave your current document open.
 
+### Capture a screen area
+
+Click the screenshot icon at the right of the document tabs, then drag from any corner to select a desktop area.
+The selected PNG is copied to the clipboard. Choose **Save…** to keep a PNG, **Draw** to annotate it in Doko, or
+**Retake** to select again. After editing, **Copy image** includes your drawings and text; **Save PNG** saves a copy.
+Press **Esc** to cancel; **Enter** captures the displayed screen area without a mouse. Paste a copied image into a
+PDF with your platform's Paste shortcut, then save a PDF copy to keep it.
+
+Screen capture is desktop-only and processed locally. macOS requires Screen & System Audio Recording permission
+for Doko in System Settings → Privacy & Security; reopen Doko after granting it. Linux with PipeWire offers the
+screen chosen in the system picker rather than every monitor at once.
+
 ### Edit photos and PDF copies
 
 - **Photos → Image → Crop, resize and adjust:** drag a crop region, choose its aspect ratio, rotate or flip,

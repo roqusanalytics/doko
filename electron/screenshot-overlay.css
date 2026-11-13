@@ -1,0 +1,7 @@
+:root { color-scheme: dark; font-family: sans-serif; --shade: rgba(12,12,10,.38); --white: #fff; --panel: #181818; }
+* { box-sizing: border-box; } body { margin: 0; overflow: hidden; } main { position: fixed; inset: 0; user-select: none; touch-action: none; cursor: crosshair; outline: none; }
+#screens img { position: absolute; pointer-events: none; } #shade { position: absolute; inset: 0; background: var(--shade); }
+#selection { position: absolute; pointer-events: none; outline: 1px solid var(--white); box-shadow: 0 0 0 100vmax var(--shade); }
+#size { position: absolute; right: 0; bottom: -28px; white-space: nowrap; } #hint, #size, #cancel { padding: 7px 12px; border-radius: 8px; background: var(--panel); color: var(--white); font-size: 13px; }
+#hint { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); pointer-events: none; } #cancel { position: absolute; right: 16px; top: 24px; border: 1px solid #777; cursor: pointer; }
+#cancel:focus-visible { outline: 2px solid var(--white); outline-offset: 3px; }
