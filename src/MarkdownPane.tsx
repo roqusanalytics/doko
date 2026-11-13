@@ -202,7 +202,12 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
       </button>}
     </div>}
     <div className="markdown-pane-body">
-      {sections.length > 0 && <nav className="markdown-section-rail" aria-label="Document sections" onScroll={() => setLabel(null)} onKeyDown={event => {
+      {sections.length > 0 && <nav className="markdown-section-rail" aria-label="Document sections" onScroll={() => setLabel(null)}
+        onPointerMove={event => {
+          // Fractional tick index under the pointer drives the CSS lens, so moving never re-renders.
+          const first = event.currentTarget.querySelector("button")?.getBoundingClientRect();
+          if (first) event.currentTarget.style.setProperty("--pointer", String((event.clientY - first.top) / first.height - .5));
+        }} onKeyDown={event => {
         const buttons = Array.from(event.currentTarget.querySelectorAll("button"));
         const index = buttons.indexOf(event.target as HTMLButtonElement);
         const next = event.key === "ArrowDown" ? Math.min(index + 1, buttons.length - 1)
@@ -211,10 +216,10 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
       }}>
         {sections.map((section, index) => <button key={section.id} className="markdown-section-button" aria-label={section.title}
           aria-current={active === index ? "location" : undefined} aria-describedby={label?.index === index ? "markdown-section-label" : undefined}
-          onClick={() => jump(index)} onMouseEnter={event => showLabel(index, event.currentTarget)} onFocus={event => showLabel(index, event.currentTarget)}
+          onClick={() => jump(index)} onMouseEnter={event => showLabel(index, event.currentTarget)}
+          onFocus={event => { event.currentTarget.parentElement?.style.setProperty("--pointer", String(index)); showLabel(index, event.currentTarget); }}
           onMouseLeave={event => { if (document.activeElement !== event.currentTarget) setLabel(null); }} onBlur={() => setLabel(null)}>
-          {/* --lift peaks at the active section and fades over 3 neighbours: the "lens" around the reading position. */}
-          <span className="markdown-section-mark" style={{ "--base": `${12 - (section.depth - 1) * 2}px`, "--lift": Math.max(0, 4 - Math.abs(index - active)) } as React.CSSProperties} />
+          <span className="markdown-section-mark" style={{ "--i": index } as React.CSSProperties} />
         </button>)}
       </nav>}
       {sheet && <div className="markdown-table" hidden={mode !== "view"} onKeyDown={tableKeys}>
