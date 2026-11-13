@@ -36,6 +36,7 @@ interface Editor {
 }
 interface EditorLayer {
   div: HTMLElement;
+  pasteEditor(options: { mode: number }, params: { bitmapFile: File }): Promise<void>;
   deserialize(data: Record<string, unknown>): Promise<Editor | null>;
   add(editor: Editor): void;
 }
@@ -328,6 +329,34 @@ export class MarkupController {
     editor.__folioShape = shape;
     layer.add(editor);
     this.sync();
+  }
+
+  async pasteImage(file: File) {
+    const ui = this.#ui, page = this.#viewer.currentPageNumber - 1;
+    const layer = ui?.getLayer(page);
+    if (!ui || !layer) throw new Error("The page is not ready. Try pasting again.");
+    // Validate before PDF.js changes tools: it silently removes images it cannot decode.
+    const bitmap = await createImageBitmap(file);
+    bitmap.close();
+    if (this.#ui?.getLayer(this.#viewer.currentPageNumber - 1) !== layer) return false;
+    const before = new Set([...ui.getEditors(page)].map(editor => editor.id));
+    await layer.pasteEditor({ mode: AnnotationEditorType.STAMP }, { bitmapFile: file });
+    const editor = [...ui.getEditors(page)].find(editor => !before.has(editor.id));
+    if (!editor?.div) throw new Error("The image could not be inserted.");
+    // pasteEditor returns before its bitmap is ready; saving must wait for the rendered stamp.
+    await new Promise<void>((resolve, reject) => {
+      const finish = (error?: Error) => { clearTimeout(timer); observer.disconnect(); if (error) { editor.remove(); reject(error); } else resolve(); };
+      const check = () => {
+        const canvas = editor.div?.querySelector("canvas");
+        if (canvas?.width && canvas.height && !editor.div?.hidden) finish();
+        else if (!editor.div?.isConnected) finish(new Error("Image insertion was interrupted."));
+      };
+      const observer = new MutationObserver(check);
+      const timer = window.setTimeout(() => finish(new Error("Image insertion timed out. Try again.")), 10_000);
+      observer.observe(layer.div, { childList: true, subtree: true, attributes: true });
+      check();
+    });
+    return true;
   }
 
   scheduleSync() {

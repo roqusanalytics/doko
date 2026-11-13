@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import type { ReaderContext } from "./documentTabs";
 import { Icon } from "./icons";
 import { keys } from "./platform";
+import { ScreenshotButton } from "./ScreenshotTool";
 
 export function DocumentTabBar({ tabs, tabKey }: { tabs: ReaderContext["tabs"]; tabKey: number }) {
   useSyncExternalStore(tabs.subscribe, tabs.snapshot);
@@ -39,5 +40,6 @@ export function DocumentTabBar({ tabs, tabKey }: { tabs: ReaderContext["tabs"]; 
         </div>;
       })}
     </div>
+    <ScreenshotButton tabs={tabs} />
   </nav>;
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.20.27
+
+- Capture a desktop area in any drag direction, then copy, save, or annotate the PNG in Doko.
+- Copy edited images with drawings and text, and paste clipboard images into PDFs before saving a copy.
+- Keep screenshot previews isolated from document edits and explain screen-recording permission failures.
+
 ## 1.20.26
 
 - Keep Markdown section markers the same size at rest, with a theme-aware active colour.

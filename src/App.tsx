@@ -24,7 +24,7 @@ import { MarkupController, type Mark, type MarkupState } from "./markup";
 import { HighlightMenu, NoteBox, SelectionPopover, textMarkupQuads, useTextSelection, type SelectionInfo } from "./Selection";
 import { NotesPanel } from "./NotesPanel";
 import { notesJson, notesMarkdown } from "./noteExport";
-import { copyText } from "./clipboard";
+import { copyImage, copyText } from "./clipboard";
 import { imageRegions, trackPageImages } from "./nightImages";
 import { recognizeScannedPages } from "./pageOcr";
 import { OcrFindController } from "./OcrFindController";
@@ -220,6 +220,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const photoKeys = useRef(new Map<string, string>());
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoFailure, setPhotoFailure] = useState("");
+  const [photoExportError, setPhotoExportError] = useState<{ action: "save" | "save-as" | "copy"; message: string } | null>(null);
   const [photoSavedId, setPhotoSavedId] = useState("");
   const [photoDirty, setPhotoDirty] = useState(new Set<string>());
   const [refreshingPhotos, setRefreshingPhotos] = useState(false);
@@ -253,6 +254,9 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const pageRef = useRef(1);
   const [dirty, setDirty] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
+  const [pasteError, setPasteError] = useState<{ doc: OpenDoc; file: File; detail: string } | null>(null);
+  const [pastingImage, setPastingImage] = useState(false);
+  const pastePending = useRef(false);
   const [aiStorageError, setAiStorageError] = useState(false);
   const editRevision = useRef(0);
   const markDirty = useCallback(() => { editRevision.current++; setDirty(true); }, []);
@@ -1061,12 +1065,12 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     return true;
   };
 
-  const savePhoto = async (saveAs = false) => {
+  const exportPhoto = async (action: "save" | "save-as" | "copy" = "save") => {
     if (photoBusy || refreshingPhotos || photoFailure || savingCopy.current) return;
     if (contentRef.current && !await contentRef.current.finish()) return;
     const source = docRef.current;
     if (!source?.photoName) return;
-    savingCopy.current = true; setPhotoBusy(true); setFileBusy(true);
+    savingCopy.current = true; setPhotoBusy(true); setFileBusy(true); setPhotoExportError(null);
     const revision = editRevision.current;
     try {
       const copy = await currentBytes(source);
@@ -1075,14 +1079,22 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       const { blob } = await prepareDocumentExport({ bytes: copy.bytes, name: source.photoName, photo: true, page: 1 },
         { format: "png", compress: false, quality: 1, maxEdge: 0 }, opening.current!.signal);
       if (docRef.current !== source) return;
-      if (!await persistFile(blob, source.photoName.replace(/\.[^.]+$/, "") + " (edited).png", `${source.photoKey}:png`, saveAs)) return;
+      if (action === "copy") {
+        if (!await copyImage(blob)) throw new Error("Clipboard access was refused. Try Copy image again or use Save PNG.");
+        flash("Copied image with your edits. Paste it anywhere.");
+        return;
+      }
+      if (!await persistFile(blob, source.photoName.replace(/\.[^.]+$/, "") + " (edited).png", `${source.photoKey}:png`, action === "save-as")) return;
       if (editRevision.current === revision) {
         setDirty(false); setPhotoSavedId(source.id);
         photoDrafts.current.set(source.photoName, { bytes: copy.bytes, dirty: false, reading: { note: markupRef.current!.state.note, bookmarkedPages: markupRef.current!.state.bookmarkedPages } });
         setPhotoDirty(files => { const next = new Set(files); next.delete(source.photoName!); return next; });
       }
       flash("Saved an edited PNG copy. Original unchanged.");
-    } catch (error) { if (docRef.current === source) setError(`Couldn't save the image. ${(error as Error).message}`); }
+    } catch (error) {
+      console.error("Image export failed", error);
+      if (docRef.current === source) setPhotoExportError({ action, message: `Couldn't ${action === "copy" ? "copy" : "save"} the image. ${(error as Error).message} Your edits are still here.` });
+    }
     finally { savingCopy.current = false; setPhotoBusy(false); setFileBusy(false); }
   };
 
@@ -1367,7 +1379,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     if (fileBusy || workDialog || exportDialog || dialog || printCopy || photoBusy || refreshingPhotos || signing) return;
     if (command === "recent") { tabs.library(); return; }
     if (!docRef.current) return;
-    if (command === "save" || command === "save-as") { if (galleryRef.current) void savePhoto(command === "save-as"); else void download(command === "save-as"); }
+    if (command === "save" || command === "save-as") { if (galleryRef.current) void exportPhoto(command); else void download(command === "save-as"); }
     else if (command === "export" || command === "compress") void prepareExport(command);
     else if (command === "print") void print();
     else if (command === "properties") setDialog("info");
@@ -1406,7 +1418,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         flash("Moved the original to Trash."); return;
       }
       if (name !== current.selected) { await openPhoto(current, name); if (docRef.current?.photoName !== name) return; }
-      if (action === "save" || action === "save-as") await savePhoto(action === "save-as");
+      if (action === "save" || action === "save-as") await exportPhoto(action);
       else if (action === "print") await print();
       else if (action === "export" || action === "compress") await prepareExport(action);
     } catch (error) { setError((error as Error).message || "Couldn't complete this action. Try again."); }
@@ -1491,7 +1503,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         requestAnimationFrame(() => document.getElementById("folio-search")?.focus());
       } else if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        if (gallery) void savePhoto(e.shiftKey); else void download(e.shiftKey);
+        if (gallery) void exportPhoto(e.shiftKey ? "save-as" : "save"); else void download(e.shiftKey);
       } else if (mod && e.key.toLowerCase() === "p") {
         e.preventDefault();
         print();
@@ -1549,6 +1561,33 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   });
 
   const dragging = useReaderDrop({ blocked: !!workDialog, signing, openFiles, openUrl: openUrlDialog, onError: setError });
+
+  const pasteImage = useCallback(async (file: File) => {
+    if (!doc || docRef.current !== doc || pastePending.current) return;
+    pastePending.current = true; setPastingImage(true); setPasteError(null);
+    try {
+      if (await markupRef.current?.pasteImage(file) && docRef.current === doc) markDirty();
+    } catch (error) {
+      console.error("Image paste failed", error);
+      if (docRef.current === doc) setPasteError({ doc, file, detail: (error as Error).message });
+    } finally { pastePending.current = false; setPastingImage(false); }
+  }, [doc, markDirty]);
+  useEffect(() => { setPasteError(null); setPhotoExportError(null); }, [doc]);
+
+  useEffect(() => {
+    const paste = (event: ClipboardEvent) => {
+      if (!active || !doc || (event.target as HTMLElement | null)?.closest?.("input, textarea, [contenteditable=true], .freeTextEditor")) return;
+      const item = Array.from(event.clipboardData?.items ?? []).find(item => item.kind === "file" && /^image\/(png|jpeg|webp)$/.test(item.type));
+      const file = item?.getAsFile();
+      if (!file) return;
+      // PDF.js listens only while editing; handle images in Select too, without inserting twice.
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (loading || dialog || workDialog || exportDialog || pending || signing || contentEditing || photoBusy || refreshingPhotos || photoFailure || document.querySelector(".screenshot-overlay")) return;
+      void pasteImage(file);
+    };
+    window.addEventListener("paste", paste, true);
+    return () => window.removeEventListener("paste", paste, true);
+  }, [active, doc, loading, dialog, workDialog, exportDialog, pending, signing, contentEditing, photoBusy, refreshingPhotos, photoFailure, pasteImage]);
 
   const runFind = (query: string, opts: { again?: boolean; previous?: boolean; caseSensitive?: boolean; entireWord?: boolean }) =>
     busRef.current!.dispatch("find", {
@@ -1620,7 +1659,8 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
               </button>
               {gallery && <MoreMenu label="Image" items={[{kind:"action",icon:"edit",label:"Crop, resize and adjust…",onSelect:()=>void prepareWork("photo")}]} />}
               {operationUndo?.pdf === doc.pdf && <button aria-label="Undo document edit" title={contentEditing ? "Exit edit mode to undo the earlier document edit" : keys("Undo document edit (Ctrl+Z)")} disabled={fileBusy || contentEditing || editorDirty} onClick={()=>void undoOperation()}><Icon name="undo" size={16}/><span>Undo edit</span></button>}
-              {gallery && <button aria-label="Save PNG" disabled={photoBusy || refreshingPhotos || !!photoFailure} onClick={() => void savePhoto()}><Icon name="download" size={16} /><span>Save PNG</span></button>}
+              {gallery && <button aria-label="Copy image" disabled={photoBusy || refreshingPhotos || !!photoFailure} onClick={() => void exportPhoto("copy")}><Icon name="copy" size={16} /><span>Copy image</span></button>}
+              {gallery && <button aria-label="Save PNG" disabled={photoBusy || refreshingPhotos || !!photoFailure} onClick={() => void exportPhoto()}><Icon name="download" size={16} /><span>Save PNG</span></button>}
               {!gallery && (doc.sourceId || editorDirty) && <button aria-label="Save copy" title="Save edited copy" onClick={() => void download(true)}><Icon name="download" size={16} /><span>Save copy</span></button>}
             </div>
           )}
@@ -1712,6 +1752,18 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         )}
 
         <main className="stage" aria-busy={gallery && (photoBusy || refreshingPhotos) ? true : undefined}>
+          {pastingImage && <div className="storage-warning" role="status">Pasting image…</div>}
+          {pasteError?.doc === doc && <div className="storage-warning" role="alert" aria-live="polite">
+            <span>Couldn't paste this image. Your document is safe. Try again, or copy a PNG or JPEG image.</span>
+            <button className="btn" disabled={pastingImage || !!dialog || !!workDialog || !!exportDialog || signing || contentEditing || photoBusy || refreshingPhotos} onClick={() => void pasteImage(pasteError.file)}>Try again</button>
+            <details><summary>Technical details</summary>{pasteError.detail}</details>
+            <button className="btn" onClick={() => setPasteError(null)}>Dismiss</button>
+          </div>}
+          {gallery && photoExportError && <div className="storage-warning" role="alert" aria-live="polite">
+            <span>{photoExportError.message}</span>
+            <button className="btn" disabled={photoBusy} onClick={() => void exportPhoto(photoExportError.action)}>Try again</button>
+            <button className="btn" onClick={() => setPhotoExportError(null)}>Dismiss</button>
+          </div>}
           {storageError && <div className="storage-warning" role="alert">
             <span>{storageError}</span>
             <button className="btn" onClick={() => { void markupRef.current?.flush().catch(() => {}); }}>Retry saving notes</button>

@@ -13,6 +13,7 @@ const { safePdfName } = require("./filenames.cjs");
 const { csp } = require("./csp.cjs");
 const { WORD_FILE, openWord, openWorkbook } = require("./convert.cjs");
 const { registerPrinting } = require("./printing.cjs");
+const { registerScreenshots } = require("./screenshot.cjs");
 const { MAX_DOCUMENT_BYTES, checkDiskPath, readRegular } = require("./document-files.cjs");
 const { createContentFiles, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, SVG_FILE, HTML_FILE, XLSX_FILE, IMAGE_FILE } = require("./content-files.cjs");
 
@@ -748,6 +749,8 @@ if (!app.requestSingleInstanceLock()) {
     });
     updateFileMenu();
     handle("folio:save-file", (_event, request) => saveFiles.save(request));
+    registerScreenshots(handle, () => win, { hidden: TEST_HIDDEN,
+      fixture: TEST_HIDDEN && process.env.FOLIO_TEST_SCREENSHOT === "1" });
     on("folio:file-menu", (_event, state) => {
       if (!state || !["none", "pdf", "photo", "markdown", "workbook", "html"].includes(state.kind) || typeof state.busy !== "boolean") return;
       fileMenuState = { kind: state.kind, busy: state.busy }; updateFileMenu();

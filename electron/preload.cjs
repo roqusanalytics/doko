@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("folioDesktop", {
   saveFile: request => ipcRenderer.invoke("folio:save-file", request),
+  captureDesktop: () => ipcRenderer.invoke("folio:capture-desktop").then(png => png ? new Uint8Array(png) : null),
+  cancelScreenshot: () => ipcRenderer.invoke("folio:screenshot-cancel"),
   setFileMenu: state => ipcRenderer.send("folio:file-menu", state),
   onFileCommand(callback) {
     const listener = (_event, command) => callback(command);

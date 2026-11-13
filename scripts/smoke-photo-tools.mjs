@@ -115,6 +115,36 @@ try {
   assert.deepEqual([pixels.width, pixels.height], [800, 600]);
   assert.deepEqual(pixels.corner, [32, 64, 224, 255], "saved PNG did not include the replacement image");
   assert.ok(pixels.dark > 100, "saved PNG did not include drawn annotations/text");
+  // Exercise the renderer clipboard boundary without changing the user's OS clipboard.
+  await page.evaluate(() => {
+    window.copiedPhoto = null;
+    window.refusePhotoCopy = false;
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { write: async items => {
+      if (window.refusePhotoCopy) throw new Error("Clipboard refused");
+      window.copiedPhoto = Array.from(new Uint8Array(await (await items[0].getType("image/png")).arrayBuffer()));
+    } } });
+  });
+  await page.getByRole("button", { name: "Copy image", exact: true }).click();
+  await page.waitForFunction(() => window.copiedPhoto !== null);
+  assert.deepEqual(Buffer.from(await page.evaluate(() => window.copiedPhoto)), savedPng, "copied image must include the same edits as saved PNG");
+  await page.waitForFunction(() => !document.querySelector('.topbar-center')?.inert);
+  await page.evaluate(() => { window.refusePhotoCopy = true; });
+  await page.getByRole("button", { name: "Copy image", exact: true }).click();
+  const copyError = page.getByRole("alert").filter({ hasText: "Couldn't copy the image" });
+  await copyError.getByText(/Your edits are still here/).waitFor();
+  await page.evaluate(() => { window.refusePhotoCopy = false; window.copiedPhoto = null; });
+  await copyError.getByRole("button", { name: "Try again", exact: true }).click();
+  await page.waitForFunction(() => window.copiedPhoto !== null);
+  await copyError.waitFor({ state: "detached" });
+  assert.deepEqual(Buffer.from(await page.evaluate(() => window.copiedPhoto)), savedPng);
+  await page.evaluate(() => { window.refusePhotoCopy = true; });
+  await page.getByRole("button", { name: "Copy image", exact: true }).click();
+  await copyError.waitFor();
+  await switchTo("photo2.png");
+  await copyError.waitFor({ state: "detached" });
+  await page.evaluate(() => { window.refusePhotoCopy = false; });
+  await switchTo("photo1.png");
+  console.log("ok  Copy image includes the edited PNG without touching the OS clipboard");
   for (const name of ["photo1.png", "photo2.png"]) assert.deepEqual(readFileSync(path.join(photos, name)), original, "editing overwrote an original");
   writeFileSync(path.join(shots, "photo-edited-export.png"), savedPng);
   await page.screenshot({ path: path.join(shots, "photo-tools-edited.png") });
