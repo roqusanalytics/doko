@@ -44,6 +44,12 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
 
 ## Releasing: one way only
 
+- One repository: public `roqusanalytics/doko` holds the source, CI, releases, and every update feed (`latest*.yml`,
+  APT `Packages`/`InRelease`). Git `origin` must be `https://github.com/roqusanalytics/doko.git`; push branches and tags
+  only there. `roqusanalytics/doko-fork` is the old repository: never push to it or publish releases there.
+- Installed copies read updates from `roqusanalytics/doko`, so keep that repository public and keep every updater, APT
+  and release URL pointing at it.
+
 - `npm run build:local` prepares a private Apple Silicon Mac app with `electron-builder.local.cjs`, a separate
   identity/profile, the fork update feed, and no publication. It builds outside synced folders for codesigning.
   Public releases still use the procedure below.
