@@ -6,11 +6,12 @@
 .markdown-pane-body { display: flex; flex: 1; min-height: 0; min-width: 0; }
 .markdown-section-rail { display: flex; flex-direction: column; align-items: center; flex: 0 0 44px; overflow-y: auto; scrollbar-width: none; padding-block: 18px; }
 .markdown-section-rail::-webkit-scrollbar { display: none; }
-.markdown-section-button { display: flex; align-items: center; justify-content: flex-start; padding: 0 8px; width: 100%; min-height: 10px; flex: none; border-radius: 2px; }
-/* Width and strength grow with --lift (0–4, set inline) so ticks swell into a wedge around the active section. */
-.markdown-section-mark { display: block; height: 1.5px; max-width: 100%; border-radius: 1px; background: var(--text-3); width: calc(var(--base, 12px) + var(--lift, 0) * 6px); opacity: calc(.38 + var(--lift, 0) * .13); transition: width .28s cubic-bezier(.22, 1, .36, 1), opacity .28s ease, background .15s; }
-.markdown-section-button:hover .markdown-section-mark, .markdown-section-button:focus-visible .markdown-section-mark { background: var(--text-2); opacity: 1; }
-.markdown-section-button[aria-current="location"] .markdown-section-mark { background: var(--text); height: 2px; opacity: 1; }
+.markdown-section-button { display: flex; align-items: center; justify-content: flex-start; padding: 0 0 0 8px; width: 100%; min-height: 10px; flex: none; border-radius: 2px; }
+/* Ticks are uniform at rest; the active one differs only in colour. While the rail is hovered or focused, --lift (0–4)
+   peaks at the tick under the pointer (--pointer, a fractional index) and fades over 3 neighbours: a wedge that slides with it. */
+.markdown-section-mark { --lift: 0; display: block; height: 1.5px; max-width: 100%; border-radius: 1px; background: var(--text-3); opacity: calc(.55 + var(--lift) * .1125); width: calc(8px + var(--lift) * 4px + max(0px, (var(--lift) - 3) * 3px)); transition: width .14s cubic-bezier(.22, 1, .36, 1), opacity .14s ease, background .15s; }
+.markdown-section-rail:hover .markdown-section-mark, .markdown-section-rail:has(:focus-visible) .markdown-section-mark { --lift: max(0, 4 - max(var(--i) - var(--pointer, -9), var(--pointer, -9) - var(--i))); }
+.markdown-section-button[aria-current="location"] .markdown-section-mark { background: var(--text); opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .markdown-section-mark { transition: none; } }
 .markdown-section-label { position: fixed; z-index: 100; pointer-events: none; max-width: min(300px, calc(100vw - 68px)); padding: 6px 9px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: var(--page-shadow); font-size: 12px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .markdown-rendered, .markdown-source, .markdown-table { flex: 1; min-height: 0; min-width: 0; }

@@ -76,6 +76,18 @@ try {
   assert.equal(await navigation().getByRole("button", { name: "Not a section", exact: true }).count(), 0);
   await activeSection(0);
   await fullWidth(page.locator(".markdown-rendered"));
+  // At rest every tick has one length and only the active one differs, by colour; hovering swells a wedge under the pointer.
+  const marks = () => navigation().locator(".markdown-section-mark").evaluateAll(spans => spans.map(span => ({ width: span.getBoundingClientRect().width, color: getComputedStyle(span).backgroundColor })));
+  const rest = await marks();
+  assert.equal(new Set(rest.map(mark => mark.width)).size, 1, `rail ticks are not uniform at rest: ${rest.map(mark => mark.width)}`);
+  assert.notEqual(rest[0].color, rest[1].color, "active tick has no distinct colour");
+  await navigation().getByRole("button").nth(5).hover();
+  await page.waitForTimeout(300);
+  const lens = (await marks()).map(mark => mark.width);
+  assert.ok(lens[5] > lens[3] && lens[3] > lens[1] && lens[1] === rest[1].width && lens[5] > lens[7] && lens[7] > lens[9], `hover wedge is not centred on the pointer: ${lens}`);
+  await page.mouse.move(600, 300);
+  await page.waitForTimeout(300);
+  assert.deepEqual((await marks()).map(mark => mark.width), rest.map(mark => mark.width), "wedge stayed after the pointer left the rail");
   await navigation().getByRole("button", { name: "Repeated section", exact: true }).nth(5).click();
   await activeSection(6);
   await renderedSectionVisible(6);
