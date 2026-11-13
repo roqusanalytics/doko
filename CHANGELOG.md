@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.20.17
+
+- Match the Ask AI scrollbar to the document work area.
+- Show an icon-only Copy action and the response date and time on hover or keyboard focus. Keep copy failures visible and preserve timestamps when reopening a conversation.
+
 ## 1.20.16
 
 - Show one quiet focus cue on the Ask AI message box instead of two rings.
