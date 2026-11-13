@@ -67,6 +67,8 @@ if ! install -m 0644 '/opt/${sanitizedProductName}/resources/folio-archive-keyri
   rm -f -- "$key_tmp"
   exit 1
 fi
-if [ ! -e "$FOLIO_SOURCE" ] && [ ! -e '/etc/apt/sources.list.d/folio-local.list.disabled' ]; then
-  echo "deb [arch=amd64 signed-by=$FOLIO_KEYRING] https://github.com/roqusanalytics/doko/releases/latest/download ./" > "$FOLIO_SOURCE" || true
+# Migrate only our original entry; preserve administrator edits and the opt-out marker.
+if [ ! -e '/etc/apt/sources.list.d/folio-local.list.disabled' ] &&
+   { [ ! -e "$FOLIO_SOURCE" ] || [ "$(cat "$FOLIO_SOURCE")" = "deb [arch=amd64 signed-by=$FOLIO_KEYRING] https://github.com/roqusanalytics/doko/releases/latest/download ./" ]; }; then
+  echo "deb [arch=amd64 signed-by=$FOLIO_KEYRING] https://github.com/roqusanalytics/doko-fork/releases/latest/download ./" > "$FOLIO_SOURCE" || true
 fi

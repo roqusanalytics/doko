@@ -44,8 +44,11 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
 
 ## Releasing: one way only
 
+- Source, CI and signing environments live in private `roqusanalytics/doko`; public releases and all update feeds live in `roqusanalytics/doko-fork`. Never push private source commits or branches to the public download repository. Public release tags target its existing public history.
+- Copies predating this repository split need one manual migration install; changing source URLs cannot rewrite their embedded updater or APT URLs.
+
 - `npm run build:local` prepares a private Apple Silicon Mac app with `electron-builder.local.cjs`, a separate
-  identity/profile, the fork update feed, and no publication. It builds outside synced folders for codesigning.
+  identity/profile, the public Doko update feed, and no publication. It builds outside synced folders for codesigning.
   Public releases still use the procedure below.
 - Keep the installed private Mac app only at `/Applications/Doko.app`. Existing `/Applications/Folio.app` installs are
   not renamed by this documentation change. Store rollback copies as verified `.zip`
