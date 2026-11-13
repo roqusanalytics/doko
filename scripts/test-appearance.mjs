@@ -4,7 +4,36 @@ import { createServer } from "vite";
 
 const server = await createServer({ root: path.resolve(import.meta.dirname, ".."), server: { middlewareMode: true }, appType: "custom" });
 try {
-  const { APPEARANCE_PRESETS, normalizeColor, appearanceColor, appearancePalette, luminance, surfaceTokens } = await server.ssrLoadModule("/src/appearance.ts");
+  const { APPEARANCE_PRESETS, normalizeColor, appearanceColor, appearancePalette, luminance, surfaceTokens, migrateDefaultColors, DEFAULT_BACKGROUND, DEFAULT_WORK_AREA } = await server.ssrLoadModule("/src/appearance.ts");
+  const saved = new Map();
+  globalThis.localStorage = { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value) };
+  for (const existing of [false, true]) {
+    saved.clear();
+    if (existing) { saved.set("folio:appearance", "ocean"); saved.set("folio:panel-color", "#ffffff"); }
+    migrateDefaultColors();
+    assert.equal(saved.get("folio:appearance"), "#76736f");
+    assert.equal(saved.get("folio:panel-color"), "#202327");
+    saved.set("folio:appearance", "sage");
+    saved.set("folio:panel-color", "");
+    migrateDefaultColors();
+    assert.equal(saved.get("folio:appearance"), "sage", "migration must keep later background choices");
+    assert.equal(saved.get("folio:panel-color"), "", "migration must keep Auto after restart or a new tab");
+  }
+  saved.clear();
+  localStorage.setItem = () => { throw new Error("storage blocked"); };
+  assert.doesNotThrow(migrateDefaultColors);
+  assert.equal(saved.size, 0, "failed writes must not mark migration complete");
+  saved.set("folio:appearance", "sage");
+  saved.set("folio:panel-color", "");
+  localStorage.setItem = (key, value) => {
+    if (key === "folio:default-colors-v1") throw new Error("quota exceeded");
+    saved.set(key, value);
+  };
+  migrateDefaultColors();
+  migrateDefaultColors();
+  assert.equal(saved.get("folio:appearance"), "sage", "marker failure must not overwrite saved choices");
+  assert.equal(saved.get("folio:panel-color"), "", "marker failure must preserve Auto");
+  delete globalThis.localStorage;
   assert.equal(APPEARANCE_PRESETS.length, 5);
   assert.equal(new Set(APPEARANCE_PRESETS.map(preset => preset.id)).size, 5);
   assert.equal(normalizeColor(" #AbC "), "#aabbcc");
@@ -20,7 +49,7 @@ try {
     const a = luminance(background), b = luminance(over);
     return (Math.max(a, b) + .05) / (Math.min(a, b) + .05) >= 1.08;
   };
-  const colors = [...APPEARANCE_PRESETS.map(preset => preset.color), "#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#757575", "#767676", "#777777", "#ff00ff", "#ffff00"];
+  const colors = [DEFAULT_BACKGROUND, DEFAULT_WORK_AREA, ...APPEARANCE_PRESETS.map(preset => preset.color), "#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#757575", "#767676", "#777777", "#ff00ff", "#ffff00"];
   for (const color of colors) for (const dark of [false, true]) {
     const palette = appearancePalette(color, dark);
     assert.equal(palette["--accent"], "#c5e1cb", "custom appearances must retain the Mint brand accent");

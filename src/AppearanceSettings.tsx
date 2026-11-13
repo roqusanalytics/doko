@@ -1,11 +1,11 @@
 import { useState, type CSSProperties } from "react";
-import { APPEARANCE_KEY, APPEARANCE_PRESETS, SURFACE_COLORS, appearanceColor, appearancePalette, normalizeColor, saveAppearance, saveSurfaceColor } from "./appearance";
+import { APPEARANCE_KEY, APPEARANCE_PRESETS, DEFAULT_BACKGROUND, DEFAULT_WORK_AREA, SURFACE_COLORS, appearanceColor, appearancePalette, normalizeColor, saveAppearance, saveSurfaceColor } from "./appearance";
 import { readSetting } from "./preferences";
 import { Icon } from "./icons";
 
 export function AppearanceSettings({ dark }: { dark: boolean }) {
   // A saved preset that no longer exists falls back to the default, matching how it renders.
-  const [selected, setSelected] = useState(() => { const saved = readSetting(APPEARANCE_KEY); return saved && appearanceColor(saved) ? saved : "default"; });
+  const [selected, setSelected] = useState(() => { const saved = readSetting(APPEARANCE_KEY); return saved && appearanceColor(saved) ? saved : DEFAULT_BACKGROUND; });
   const [custom, setCustom] = useState(() => normalizeColor(selected) || "#e4eaf2");
   const [error, setError] = useState("");
   const choose = (value: string) => {
@@ -21,7 +21,7 @@ export function AppearanceSettings({ dark }: { dark: boolean }) {
   };
   return <div className="appearance-settings">
     <div className="appearance-heading"><div><strong>Background</strong><p>Choose a palette. Changes apply instantly to every tab.</p></div>
-      <button type="button" className="btn ghost" onClick={() => { setCustom("#e4eaf2"); choose("default"); }}>Reset</button>
+      <button type="button" className="btn ghost" onClick={() => { setCustom(DEFAULT_BACKGROUND); choose(DEFAULT_BACKGROUND); }}>Reset</button>
     </div>
     <div className="appearance-grid" aria-label="Background palettes">
       {APPEARANCE_PRESETS.map(preset => <button type="button" key={preset.id} className="appearance-card"
@@ -49,7 +49,7 @@ export function AppearanceSettings({ dark }: { dark: boolean }) {
 }
 
 function SurfaceColor({ surface: { key: storageKey, property, label } }: { surface: (typeof SURFACE_COLORS)[number] }) {
-  const [value, setValue] = useState(() => readSetting(storageKey) || "");
+  const [value, setValue] = useState(() => readSetting(storageKey) ?? DEFAULT_WORK_AREA);
   const [error, setError] = useState("");
   const current = () => getComputedStyle(document.documentElement).getPropertyValue(property).trim();
   const id = `surface-${property.slice(2)}`;

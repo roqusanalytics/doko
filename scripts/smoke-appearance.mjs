@@ -34,6 +34,26 @@ try {
     await page.getByRole("dialog", { name: "Settings", exact: true }).waitFor();
   };
   await openSettings();
+  assert.equal(await page.getByRole("textbox", { name: "Custom color", exact: true }).inputValue(), "#76736f");
+  assert.equal(await page.getByRole("textbox", { name: "Work area", exact: true }).inputValue(), "#202327");
+  for (const theme of ["Dark", "Light"]) {
+    await page.getByRole("radio", { name: theme, exact: true }).click();
+    await page.waitForFunction(() => document.documentElement.style.getPropertyValue("--bg") === "#76736f"
+      && getComputedStyle(document.querySelector(".sidebar")).backgroundColor === "rgb(32, 35, 39)");
+  }
+  mkdirSync(path.join(root, "release", "smoke"), { recursive: true });
+  await page.screenshot({ path: path.join(root, "release", "smoke", "appearance-default-colors.png") });
+  // Simulate an upgraded profile with previous custom colors.
+  await window.evaluate(() => {
+    localStorage.setItem("folio:appearance", "ocean");
+    localStorage.setItem("folio:panel-color", "#ffffff");
+    localStorage.removeItem("folio:default-colors-v1");
+  });
+  await window.reload();
+  await page.locator(".textLayer span:not(.markedContent)").first().waitFor();
+  await openSettings();
+  assert.equal(await page.getByRole("textbox", { name: "Custom color", exact: true }).inputValue(), "#76736f");
+  assert.equal(await page.getByRole("textbox", { name: "Work area", exact: true }).inputValue(), "#202327");
   assert.equal(await page.locator(".appearance-card").count(), 6, "5 presets plus Custom are required");
   await page.getByRole("radio", { name: "Light", exact: true }).click();
   await page.getByRole("button", { name: "Sage background", exact: true }).click();
@@ -71,6 +91,7 @@ try {
   await page.waitForFunction(() => !document.getElementById("folio-surface-colors"));
   await window.waitForFunction(() => document.documentElement.style.getPropertyValue("--bg") === "#e2eadf");
   await page.getByRole("button", { name: "Custom background", exact: true }).click();
+  await page.getByRole("textbox", { name: "Custom color", exact: true }).fill("#e4eaf2");
   const hex = page.getByRole("textbox", { name: "Custom color", exact: true });
   for (const invalid of ["", "not-a-color", "x".repeat(10000)]) {
     await hex.fill(invalid);
@@ -103,6 +124,9 @@ try {
   await openSettings();
   assert.equal(await page.getByRole("button", { name: "Ocean background", exact: true }).getAttribute("aria-pressed"), "true");
   await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await window.waitForFunction(() => [...document.querySelectorAll("iframe.document-reader")].every(frame => frame.contentDocument.documentElement.dataset.appearance === "#76736f"));
+  assert.equal(await page.getByRole("textbox", { name: "Custom color", exact: true }).inputValue(), "#76736f");
+  await page.getByRole("button", { name: "Paper background", exact: true }).click();
   await window.waitForFunction(() => [...document.querySelectorAll("iframe.document-reader")].every(frame => !frame.contentDocument.documentElement.dataset.appearance));
   assert.equal(await page.getByRole("button", { name: "Paper background", exact: true }).getAttribute("aria-pressed"), "true");
   for (const theme of ["Dark", "Light"]) {
