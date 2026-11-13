@@ -61,7 +61,10 @@ test("setup returns only compatible text models and their individual context win
     assert.equal(options.body, undefined);
     return Response.json({ data: [model, { ...model, id: "fixture/picture", architecture: { input_modalities: ["text"], output_modalities: ["image"] } }] });
   };
-  assert.deepEqual(await router.models(), [{ id: model.id, name: model.name, contextLength: 8192 }]);
+  assert.deepEqual(await router.models(), [{ id: model.id, name: model.name, contextLength: 8192, created: null }]);
+  const withDate = { ...model, created: 1_760_000_000 };
+  net.fetch = async () => Response.json({ data: [withDate, { ...model, id: "fixture/bad-date", created: "soon" }] });
+  assert.deepEqual((await router.models()).map(m => m.created), [1_760_000_000, null], "only a valid creation time is kept");
 });
 
 function stream(...pieces) {

@@ -46,8 +46,7 @@
   border-radius: var(--radius);
   box-shadow: var(--glass-shadow);
 }
-:is(.ai-model, .print-dialog, .signature-field) .select-trigger,
-.ai-meta .ai-model {
+:is(.print-dialog, .signature-field) .select-trigger {
   border-color: transparent;
 }
 .annotationEditorLayer :is(.freeTextEditor, .inkEditor, .stampEditor, .highlightEditor, .signatureEditor) .editToolbar,

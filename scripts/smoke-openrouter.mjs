@@ -73,7 +73,18 @@ export async function checkOpenRouter(app, page) {
     await provider.click(); await page.getByRole("menuitemradio", { name: "Claude", exact: true }).click();
     await provider.click(); await page.getByRole("menuitemradio", { name: "OpenRouter", exact: true }).click();
     await panel.getByText("Where do terns nest?").waitFor();
-    await panel.getByRole("button", { name: "sample/reader", exact: true }).click();
+    // The composer's model menu groups every provider with its models, switches models, and links to the full OpenRouter search.
+    const modelMenu = () => panel.getByRole("button", { name: /^Model:/ });
+    await modelMenu().click();
+    const menu = page.getByRole("menu", { name: "Models" });
+    for (const group of ["ChatGPT", "Claude", "OpenRouter"]) await menu.getByRole("group", { name: group }).waitFor();
+    await menu.getByRole("menuitemradio", { name: "Sample Small", exact: true }).click();
+    await panel.getByRole("button", { name: "Model: Sample Small", exact: true }).waitFor();
+    await modelMenu().click();
+    await page.getByRole("menuitemradio", { name: "Sample Reader", exact: true }).click();
+    await panel.getByRole("button", { name: "Model: Sample Reader", exact: true }).waitFor();
+    await modelMenu().click();
+    await page.getByRole("menuitem", { name: "More models in Settings…" }).click();
     await settings.getByRole("button", { name: "Change model" }).click();
     await filter.fill("custom/private");
     await settings.getByRole("button", { name: "Use custom/private" }).click();

@@ -115,7 +115,7 @@ interface FolioAi {
   onEvent(callback: (event: AiEvent) => void): () => void;
 }
 
-interface OpenRouterModel { id: string; name: string; contextLength: number | null }
+interface OpenRouterModel { id: string; name: string; contextLength: number | null; created: number | null }
 
 interface Window {
   folioDesktop?: FolioDesktop;
