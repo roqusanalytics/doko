@@ -575,9 +575,13 @@
   border: 1px solid var(--line-strong);
   background: var(--surface);
 }
+/* One quiet focus cue: the box edge firms up. The textarea inside draws no ring of its own. */
 .composer:focus-within {
-  border-color: transparent;
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: color-mix(in srgb, var(--text-3) 60%, transparent);
+}
+.composer textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 .composer textarea {
   flex: 1 1 100%;
