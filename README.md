@@ -3,11 +3,24 @@
 A fast, clean PDF reader for Windows, macOS, and Linux. Read, highlight, annotate, sign, and ask AI about your
 documents. Free and open source, with no Doko account required.
 
-![Doko with the Ask AI panel open, answering a question about the document with page citations](docs/screenshots/ask-ai.png)
+## Doko in everyday use
 
-| Highlights and notes | Search |
+One fictional **Pajūrio studija** project, opened in the installed Doko app: a PDF brief, Word proposal,
+Markdown plan, Excel budget, photo folder, and a real Ask AI conversation.
+
+| PDF reading | Word → PDF |
 | --- | --- |
-| ![Color highlights in a document, with their notes in the sidebar](docs/screenshots/highlights-and-notes.png) | ![Searching a document in the dark theme, with every match highlighted and a list of matching pages](docs/screenshots/search.png) |
+| ![Pajūrio studija project brief open as a PDF in Doko](docs/screenshots/pdf-reading.png) | ![Pajūrio studija Word proposal converted to PDF in Doko](docs/screenshots/word-document.png) |
+
+| Markdown | Excel workbook |
+| --- | --- |
+| ![Pajūrio studija project plan in Doko's Markdown preview](docs/screenshots/markdown-editor.png) | ![Pajūrio studija project budget open as an Excel workbook in Doko](docs/screenshots/excel-workbook.png) |
+
+| Photo gallery | Ask AI |
+| --- | --- |
+| ![Pajūrio studija photo folder open in Doko's gallery](docs/screenshots/photo-gallery.png) | ![A real Ask AI conversation about the Pajūrio studija document in Doko](docs/screenshots/ask-ai.png) |
+
+[Capture provenance and refresh instructions](docs/screenshots/README.md).
 
 ## Download
 
@@ -118,7 +131,6 @@ screen chosen in the system picker rather than every monitor at once.
 - **Light and dark themes**, plus an independent **⋯ → PDF dark mode** setting that dims bright pages while keeping
   photos and figures in their original colors, including in thumbnails. Both settings survive restarts.
 
-[![The Back to page 1 hint above the reading controls after following a link to page 4](docs/screenshots/back-to-page.png)](docs/screenshots/pdf-link-history.png)
 
 ### Edit existing text and images
 
@@ -161,10 +173,6 @@ The editor works with unsigned, unencrypted PDFs.
 - **Automatic local saving:** highlights, notes, drawings, and text boxes return when you reopen an
   ordinary, non-password-protected PDF. Use **Save a copy** to share page annotations with other readers.
 
-<p>
-  <a href="docs/screenshots/pen-widths.png"><img src="docs/screenshots/pen-widths.png" width="485" alt="Thin, Medium, and Thick pen strokes on the same page"></a>
-  <a href="docs/screenshots/scan-languages.png"><img src="docs/screenshots/scan-languages.png" width="250" alt="English and Arabic selected in the scan language picker, with the download size shown"></a>
-</p>
 
 ### Add handwritten signatures
 
@@ -230,10 +238,6 @@ Ask AI is optional and desktop-only. See [Using Ask AI](#using-ask-ai) for setup
 - **Document info** shows available metadata: filename, title, author, subject, page count and size, file size,
   creation/modification dates, generating application, producer, and PDF version.
 
-<p>
-  <a href="docs/screenshots/print-preview.png"><img src="docs/screenshots/print-preview.png" width="344" alt="The current PDF page in the Basic print preview"></a>
-  <a href="docs/screenshots/booklet-printing.png"><img src="docs/screenshots/booklet-printing.png" width="462" alt="Two PDF pages paired on a landscape sheet for booklet printing"></a>
-</p>
 
 ### Settings and updates
 
@@ -241,10 +245,6 @@ Open **⋯ → Settings** or press `Ctrl+,`. **General** contains appearance, re
 Use **Ask AI** to connect providers and **Storage** to manage saved annotations, conversations, and signatures.
 **About Doko** shows the version, installed/portable edition, and installation location, with a shortcut to open that folder.
 
-<p>
-  <a href="docs/screenshots/openrouter-setup.png"><img src="docs/screenshots/openrouter-setup.png" width="395" alt="Ask AI settings with OpenRouter selected and a field for an API key"></a>
-  <a href="docs/screenshots/stored-data.png"><img src="docs/screenshots/stored-data.png" width="380" alt="Storage settings with separate controls for clearing saved annotations and Ask AI conversations"></a>
-</p>
 
 - **Automatic updates on or off:** the preference survives restarts. Turning it off stops background checks/downloads
   and automatic installation; manual **Check for updates** remains available for self-updating editions.
@@ -392,7 +392,8 @@ Public releases still follow the existing three-platform release procedure.
   sign-in and requests, OpenRouter keys and requests, and Claude Code). Stored credentials stay in the main process.
 - `scripts/release.mjs` and `.github/workflows/release-build.yml`: the release pipeline (see
   [CONTRIBUTING.md](CONTRIBUTING.md#releasing)). `scripts/smoke-test.mjs` is the cross-platform smoke test CI runs.
-  `scripts/screenshots.mjs` retakes the Ask AI, highlights, and search screenshots at the top of this README (`npm run build`, then `node scripts/screenshots.mjs`).
+  `scripts/screenshots.mjs` generates test-fixture captures in `release/capture-fixtures/readme/`; its local AI response is simulated.
+  Public gallery images are captured manually from the installed app; follow [the capture protocol](docs/screenshots/README.md).
 
 ## Contributing
 

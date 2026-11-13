@@ -68,5 +68,5 @@ try {
 } finally {
   if (app) await closeHidden(app);
   await new Promise(resolve => server.close(resolve));
-  rmSync(temp, { recursive: true, force: true });
+  rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

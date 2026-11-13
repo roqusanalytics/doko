@@ -1,6 +1,7 @@
-// Captures real Doko (Electron) screenshots for the landing page into site/public/mockups/.
+// Captures Electron test fixtures into release/capture-fixtures/site/, never public landing images.
 // Run from the repo root after `npm run build`:  node site/scripts/capture-mockups.mjs
 // Uses a throwaway profile and fictional sample documents in a temp dir; both are removed at the end.
+import assert from "node:assert/strict";
 import { _electron as electron, chromium } from "playwright-core";
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -8,11 +9,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { electronPath } from "../../scripts/electron-path.mjs";
 import { readerPage } from "../../scripts/reader-page.mjs";
-import { closeHidden } from "../../scripts/hidden-window.mjs";
+import { assertHidden, closeHidden } from "../../scripts/hidden-window.mjs";
 
 const root = path.resolve(import.meta.dirname, "../..");
 const photoSource = path.join(root, "site/public/photos");
-const out = path.join(root, "site/public/mockups");
+const out = path.join(root, "release/capture-fixtures/site");
 const temp = mkdtempSync(path.join(tmpdir(), "doko-mockups-"));
 mkdirSync(out, { recursive: true });
 
@@ -119,7 +120,7 @@ const jpg = (png, name) => {
   execFileSync("sips", ["-s", "format", "jpeg", "-s", "formatOptions", "74", png, "--out", path.join(out, `${base}-2880.jpg`)], { stdio: "ignore" });
   execFileSync("sips", ["-s", "format", "jpeg", "-s", "formatOptions", "80", "--resampleWidth", "1440", png, "--out", path.join(out, `${base}-1440.jpg`)], { stdio: "ignore" });
   rmSync(png);
-  console.log("wrote", path.join("site/public/mockups", `${base}-{1440,2880}.jpg`));
+  console.log("wrote", path.join("release/capture-fixtures/site", `${base}-{1440,2880}.jpg`));
 };
 try {
   // Render the PDF from HTML with Chromium.
@@ -131,7 +132,7 @@ try {
   } finally { await browser.close(); }
 
   app = await electron.launch({ executablePath: electronPath(env), env, timeout: 60_000,
-    args: [root, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])] });
+    args: [root, "--mute-audio", "--force-device-scale-factor=2", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])] });
   const window = await app.firstWindow();
   const page = readerPage(window);
   await page.getByRole("button", { name: /Try a sample/ }).waitFor({ timeout: 30_000 });
@@ -148,6 +149,12 @@ try {
   };
   const open = file => app.evaluate(({ app }, file) => app.emit("open-file", { preventDefault() {} }, file), file);
   const shot = async name => {
+    await assertHidden(app);
+    const palette = await page.evaluate(() => {
+      const style = getComputedStyle(document.documentElement);
+      return ["--frame", "--stage", "--accent"].map(token => style.getPropertyValue(token).trim());
+    });
+    assert.deepEqual(palette, ["#76736f", "#202327", "#c5e1cb"]);
     await window.mouse.move(1425, 450);
     await window.waitForTimeout(700);
     const png = path.join(temp, name.replace(/\.jpg$/, ".png"));
@@ -163,14 +170,13 @@ try {
   const colors = ["Highlight yellow", "Highlight green", "Highlight pink"];
   const targets = ["pools", "Carry", "nesting"];
   for (const [i, target] of targets.entries()) {
-    await page.evaluate(target => {
-      const span = [...document.querySelectorAll(".page .textLayer span")].find(s => s.textContent.includes(target));
-      if (!span) throw new Error("text not found: " + target);
-      span.scrollIntoView({ block: "center" });
-      const range = document.createRange(); range.selectNodeContents(span);
-      const sel = document.getSelection(); sel.removeAllRanges(); sel.addRange(range);
-      document.dispatchEvent(new Event("selectionchange"));
-    }, target);
+    const line = page.locator(".page .textLayer span").filter({ hasText: target }).first();
+    await line.scrollIntoViewIfNeeded();
+    const box = await line.boundingBox();
+    await page.mouse.move(box.x + 1, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width - 1, box.y + box.height / 2, { steps: 8 });
+    await page.mouse.up();
     await page.getByRole("dialog", { name: "Selected text", exact: true }).waitFor();
     await page.getByRole("button", { name: colors[i], exact: true }).click();
     await page.getByRole("dialog", { name: "Selected text", exact: true }).waitFor({ state: "hidden" });

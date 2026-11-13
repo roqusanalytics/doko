@@ -26,8 +26,11 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
   Lithuanian at `/lt/`; all copy (incl. FAQ, meta and JSON-LD text) lives only in `src/i18n/en.ts` and `lt.ts`
   (same shape; a missing LT key fails the build); the logo is imported from `brand/doko/logos/`. Third-party brand marks
   live only in `src/data/logos.ts`; keep their shapes unmodified and the footer trademark note in place.
-  Hero screenshots in `public/mockups/` come from the real app: after a root `npm run build`, run
-  `node site/scripts/capture-mockups.mjs` (throwaway profile, fictional documents; its selection step can be flaky).
+  Public screenshots come from the installed Doko app using freshly created, meaningful fictional project files;
+  follow `docs/screenshots/README.md`. Capture real native UI and a real provider response for Ask AI. Never reuse
+  historical screenshot images or inject UI/AI state. The landing page uses proportional JPEG derivatives of those captures
+  in `public/mockups/practical-*`. `scripts/screenshots.mjs` and `site/scripts/capture-mockups.mjs` generate only
+  test fixtures under `release/capture-fixtures/`; they must never overwrite the public gallery.
 - `scripts/` contains Node regression tests and Playwright-driven Electron smoke tests; `build/` contains packaging
   resources. Read [CONTRIBUTING.md](CONTRIBUTING.md) before contribution or release work and
   [SIGNING.md](SIGNING.md) before changing installer signing.

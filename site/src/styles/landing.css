@@ -162,7 +162,7 @@ h1 b { font-weight: 750; }
 .tab:hover { color: var(--ink); background: color-mix(in srgb, var(--mint) 30%, transparent); }
 .tab[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
 .tab svg { width: 16px; height: 16px; flex: none; }
-.views { position: relative; aspect-ratio: 16 / 10; background: var(--canvas); }
+.views { position: relative; aspect-ratio: 1334 / 870; background: var(--canvas); }
 .view {
   position: absolute; inset: 0; overflow: hidden;
   opacity: 0; visibility: hidden; transform: translateY(8px) scale(.995); filter: blur(6px);
