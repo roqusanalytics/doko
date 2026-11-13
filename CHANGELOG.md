@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.20.23
+
+- Use a warm gray background (`#76736f`) and dark work area (`#202327`) by default for new and existing profiles. Later color choices are preserved.
+- Keep reduced-transparency and increased-contrast settings effective on custom work areas.
+
 ## 1.20.21
 
 - Keep the document tab bar visible with a single PDF and place the New tab button first on the left.
