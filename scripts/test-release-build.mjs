@@ -5,7 +5,21 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { checkRelease, RELEASE_ARTIFACTS, RELEASES_REPO } from "./check-release.mjs";
-import { artifactIds, verifyPublicReleaseRepository, releaseBump, releaseFiles, selectBuild, selectCI, successfulAttempt, successfulCI, verifyReleaseTag, SOURCE_REPO } from "./release-build.mjs";
+import { artifactIds, verifyPublicReleaseRepository, verifyReleaseNotes, releaseBump, releaseFiles, selectBuild, selectCI, successfulAttempt, successfulCI, verifyReleaseTag, SOURCE_REPO } from "./release-build.mjs";
+
+test("release notes exist for the exact next version before versioning or tagging", () => {
+  for (const [bump, next] of [["patch", "1.20.29"], ["minor", "1.21.0"], ["major", "2.0.0"], ["1.22.3", "1.22.3"]]) {
+    assert.equal(verifyReleaseNotes(`# Changelog\n\n## ${next}\n\n- A user-visible change.\n`, "1.20.28", bump), next);
+    for (const missing of ["", "## 1.20.28\n- Old change.\n", `${next}\n- Missing heading.\n`, `## ${next}\n\n## 1.0.0\n- Old change.\n`, `## ${next}\n- \n`]) {
+      assert.throws(() => verifyReleaseNotes(missing, "1.20.28", bump), /CHANGELOG.md before releasing/);
+    }
+  }
+  assert.equal(verifyReleaseNotes("## 1.20.29\r\n- Change.\r\n", "1.20.28", "patch"), "1.20.29");
+  assert.throws(() => verifyReleaseNotes("", "invalid", "patch"), /numeric release version/);
+  assert.throws(() => verifyReleaseNotes("", "1.20.28", "invalid"), /numeric release version/);
+  const source = readFileSync(new URL("./release.mjs", import.meta.url), "utf8");
+  assert.ok(source.indexOf('  verifyReleaseNotes(') < source.indexOf('  run(`npm version'));
+});
 
 const tag = "v1.2.3";
 const commit = "a".repeat(40);
@@ -95,13 +109,17 @@ test("normal and resumed publication execute the CI gate and recheck it after do
     .replaceAll('"./check-release.mjs"', JSON.stringify(new URL("./check-release.mjs", import.meta.url).href))
     .replaceAll('"./release-build.mjs"', JSON.stringify(new URL("./release-build.mjs", import.meta.url).href));
   writeFileSync(path.join(folder, "release.mjs"), source);
-  writeFileSync(path.join(folder, "package.json"), JSON.stringify({ version: "1.2.3" }));
+  writeFileSync(path.join(folder, "CHANGELOG.md"), "## 1.2.3\n- A user-visible change.\n");
   writeFileSync(path.join(folder, "mock-process.mjs"), `
     import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
     import path from "node:path";
     const build = ${JSON.stringify(build)}, ci = ${JSON.stringify(ci)}, manifest = ${JSON.stringify(RELEASE_ARTIFACTS)};
     let ciReads = 0;
-    export function execSync(command) { appendFileSync("calls", command + "\\n"); return command.includes("rev-parse") ? build.head_sha : ""; }
+    export function execSync(command) {
+      appendFileSync("calls", command + "\\n");
+      if (command.startsWith("npm version")) writeFileSync("package.json", JSON.stringify({ version: "1.2.3" }));
+      return command.includes("rev-parse") ? build.head_sha : "";
+    }
     export function execFileSync(command, args) {
       appendFileSync("calls", JSON.stringify([command, ...args]) + "\\n");
       if (command === "git") {
@@ -135,6 +153,7 @@ test("normal and resumed publication execute the CI gate and recheck it after do
   `);
   for (const args of [[], ["--publish-only"]]) {
     for (const scenario of ["private", "failed", "rerun", "success"]) {
+      writeFileSync(path.join(folder, "package.json"), JSON.stringify({ version: args.length ? "1.2.3" : "1.2.2" }));
       writeFileSync(path.join(folder, "calls"), "");
       const result = spawnSync(process.execPath, ["release.mjs", ...args], {
         cwd: folder, encoding: "utf8", env: { ...process.env, CI_SCENARIO: scenario },
@@ -162,6 +181,14 @@ test("normal and resumed publication execute the CI gate and recheck it after do
       }
     }
   }
+  writeFileSync(path.join(folder, "package.json"), JSON.stringify({ version: "1.2.2" }));
+  writeFileSync(path.join(folder, "CHANGELOG.md"), "## 1.2.2\n- Old change.\n");
+  writeFileSync(path.join(folder, "calls"), "");
+  const missingNotes = spawnSync(process.execPath, ["release.mjs"], { cwd: folder, encoding: "utf8", env: { ...process.env, CI_SCENARIO: "success" } });
+  assert.equal(missingNotes.status, 1);
+  assert.match(missingNotes.stderr, /Add ## 1\.2\.3.*CHANGELOG.md before releasing/);
+  const missingCalls = readFileSync(path.join(folder, "calls"), "utf8");
+  assert.ok(!missingCalls.includes("npm version") && !missingCalls.includes('["git","push"') && !missingCalls.includes('["gh","release","create"'));
 });
 
 test("source and downloads use the public Doko repository", () => {
