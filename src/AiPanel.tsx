@@ -10,6 +10,8 @@ import { ModelMenu, type ModelGroup } from "./ModelMenu";
 import { CLAUDE_CODE_URL, PROVIDERS, savedProvider, saveAiPreference, signInChatGPT, subscribeAiPreferences, USAGE_URL, type AiProvider } from "./ai";
 import { Modal } from "./Dialogs";
 import { readSetting } from "./preferences";
+import { readAiDocumentText } from "./aiDocumentText";
+import type { PageText } from "./OcrFindController";
 
 const AiMarkdown = lazy(() => import("./AiMarkdown").then((module) => ({ default: module.AiMarkdown })));
 
@@ -24,40 +26,12 @@ interface Message extends AiMessage {
   error?: { message: string; code?: string; link?: string };
 }
 
-const MAX_DOC_CHARS = 400_000;
 const CLAUDE_MODELS = [
   { id: "", name: "Default model" },
   { id: "sonnet", name: "Sonnet" },
   { id: "opus", name: "Opus" },
   { id: "haiku", name: "Haiku" },
 ];
-
-// ── Document text ───────────────────────────────────────────────────────────────────────
-const textCache = new WeakMap<PDFDocumentProxy, Promise<{ text: string; truncated: boolean }>>();
-
-function documentText(pdf: PDFDocumentProxy) {
-  let cached = textCache.get(pdf);
-  if (!cached) {
-    cached = (async () => {
-      let text = "";
-      let truncated = false;
-      for (let n = 1; n <= pdf.numPages; n++) {
-        const content = await (await pdf.getPage(n)).getTextContent();
-        const page = content.items.map((item) => ("str" in item ? item.str + (item.hasEOL ? "\n" : " ") : "")).join("")
-          .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-        const block = `[Page ${n}]\n${page}\n\n`;
-        if (text.length + block.length > MAX_DOC_CHARS) {
-          truncated = true;
-          break;
-        }
-        text += block;
-      }
-      return { text, truncated };
-    })();
-    textCache.set(pdf, cached);
-  }
-  return cached;
-}
 
 // ── Panel ─────────────────────────────────────────────────────────────────────────────────
 // Keep partial replies and provider errors when the panel closes. Protected documents are session-only.
@@ -130,6 +104,7 @@ function NewConversationDialog({ onCancel, onConfirm }: { onCancel: () => void; 
 
 interface Props {
   pdf: PDFDocumentProxy;
+  getPageText: (n: number) => Promise<PageText>;
   docId: string;
   /** Save the conversation with the document (off for password-protected documents). */
   persist: boolean;
@@ -142,7 +117,7 @@ interface Props {
   onSaveError?: (failed: boolean) => void;
 }
 
-export function AiPanel({ pdf, docId, persist, docName, context, onClearContext, onGoToPage, onSettings, onClose, onSaveError }: Props) {
+export function AiPanel({ pdf, getPageText, docId, persist, docName, context, onClearContext, onGoToPage, onSettings, onClose, onSaveError }: Props) {
   const ai = window.folioDesktop?.ai;
   const [status, setStatus] = useState<AiStatus | null>(null);
   const provider = useSyncExternalStore(subscribeAiPreferences, savedProvider);
@@ -162,7 +137,7 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
   const [storageRetry, setStorageRetry] = useState(0);
   const [confirmNew, setConfirmNew] = useState(false);
   const busyRef = useRef<string | null>(null);
-  const preparing = useRef<string | null>(null);
+  const preparing = useRef<{ id: string; controller: AbortController } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const newConversationRef = useRef<HTMLButtonElement>(null);
@@ -286,6 +261,7 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
   useEffect(() => {
     closingChats.set(docId, () => {
       const request = busyRef.current;
+      preparing.current?.controller.abort();
       preparing.current = null; busyRef.current = null;
       if (request) void ai?.cancel(request).catch(() => {});
       setBusy(null);
@@ -294,6 +270,7 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
     return () => { closingChats.delete(docId); };
   }, [ai, docId, persist, generation]);
   useEffect(() => () => {
+    preparing.current?.controller.abort();
     preparing.current = null;
     const id = busyRef.current;
     if (!id) return;
@@ -310,7 +287,8 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
   }, [ai, docId, persist, generation]);
   const stop = () => {
     if (!busy) return;
-    if (preparing.current !== busy) { void ai?.cancel(busy); return; }
+    if (preparing.current?.id !== busy) { void ai?.cancel(busy); return; }
+    preparing.current?.controller.abort();
     preparing.current = null;
     busyRef.current = null;
     setBusy(null);
@@ -322,30 +300,33 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
     const turn: Message = { role: "user", content: question.trim(), createdAt: Date.now(), ...(context ? { context } : {}) };
     const history = [...messages.filter((m) => !m.error && m.content), turn];
     const id = crypto.randomUUID();
-    preparing.current = id;
+    const controller = new AbortController();
+    preparing.current = { id, controller };
     busyRef.current = id;
     setBusy(id);
     setMessages([...messages, turn, { role: "assistant", content: "", createdAt: Date.now() }]);
     setInput("");
     onClearContext();
     try {
-      const doc = provider === "openrouter" && context ? { text: "", truncated: true } : await documentText(pdf);
-      if (preparing.current !== id) return;
+      const doc = provider === "openrouter" && context ? { text: "", truncated: true } : await readAiDocumentText(pdf.numPages, getPageText, controller.signal);
+      if (preparing.current?.id !== id) return;
       preparing.current = null;
       await ai.ask({ id, provider, model, document: { name: docName, ...doc },
         messages: history.map(({ role, content, context }) => ({ role, content, ...(context ? { context } : {}) })) });
     } catch {
       if (busyRef.current !== id) return;
+      const readingFailed = preparing.current?.id === id;
       preparing.current = null;
       busyRef.current = null;
       setBusy(null);
+      if (readingFailed) setInput(question);
       setMessages((list) => {
         const next = list.slice();
-        next[next.length - 1] = { role: "assistant", content: "", error: { message: "Doko couldn't send that question." } };
+        next[next.length - 1] = { role: "assistant", content: "", error: { message: readingFailed ? "Doko couldn’t read this document. Your question is below; send it again to retry." : "Doko couldn't send that question." } };
         return next;
       });
     }
-  }, [ai, pdf, context, messages, provider, model, docName, onClearContext, ready]);
+  }, [ai, pdf, getPageText, context, messages, provider, model, docName, onClearContext, ready]);
 
   const signIn = async () => {
     if (!ai) return;

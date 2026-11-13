@@ -616,18 +616,18 @@ kbd {
 }
 
 /* Let a drag start beside the scanned ink without enlarging the rectangles used for highlights. */
-.textLayer > .ocr-word::before,
-.textLayer > .ocr-word::after {
+.textLayer > [data-ocr-word]::before,
+.textLayer > [data-ocr-word]::after {
   content: "";
   position: absolute;
   inset: -0.2em 50% -0.2em 0;
   z-index: -1;
 }
-.textLayer > .ocr-word::after {
+.textLayer > [data-ocr-word]::after {
   left: 50%;
   right: -0.7em;
 }
-.textLayer > .ocr-line-start::before {
+.textLayer > [data-ocr-line-start]::before {
   left: -0.7em;
 }
 

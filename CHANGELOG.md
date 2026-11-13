@@ -2,6 +2,8 @@
 
 ## 1.20.27
 
+- Search recognized text in scanned PDFs, including unvisited pages, with matching-page excerpts and highlighted results.
+- Ask AI about whole scanned documents using the same OCR text; cancel text preparation with Stop or by closing the panel.
 - Capture a desktop area in any drag direction, then copy, save, or annotate the PNG in Doko.
 - Copy edited images with drawings and text, and paste clipboard images into PDFs before saving a copy.
 - Keep screenshot previews isolated from document edits and explain screen-recording permission failures.

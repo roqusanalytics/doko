@@ -115,6 +115,8 @@ try {
   const originalFile = path.join(folder, "photo.png"), originalBytes = Buffer.from(fixture, "base64");
   writeFileSync(originalFile, originalBytes);
   await app.evaluate(({ app }, file) => app.emit("open-file", { preventDefault() {} }, file), originalFile);
+  // Follow the new photo iframe before starting a frame-bound readiness check.
+  await page.getByRole("button", { name: "View photo.png", exact: true }).waitFor();
   await page.waitForFunction(() => document.querySelector('[aria-label="View photo.png"]')?.getAttribute("aria-current") === "true" && !document.querySelector('.photo-status') && !!document.querySelector('.page canvas'));
   console.log("photo edit: fixture opened");
   const sheet = page.locator('.page[data-page-number="1"]');

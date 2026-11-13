@@ -281,8 +281,9 @@ On macOS, use `⌘` wherever this table says `Ctrl`. Press `?` with a document o
 
 ### Current limits
 
-- Automatic OCR adds a selection layer in the reader. The source PDF stays intact. Document-wide search,
-  signature-label detection, and whole-document AI questions use the PDF’s embedded text.
+- Automatic OCR adds a selection layer in the reader. The source PDF stays intact. Reader search and whole-document AI questions include
+  recognized OCR text and prepare unvisited scanned pages as needed. Signature-label detection still uses
+  the PDF’s embedded text.
 - Ask AI uses extracted text, not page images, and includes up to about 400,000 characters of document text. Long
   documents may be truncated; AI answers can be wrong, so check the cited pages.
 - Doko opens PDFs up to 300 MiB and 10,000 pages. Webpage conversion uses a separate session, so pages behind a

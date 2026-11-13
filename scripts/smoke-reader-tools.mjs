@@ -107,7 +107,7 @@ async function checkScanSelection(app, page) {
   await firstWord.scrollIntoViewIfNeeded();
   const box = await scan.locator(".canvasWrapper").boundingBox();
   const first = await firstWord.boundingBox();
-  const last = await scan.locator(".textLayer span", { hasText: /^words$/ }).boundingBox();
+  const last = await scan.locator(".textLayer span", { hasText: /^words\s*$/ }).boundingBox();
   assert.ok(Math.abs(first.x - box.x - box.width * 0.1) < box.width * 0.01);
   assert.ok(Math.abs(last.x + last.width - box.x - box.width * right / 1000) < box.width * 0.01);
   const y = box.y + box.height * 205 / 500;
