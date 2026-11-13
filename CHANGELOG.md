@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.20.26
+
+- Keep Markdown section markers the same size at rest, with a theme-aware active colour.
+- Follow the pointer with a smooth triangular hover lens; support keyboard section navigation.
+
 ## 1.20.24
 
 - Use the public Doko repository for downloads, update feeds and releases.
