@@ -322,6 +322,8 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
       if (readingFailed) setInput(question);
       setMessages((list) => {
         const next = list.slice();
+        // An unread document never sent this turn; keep it as a draft for retry.
+        if (readingFailed) next.splice(-2, 1);
         next[next.length - 1] = { role: "assistant", content: "", error: { message: readingFailed ? "Doko couldn’t read this document. Your question is below; send it again to retry." : "Doko couldn't send that question." } };
         return next;
       });
