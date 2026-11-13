@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.20.31
+
+- Photo galleries: the carousel now joins the work area card, with Previous and Next arrows on the image edges, the position next to the page controls, and a small refresh button.
+
 ## 1.20.30
 
 - Match the photo carousel background to the selected Work area color in Settings, with readable text in light and dark themes.
