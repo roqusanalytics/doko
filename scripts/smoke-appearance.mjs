@@ -111,6 +111,25 @@ try {
   await page.getByRole("button", { name: "View Appearance.png", exact: true }).waitFor();
   await page.locator(".page canvas").first().waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.appearance), "ocean", "new photo frame lost appearance");
+  for (const theme of ["Dark", "Light"]) {
+    await openSettings();
+    await page.getByRole("radio", { name: theme, exact: true }).click();
+    for (const color of ["#202327", "#fafafa"]) {
+      await page.getByRole("textbox", { name: "Work area", exact: true }).fill(color);
+      await page.keyboard.press("Escape");
+      const backgrounds = await page.evaluate(() => [".stage", ".photo-carousel"].map(selector =>
+        getComputedStyle(document.querySelector(selector)).backgroundColor));
+      assert.equal(backgrounds[1], backgrounds[0], `photo carousel must follow Work area (${theme}, ${color})`);
+      assert.ok(await contrastOf(".photo-carousel") >= 4.5, "carousel text must stay readable on the work-area color");
+      await page.screenshot({ path: path.join(root, "release", "smoke", `appearance-gallery-${theme}-${color.slice(1)}.png`) });
+      await openSettings();
+    }
+    await page.locator(".appearance-color", { has: page.getByRole("textbox", { name: "Work area", exact: true }) }).getByRole("button", { name: "Auto" }).click();
+    await page.keyboard.press("Escape");
+    const backgrounds = await page.evaluate(() => [".stage", ".photo-carousel"].map(selector =>
+      getComputedStyle(document.querySelector(selector)).backgroundColor));
+    assert.equal(backgrounds[1], backgrounds[0], `photo carousel must follow automatic Work area (${theme})`);
+  }
   await app.evaluate(({ app }, file) => app.emit("open-file", { preventDefault() {} }, file), markdown);
   await page.getByLabel("Markdown preview", { exact: true }).waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.appearance), "ocean", "new Markdown frame lost appearance");
