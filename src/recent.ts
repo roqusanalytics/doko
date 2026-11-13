@@ -296,6 +296,7 @@ export function saveNotes(notes: DocNotes, generation: number) {
 // One conversation per document (same content-based id as notes), so it's there when the document is reopened.
 
 export interface StoredAiMessage {
+  createdAt?: number;
   role: "user" | "assistant";
   content: string;
   context?: { text: string; page: number };

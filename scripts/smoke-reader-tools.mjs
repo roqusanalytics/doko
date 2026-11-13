@@ -710,12 +710,37 @@ export async function checkReaderTools(app, page, folder, shots) {
     navigator.clipboard.writeText = async text => { window.folioCopiedResponse = text; };
   });
   const copyResponse = page.getByTitle("Copy response as Markdown");
+  await copyResponse.waitFor();
+  const meta = page.locator(".msg.assistant .msg-meta").last();
+  const timestamp = await meta.locator("time").getAttribute("datetime");
+  assert.ok(Number.isFinite(Date.parse(timestamp)), "new responses have a real timestamp");
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => document.activeElement?.blur());
+  assert.equal(await meta.evaluate(el => getComputedStyle(el).opacity), "0");
+  await page.locator(".msg.assistant").last().hover();
+  assert.equal(await meta.evaluate(el => getComputedStyle(el).opacity), "1");
+  assert.equal(await copyResponse.locator("svg").count(), 1);
+  assert.equal(await copyResponse.locator("span").evaluate(el => getComputedStyle(el).clipPath), "inset(50%)");
+  await page.screenshot({ path: path.join(shots, "ai-response-hover.png") });
+  await page.mouse.move(0, 0);
+  await copyResponse.focus();
+  assert.equal(await meta.evaluate(el => getComputedStyle(el).opacity), "1", "keyboard focus reveals actions");
+  assert.deepEqual(await page.locator(".ai-body").evaluate(el => {
+    const chat = getComputedStyle(el);
+    return [chat.scrollbarWidth, chat.scrollbarColor];
+  }), await page.locator(".viewer-container").evaluate(el => {
+    const style = getComputedStyle(el); return [style.scrollbarWidth, style.scrollbarColor];
+  }));
   await copyResponse.click();
   await page.getByRole("button", { name: "Copied", exact: true }).waitFor();
   assert.equal(await page.evaluate(() => window.folioCopiedResponse), answer);
   await page.evaluate(() => { navigator.clipboard.writeText = async () => { throw new Error("Denied"); }; });
   await copyResponse.click();
   await page.getByRole("button", { name: "Copy failed" }).waitFor();
+  assert.equal(await copyResponse.locator(".copy-error").isVisible(), true, "copy failures remain visible");
+  await page.getByRole("button", { name: "Close Ask AI" }).click();
+  await page.getByRole("button", { name: "Ask AI", exact: true }).click();
+  assert.equal(await meta.locator("time").getAttribute("datetime"), timestamp, "reopening preserves the response time");
   await page.evaluate(() => { delete navigator.clipboard.writeText; });
   const newConversation = page.getByRole("button", { name: "New conversation", exact: true });
   const composer = page.locator(".composer textarea");
