@@ -2,7 +2,7 @@
   flex: none;
   padding: 8px 12px 10px;
   border-top: 1px solid var(--line);
-  background: var(--surface);
+  background: var(--stage);
 }
 .photo-carousel-controls {
   display: flex;
