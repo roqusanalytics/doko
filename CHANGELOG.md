@@ -1,10 +1,5 @@
 # Changelog
 
-## 1.20.27
-
-- Find recognized text in scanned PDFs, including unvisited pages, with matching-page excerpts, highlighted results and next/previous navigation.
-- Keep OCR text selection precise and retry failed page recognition or loading when searching again.
-
 ## 1.20.26
 
 - Keep Markdown section markers the same size at rest, with a theme-aware active colour.
