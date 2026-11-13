@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.20.16
+
+- Show one quiet focus cue on the Ask AI message box instead of two rings.
+
 ## 1.20.15
 
 - Choose the Ask AI model inside the message box, next to a smaller Send button. The menu groups ChatGPT, Claude, and OpenRouter models by provider with their logos, newest first.
