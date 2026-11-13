@@ -30,7 +30,7 @@ The existing reader layout and typography remain authoritative.
 - Settings → Appearance → Window transparency is off by default and persists across tabs and restarts. macOS uses sidebar vibrancy; supported Windows 11 uses acrylic. Unsupported systems keep an opaque window.
 - Only sidebar and navigation reveal the material. Document canvases remain opaque. System accessibility preferences override translucency.
 - The main tool group has no enclosing black/opaque layer. Hover raises labels by 1px with a 240ms eased lift and 320ms return while icons and hit targets remain fixed; Reduce Motion disables the lift.
-- Shared outline icons use a consistent 1.6 stroke and rounded silhouettes and softened corners inspired by the supplied reference.
+- Shared outline icons keep a 1.5 CSS px stroke at compact sizes (12–20px), with a 1.8 viewBox stroke for larger glyphs. Rounded caps/joins and fixed, non-shrinking SVG boxes preserve a consistent weight. Filled ellipsis dots have no outline stroke. Provider brand marks and document annotation geometry retain their own rendering.
 
 ## Action label clarity
 

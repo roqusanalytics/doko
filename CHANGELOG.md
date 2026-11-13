@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.20.20
+
+- Give interface icons a consistent visual weight at compact sizes, with smooth rounded strokes and fixed SVG dimensions.
+- Draw the More menu dots cleanly without an extra outline.
+
 ## 1.20.19
 
 - Remove the green focus ring from document search; show keyboard focus with a subtle background instead.
