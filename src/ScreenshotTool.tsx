@@ -36,7 +36,8 @@ export function ScreenshotButton({ tabs }: { tabs: ReaderContext["tabs"] }) {
       } else button.current?.focus({ preventScroll: true });
     } catch (failure) {
       console.error("Screenshot capture failed", failure);
-      setError(failure instanceof Error ? failure.message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/, "") : "Couldn't capture the screen. Try again.");
+      const message = failure && typeof failure === "object" && "message" in failure ? failure.message : null;
+      setError(typeof message === "string" && message ? message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/, "") : "Couldn't capture the screen. Try again.");
     } finally { running.current = false; setBusy(false); }
   };
   const close = () => { setShot(null); button.current?.focus({ preventScroll: true }); };
