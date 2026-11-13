@@ -13,10 +13,12 @@ type FindOpts = { again?: boolean; previous?: boolean; caseSensitive?: boolean; 
 
 export function SearchBar({
   result,
+  error,
   onFind,
   onClose,
 }: {
   result: FindResult;
+  error?: string | null;
   onFind: (q: string, o: FindOpts) => void;
   onClose: () => void;
 }) {
@@ -34,7 +36,7 @@ export function SearchBar({
   const step = (previous: boolean) => query && onFind(query, { again: true, previous, caseSensitive, entireWord });
 
   const status =
-    !query ? "" : result.state === 3 ? "Searching…" : result.total === 0 ? "No results" : `${result.current} of ${result.total}`;
+    !query ? "" : error ?? (result.state === 3 ? "Searching…" : result.total === 0 ? "No results" : `${result.current} of ${result.total}`);
 
   return (
     <div className="searchbar" role="search">
@@ -57,7 +59,7 @@ export function SearchBar({
         }}
         spellCheck={false}
       />
-      <span className={`search-status ${query && result.total === 0 && result.state !== 3 ? "miss" : ""}`}>{status}</span>
+      <span role="status" aria-live="polite" className={`search-status ${query && result.total === 0 && result.state !== 3 ? "miss" : ""}`}>{status}</span>
       <button className={`chip ${caseSensitive ? "on" : ""}`} onClick={() => setCase(!caseSensitive)} title="Match case">
         Aa
       </button>

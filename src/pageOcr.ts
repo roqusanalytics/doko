@@ -1,121 +1,9 @@
-import { AnnotationMode, OPS, type PDFPageProxy } from "pdfjs-dist";
+import type { PDFPageProxy } from "pdfjs-dist";
 import type { PageOcrWorker } from "./ocrWorker";
-import { SCAN_LANGUAGES, type ScanLanguage } from "./scanLanguage";
-import { installedScanLanguages, OCR_CACHE_PATH } from "./scanLanguagePacks";
+import type { ScanLanguage } from "./scanLanguage";
 import type { EventBus, PDFPageView, PDFViewer } from "./viewer";
-
-interface Word {
-  text: string;
-  left: number;
-  top: number;
-  height: number;
-  scaleX: number;
-  endOfLine: boolean;
-}
-
-const IMAGE_OPS = new Set<number>([
-  OPS.paintImageXObject, OPS.paintInlineImageXObject, OPS.paintImageMaskXObject, OPS.paintInlineImageXObjectGroup,
-  OPS.paintImageMaskXObjectGroup, OPS.paintImageXObjectRepeat, OPS.paintImageMaskXObjectRepeat,
-]);
-
-async function hasPageImage(page: PDFPageProxy) {
-  if (page.imageCoordinates?.length) return true;
-  // pdf.js records locations for ordinary images but not for stencil masks used by some monochrome scans.
-  const { fnArray } = await page.getOperatorList({ annotationMode: AnnotationMode.DISABLE });
-  return fnArray.some(op => IMAGE_OPS.has(op));
-}
-
-async function startWorker(languages: ScanLanguage[], signal: AbortSignal) {
-  if (languages.some(code => code !== "eng")) {
-    const installed = await installedScanLanguages();
-    const missing = SCAN_LANGUAGES.find(({ id }) => languages.includes(id) && !installed.has(id));
-    if (missing) throw new MissingScanPack(`Download the ${missing.name} pack in Settings to read this scan.`);
-  }
-  const { startOcrWorker } = await import("./ocrWorker");
-  const base = `${import.meta.env.BASE_URL}ocr`;
-  return startOcrWorker(base, languages, OCR_CACHE_PATH, signal);
-}
-
-class MissingScanPack extends Error {}
-
-async function readWords(page: PDFPageProxy, worker: PageOcrWorker, signal: AbortSignal): Promise<Word[]> {
-  signal.throwIfAborted();
-  // Read at a consistent resolution even in fit-page mode. Bound both dimensions on oversized scans.
-  const base = page.getViewport({ scale: 1 });
-  const scale = Math.min(3, 2400 / Math.max(base.width, base.height));
-  const viewport = page.getViewport({ scale });
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.ceil(viewport.width);
-  canvas.height = Math.ceil(viewport.height);
-  const render = page.render({ canvas, viewport });
-  const cancel = () => render.cancel();
-  signal.addEventListener("abort", cancel, { once: true });
-  try {
-    await render.promise;
-    signal.throwIfAborted();
-    // A language switch or document close can terminate the worker during image encoding.
-    // Encode here so we can check ownership before Tesseract posts its recognition job.
-    const png = await new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => {
-      if (blob) resolve(blob);
-      else reject(new Error("Couldn't prepare the scan image."));
-    }));
-    signal.throwIfAborted();
-    const bytes = new Uint8Array(await png.arrayBuffer());
-    signal.throwIfAborted();
-    const { data } = await worker.recognize(bytes);
-    signal.throwIfAborted();
-    const ctx = canvas.getContext("2d")!;
-    ctx.font = "100px sans-serif";
-    const [xMin, yMin, xMax, yMax] = page.view;
-    const words: Word[] = [];
-    const lines = (data.blocks ?? []).flatMap(block => block.paragraphs.flatMap(p => p.lines));
-    for (const line of lines) {
-      const height = line.bbox.y1 - line.bbox.y0;
-      for (const [i, word] of line.words.entries()) {
-        const width = ctx.measureText(word.text).width;
-        if (!width || !height) continue;
-        // pdf.js sizes its text layer in unrotated PDF units and rotates the whole layer for display.
-        const [x, y] = viewport.convertToPdfPoint(word.bbox.x0, line.bbox.y0);
-        words.push({
-          text: word.text, endOfLine: i === line.words.length - 1,
-          left: 100 * (x - xMin) / (xMax - xMin), top: 100 * (yMax - y) / (yMax - yMin),
-          height: height / (scale * page.userUnit), scaleX: 100 * (word.bbox.x1 - word.bbox.x0) / (width * height),
-        });
-      }
-    }
-    return words;
-  } finally {
-    signal.removeEventListener("abort", cancel);
-    canvas.width = canvas.height = 0;
-  }
-}
-
-function addWords(view: PDFPageView, words: Word[]) {
-  const layer = view.textLayer?.div;
-  const end = layer?.querySelector(":scope > .endOfContent");
-  if (!end || layer?.textContent.trim()) return;
-  const fragment = document.createDocumentFragment();
-  let lineStart = true;
-  for (const word of words) {
-    const span = document.createElement("span");
-    span.className = lineStart ? "ocr-word ocr-line-start" : "ocr-word";
-    span.textContent = word.text + (word.endOfLine ? "" : " ");
-    span.style.left = `${word.left}%`;
-    span.style.top = `${word.top}%`;
-    span.style.fontFamily = "sans-serif";
-    span.style.setProperty("--font-height", `${word.height}px`);
-    span.style.setProperty("--scale-x", String(word.scaleX));
-    span.style.setProperty("--rotate", `${-view.pdfPage.rotate}deg`);
-    fragment.append(span);
-    if (word.endOfLine) {
-      const br = document.createElement("br");
-      br.className = "ocr-break";
-      fragment.append(br);
-    }
-    lineStart = word.endOfLine;
-  }
-  end.before(fragment);
-}
+import { addWords, hasPageImage, readWords, startWorker, wordStrings, prepareOcrHighlighter, MissingScanPack, type Word } from "./ocrPageText";
+import type { PageText } from "./OcrFindController";
 
 /** Consume the stream one chunk at a time without retaining a whole page's text and fonts. */
 async function hasEmbeddedText(page: PDFPageProxy, signal: AbortSignal) {
@@ -140,6 +28,7 @@ export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, language
   const { signal } = controller;
   const pending = new Set<number>();
   const prepared = new Set<number>();
+  const requests = new Map<number, { promise: Promise<Word[]>; resolve: (words: Word[]) => void; reject: (error: unknown) => void }>();
   // Keep small documents ready for the entire session. On huge scans, evicted pages can be read again on demand.
   const cache = new Map<number, Word[]>();
   const notices = new Map<number, "noWords" | "ocrError" | "layerError">();
@@ -181,6 +70,7 @@ export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, language
     for (const n of [viewer.currentPageNumber, viewer.currentPageNumber + 1]) {
       if (n <= pdf.numPages && n !== active && !prepared.has(n)) pending.add(n);
     }
+    for (const n of requests.keys()) if (n !== active) pending.add(n);
   }
 
   function schedule() {
@@ -198,6 +88,7 @@ export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, language
     active = n;
     const view: PDFPageView = viewer.getPageView(n - 1);
     let page: PDFPageProxy | undefined;
+    let failure: unknown;
     try {
       page = await pdf.getPage(n);
       signal.throwIfAborted();
@@ -205,7 +96,7 @@ export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, language
       signal.throwIfAborted();
       if (!(await hasPageImage(page))) return;
       signal.throwIfAborted();
-      if (n !== viewer.currentPageNumber && pending.has(viewer.currentPageNumber)) {
+      if (n !== viewer.currentPageNumber && pending.has(viewer.currentPageNumber) && !requests.has(n)) {
         prepared.delete(n);
         return;
       }
@@ -222,17 +113,23 @@ export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, language
       catch (error) { if (activeWorker.stopped) workerStartFailed = true; throw error; }
       signal.throwIfAborted();
       if (words.length) {
+        prepareOcrHighlighter(view);
         remember(n, words);
         addWords(view, words);
       } else {
         notices.set(n, "noWords");
       }
     } catch (error) {
+      failure = error;
       if (!signal.aborted) {
         notices.set(n, "ocrError");
         console.warn("Page OCR failed", error);
       }
     } finally {
+      const request = requests.get(n);
+      requests.delete(n);
+      if (failure) request?.reject(failure);
+      else request?.resolve(cache.get(n) ?? []);
       active = 0;
       recognizing = false;
       if (!signal.aborted) {
@@ -254,7 +151,7 @@ export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, language
     if (notices.get(n) === "layerError") notices.delete(n);
     const words = cache.get(n);
     if (words) addWords(view, words);
-    else if (view.textLayer?.div.textContent.trim() && !view.textLayer.div.querySelector(".ocr-word")) {
+    else if (view.textLayer?.div.textContent.trim() && !view.textLayer.div.querySelector("[data-ocr-word]")) {
       prepared.add(n);
       pending.delete(n);
     }
@@ -276,16 +173,51 @@ export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, language
   queueVisible();
   updateStatus();
   schedule();
-  return () => {
+  const stop = () => {
     controller.abort();
     window.clearTimeout(timer);
     cache.clear();
     pending.clear();
+    for (const request of requests.values()) request.reject(signal.reason);
+    requests.clear();
     // A language change replaces only the text Doko added to the open document.
     // In one-page scrolling mode some rendered layers are detached from the viewer.
     for (const view of viewer.getCachedPageViews() as Set<PDFPageView>) {
-      view.textLayer?.div.querySelectorAll(".ocr-word, .ocr-break").forEach(node => node.remove());
+      const layer = view.textLayer;
+      if (!layer?.div.querySelector("[data-ocr-word]")) continue;
+      layer.highlighter?.disable();
+      layer.highlighter?.setTextMapping([], []);
+      layer.div.querySelectorAll("[data-ocr-word], .ocr-break").forEach(node => node.remove());
     }
     onStatus(null);
   };
+  const getTextContent = async (page: PDFPageProxy): Promise<PageText> => {
+    signal.throwIfAborted();
+    const text = await page.getTextContent({ disableNormalization: true });
+    signal.throwIfAborted();
+    if (text.items.some(item => "str" in item && item.str.trim())) return text;
+    const n = page.pageNumber;
+    let words = cache.get(n);
+    if (!words && (!prepared.has(n) || active === n || notices.get(n) === "ocrError")) {
+      let request = requests.get(n);
+      if (!request) {
+        let resolve!: (words: Word[]) => void, reject!: (error: unknown) => void;
+        const promise = new Promise<Word[]>((yes, no) => { resolve = yes; reject = no; });
+        request = { promise, resolve, reject };
+        requests.set(n, request);
+        // The next search is a deliberate retry after a failed page/worker.
+        if (notices.get(n) === "ocrError") {
+          notices.delete(n);
+          prepared.delete(n);
+          if (workerStartFailed) { worker = undefined; workerStartFailed = false; }
+        }
+        if (n !== active) pending.add(n);
+        schedule();
+      }
+      words = await request.promise;
+    }
+    const strings = wordStrings(words ?? []);
+    return { ...text, items: strings.map(str => ({ str, dir: "ltr", transform: [], width: 0, height: 0, fontName: "", hasEOL: false })) };
+  };
+  return { stop, getTextContent };
 }

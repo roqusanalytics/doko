@@ -116,6 +116,9 @@
     "scripts/smoke-ocr-worker.mjs"
   ],
   [
+    "scripts/smoke-ocr-search.mjs"
+  ],
+  [
     "scripts/test-security-worker-lifecycle.mjs"
   ],
   [

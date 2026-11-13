@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "./pdf";
-import type { EventBus, PDFFindController } from "./viewer";
+import type { EventBus } from "./viewer";
+import type { OcrFindController } from "./OcrFindController";
 import { keys } from "./platform";
 
 interface PageResult {
@@ -13,7 +14,7 @@ interface PageResult {
 
 export function SearchResults({ pdf, controller, bus, onSelect }: {
   pdf: PDFDocumentProxy;
-  controller: PDFFindController;
+  controller: OcrFindController;
   bus: EventBus;
   onSelect: (page: number) => void;
 }) {
@@ -37,7 +38,7 @@ export function SearchResults({ pdf, controller, bus, onSelect }: {
         if (!text) {
           // Match offsets count characters in the text as pdf.js's find controller reads it: not normalized.
           // Normalized text can be longer (a ligature becomes two letters), which moves the marked words.
-          text = pdf.getPage(entry.page).then(page => page.getTextContent({ disableNormalization: true })).then(content =>
+          text = controller.getPageText(entry.page).then(content =>
             content.items.map(item => "str" in item ? item.str : "").join(""));
           textCache.current.set(entry.page, text);
         }
@@ -65,9 +66,11 @@ export function SearchResults({ pdf, controller, bus, onSelect }: {
       setResults([]);
       setPageCount(0);
     };
+    const textChanged = () => { textCache.current.clear(); clear(); schedule(); };
     bus.on("updatetextlayermatches", schedule);
     bus.on("updatefindmatchescount", schedule);
     bus.on("find", clear);
+    bus.on("searchtextchanged", textChanged);
     schedule();
     return () => {
       generation++;
@@ -75,6 +78,7 @@ export function SearchResults({ pdf, controller, bus, onSelect }: {
       bus.off("updatetextlayermatches", schedule);
       bus.off("updatefindmatchescount", schedule);
       bus.off("find", clear);
+      bus.off("searchtextchanged", textChanged);
     };
   }, [pdf, controller, bus]);
 

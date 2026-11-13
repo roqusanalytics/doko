@@ -2,7 +2,6 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useSta
 import {
   EventBus,
   LinkTarget,
-  PDFFindController,
   PDFLinkService,
   PDFViewer,
   ScrollMode,
@@ -28,6 +27,7 @@ import { notesJson, notesMarkdown } from "./noteExport";
 import { copyText } from "./clipboard";
 import { imageRegions, trackPageImages } from "./nightImages";
 import { recognizeScannedPages } from "./pageOcr";
+import { OcrFindController } from "./OcrFindController";
 import { ImageMenu, ImageViewer, type ImageTarget } from "./ImageViewer";
 import { MoreMenu, type MoreItem } from "./MoreMenu";
 import { IS_MAC, keys } from "./platform";
@@ -178,7 +178,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     }, 5500);
     return () => window.clearTimeout(timer);
   }, [backHint]);
-  const findRef = useRef<PDFFindController | null>(null);
+  const findRef = useRef<OcrFindController | null>(null);
   const restoreRef = useRef<ReadingView | null>(null);
   const restoringRef = useRef(false);
   const preferencesRef = useRef({ sidebar: true, spread: false });
@@ -232,6 +232,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const [rotation, setRotation] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const [find, setFind] = useState<FindResult>({ current: 0, total: 0, state: null });
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [hand, setHand] = useState(false);
   const [fileBusy, setFileBusy] = useState(false);
   const [exportDialog, setExportDialog] = useState<{ snapshot: ExportSnapshot; mode: "export" | "compress" } | null>(null);
@@ -332,14 +333,15 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     const container = containerRef.current!;
     const eventBus = new EventBus();
     const linkService = new PDFLinkService({ eventBus, externalLinkTarget: LinkTarget.BLANK });
-    const findController = new PDFFindController({ eventBus, linkService });
+    const findController = new OcrFindController({ eventBus, linkService });
     findRef.current = findController;
     const viewer = new PDFViewer({
       container,
       viewer: innerRef.current!,
       eventBus,
       linkService,
-      findController,
+      // The adapter exposes PDFViewer's find contract while isolating each search generation.
+      findController: findController as unknown as import("./viewer").PDFFindController,
       annotationEditorMode: AnnotationEditorType.NONE,
       annotationEditorHighlightColors: HIGHLIGHTS.map((c) => `${c.name.toLowerCase()}=${c.hex}`).join(","),
       // Records where images are drawn (used to keep them true to color in night reading). The huge
@@ -401,6 +403,8 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     eventBus.on("updatefindmatchescount", ({ matchesCount }: { matchesCount: { current: number; total: number } }) =>
       setFind((f) => ({ ...f, ...matchesCount })),
     );
+    eventBus.on("searchtexterror", ({ message }: { message: string }) => setSearchError(message));
+    eventBus.on("searchtextchanged", () => setSearchError(null));
     eventBus.on(
       "updatefindcontrolstate",
       ({ state, matchesCount }: { state: number; matchesCount: { current: number; total: number } }) =>
@@ -438,7 +442,11 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     const viewer = viewerRef.current!, bus = busRef.current!;
     const events = new AbortController();
     let stop: (() => void) | undefined;
-    const start = () => { stop = recognizeScannedPages(bus, viewer, scanLanguages, setTextStatus); };
+    const start = () => {
+      const ocr = recognizeScannedPages(bus, viewer, scanLanguages, setTextStatus);
+      stop = ocr.stop;
+      findRef.current!.setTextReader(viewer.pdfDocument!, ocr.getTextContent);
+    };
     const end = () => { stop?.(); stop = undefined; };
     bus.on("pagesinit", start, { signal: events.signal });
     bus.on("pagesdestroy", end, { signal: events.signal });
@@ -1729,7 +1737,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
 
           {doc && searchOpen && (
             <>
-              <SearchBar result={find} onFind={runFind} onClose={closeSearch} />
+              <SearchBar result={find} error={searchError} onFind={runFind} onClose={closeSearch} />
               <SearchResults pdf={doc.pdf} controller={findRef.current!} bus={busRef.current!} onSelect={goTo} />
             </>
           )}
