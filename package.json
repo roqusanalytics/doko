@@ -68,9 +68,9 @@
   "productName": "Doko",
   "description": "PDF, Markdown, and photo-folder reader",
   "license": "MIT",
-  "homepage": "https://github.com/roqusanalytics/doko",
+  "homepage": "https://doko.lt",
   "bugs": {
-    "url": "https://github.com/roqusanalytics/doko/issues"
+    "email": "roquscode@gmail.com"
   },
   "main": "electron/main.cjs",
   "build": {
@@ -155,7 +155,7 @@
       {
         "provider": "github",
         "owner": "roqusanalytics",
-        "repo": "doko",
+        "repo": "doko-fork",
         "releaseType": "release"
       }
     ],

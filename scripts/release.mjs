@@ -2,8 +2,8 @@
 //   1. bump the version and tag it, then push the source and tag to roqusanalytics/doko;
 //   2. the "Release build" workflow (.github/workflows/release-build.yml) builds and checks the installers
 //      for every platform on GitHub Actions;
-//   3. this script downloads them and publishes a release on roqusanalytics/doko.
-// Installed copies pick the update up automatically (electron-updater reads latest*.yml from the release).
+//   3. this script downloads them and publishes a release on public roqusanalytics/doko-fork.
+// Copies with the public update feed pick it up automatically; older copies need one migration install.
 //
 //   npm run release                      # 1.0.0 -> 1.0.1
 //   npm run release -- minor             # 1.0.0 -> 1.1.0
@@ -16,7 +16,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { checkRelease, RELEASES_REPO } from "./check-release.mjs";
-import { artifactIds, releaseBump, releaseFiles, selectBuild, selectCI, successfulAttempt, successfulCI, verifyReleaseTag, SOURCE_REPO, WORKFLOW, CI_WORKFLOW } from "./release-build.mjs";
+import { artifactIds, publicReleaseTarget, releaseBump, releaseFiles, selectBuild, selectCI, successfulAttempt, successfulCI, verifyReleaseTag, SOURCE_REPO, WORKFLOW, CI_WORKFLOW } from "./release-build.mjs";
 
 const args = process.argv.slice(2);
 const notesAt = args.indexOf("--notes");
@@ -35,7 +35,9 @@ const run = (cmd) => execSync(cmd, { stdio: "inherit", env });
 // Arguments are passed directly (no shell), so values like release notes can contain any characters.
 const gh = (ghArgs, opts = {}) => execFileSync("gh", ghArgs, { env: { ...env, GH_HOST: "github.com" }, encoding: "utf8", ...opts });
 const api = (endpoint) => JSON.parse(gh(["api", "--hostname", "github.com", `repos/${SOURCE_REPO}/${endpoint}`]));
+const releasesApi = (endpoint) => JSON.parse(gh(["api", "--hostname", "github.com", `repos/${RELEASES_REPO}${endpoint ? `/${endpoint}` : ""}`]));
 const git = (...args) => execFileSync("git", args, { env, encoding: "utf8" }).trim();
+const sourceUrl = `https://github.com/${SOURCE_REPO}.git`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 if (!publishOnly) {
@@ -45,8 +47,8 @@ if (!publishOnly) {
   }
   // Releases come from main as pushed. Compare commits rather than branch names, since a worktree's branch
   // often isn't called "main".
-  run("git fetch --quiet origin main");
-  if (execSync("git rev-parse HEAD").toString().trim() !== execSync("git rev-parse origin/main").toString().trim()) {
+  execFileSync("git", ["fetch", "--quiet", sourceUrl, "main"], { env, stdio: "inherit" });
+  if (git("rev-parse", "HEAD") !== git("rev-parse", "FETCH_HEAD")) {
     console.error("This checkout isn't at the latest main. Merge your work into main, then release from it, for example:\n"
       + "  git worktree add ../doko-release origin/main && cd ../doko-release && npm run release");
     process.exit(1);
@@ -62,7 +64,8 @@ const commit = git("rev-parse", "--verify", `${tagObject}^{commit}`);
 if (JSON.parse(git("show", `${commit}:package.json`)).version !== version) throw new Error("The tagged source has a different package version.");
 if (!publishOnly) {
   if (git("rev-parse", "HEAD") !== commit) throw new Error("The release tag differs from the commit being pushed.");
-  execFileSync("git", ["push", "--atomic", "origin", "HEAD:refs/heads/main", ref], { env, stdio: "inherit" });
+  // Ignore origin.pushurl: a migrated checkout may still point it at the public repository.
+  execFileSync("git", ["push", "--atomic", sourceUrl, "HEAD:refs/heads/main", ref], { env, stdio: "inherit" });
 }
 verifyReleaseTag(api, tag, tagObject, commit);
 const query = new URLSearchParams({ event: "push", branch: tag, head_sha: commit, per_page: "2" });
@@ -108,8 +111,9 @@ const body = [
   "",
   "## Download",
   "- **Windows:** **Doko-Setup.exe** (updates itself), or **Doko-Portable.exe** to run without installing.",
-  `- **macOS:** **Doko-mac.dmg** (Apple Silicon and Intel). Developer ID builds update automatically. For ad-hoc builds, see the first-launch instructions in the [README](https://github.com/${SOURCE_REPO}#download).`,
+  "- **macOS:** **Doko-mac.dmg** (Apple Silicon and Intel). For the first launch, use Open Anyway in System Settings → Privacy & Security if macOS blocks the app.",
   "- **Linux:** **Doko-linux-amd64.deb** for Ubuntu/Debian (after that, updates arrive with your system updates), or **Doko-linux-x86_64.AppImage** (updates itself) for other distributions.",
+  "- **Repository migration:** if your installed copy still checks the old update address, install this version manually once. Keep the existing profile to retain saved documents and settings; subsequent updates use the public feed.",
 ].join("\n");
 const folder = mkdtempSync(path.join(tmpdir(), "doko-release-"));
 try {
@@ -120,7 +124,8 @@ try {
   verifyReleaseTag(api, tag, tagObject, commit);
   if (successfulAttempt(findBuild(), runId) !== attempt || getArtifactIds() !== ids) throw new Error("The build changed during download. Run --publish-only again.");
   successfulCI(findCI());
-  gh(["release", "create", tag, "--repo", RELEASES_REPO, "--verify-tag", "--title", `Doko ${version}`, "--notes-file", notesFile, ...files], { stdio: "inherit" });
+  const publicTarget = publicReleaseTarget(releasesApi);
+  gh(["release", "create", tag, "--repo", RELEASES_REPO, "--target", publicTarget, "--title", `Doko ${version}`, "--notes-file", notesFile, ...files], { stdio: "inherit" });
 } finally {
   rmSync(folder, { recursive: true, force: true });
 }
@@ -133,4 +138,4 @@ if (problems.length) {
 }
 
 console.log(`\nDoko ${version} is live for Windows, macOS, and Linux: https://github.com/${RELEASES_REPO}/releases/tag/${tag}`);
-console.log("Installed copies will see it within a few hours (or on next launch).");
+console.log("Copies using the public update feed will see it within a few hours. Older copies need one manual migration install.");

@@ -43,7 +43,7 @@ export function ChangelogDialog({ upgradeNotes, onClose }: { upgradeNotes?: Rele
           <span aria-live="polite">Page {page + 1} of {pages}</span>
           <button className="btn ghost" disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}>Older releases</button>
         </nav>
-        <a href="https://github.com/roqusanalytics/doko/releases" target="_blank" rel="noreferrer">View releases on GitHub</a>
+        <a href="https://github.com/roqusanalytics/doko-fork/releases" target="_blank" rel="noreferrer">View releases on GitHub</a>
       </footer>}
     </Modal>
   );

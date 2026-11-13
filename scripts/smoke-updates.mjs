@@ -52,7 +52,7 @@ try {
   }, config);
   assert.equal(metadata.local, true);
   assert.equal(metadata.target.owner, "roqusanalytics");
-  assert.equal(metadata.target.repo, "doko");
+  assert.equal(metadata.target.repo, "doko-fork");
   assert.equal(await app.evaluate(({ app }) => app.getName()), "Folio Local");
   if (process.platform === "darwin") {
     const brand = await app.evaluate(({ Menu }) => {
@@ -149,7 +149,7 @@ try {
     await page.screenshot({ path: path.join(shots, "updates-gallery.png") });
     await app.evaluate(async () => { for (let attempt = 0; attempt < 100 && globalThis.updateLinks.length < 3; attempt++) await new Promise(resolve => setTimeout(resolve, 20)); });
     const links = await app.evaluate(() => globalThis.updateLinks);
-    assert.deepEqual(links, Array(3).fill("https://github.com/roqusanalytics/doko/releases/latest"));
+    assert.deepEqual(links, Array(3).fill("https://github.com/roqusanalytics/doko-fork/releases/latest"));
     console.log("ok  unsigned Mac announces version 99.0.0 in Markdown, galleries and shared settings; every Download opens the fork release page");
   }
   await assertHidden(app);
