@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.20.14
+## 1.20.15
 
 - Choose the Ask AI model inside the message box, next to a smaller Send button. The menu groups ChatGPT, Claude, and OpenRouter models by provider with their logos, newest first.
 - Show the official ChatGPT, Claude, and OpenRouter logos in the provider picker.
