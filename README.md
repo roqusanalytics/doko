@@ -52,7 +52,7 @@ Or build Doko yourself from source (below).
 
 ## Compatibility with existing installs
 
-Doko is the rebranded continuation of [Forward-Future/folio](https://github.com/Forward-Future/folio). Existing installs and update data keep their original identifiers: `FOLIO_*` environment variables, `app.folio.local`, the internal `Folio Local` credential-store name and profile, Linux `folio-local` package/executable/apt paths and key filenames, and the Windows `FolioLocal` ProgID. User data also remains in the existing `%APPDATA%\Folio Local`, `~/Library/Application Support/Folio Local`, and `~/.config/Folio Local` folders. This keeps current installs and their updates working; new Doko installs use `/Applications/Doko.app` on macOS.
+Existing installs and update data keep their compatibility identifiers: `FOLIO_*` environment variables, `app.folio.local`, the internal `Folio Local` credential-store name and profile, Linux `folio-local` package/executable/apt paths and key filenames, and the Windows `FolioLocal` ProgID. User data also remains in the existing `%APPDATA%\Folio Local`, `~/Library/Application Support/Folio Local`, and `~/.config/Folio Local` folders. This keeps current installs and their updates working; new Doko installs use `/Applications/Doko.app` on macOS.
 
 ## Features
 
