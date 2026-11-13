@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.20.13
+
+- Show hover highlights clearly on light and dark backgrounds, and on a work area that differs from the background.
+- Keep selected tabs and buttons readable on a custom work-area color.
+
 ## 1.20.12
 
 - Offer two appearance colors, Background and Work area; the frame now always follows the background.
