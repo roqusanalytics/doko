@@ -7,9 +7,9 @@ export const en = {
   url: "https://doko.lt/",
   meta: {
     title: "Doko: Free PDF Reader, Markdown Editor and Photo Viewer",
-    description: "Doko is a free, open-source PDF reader for Mac, Windows and Linux with no ads or upsells. Highlight, sign and ask AI about PDFs, edit Markdown, view photos.",
+    description: "Doko is a free, local-first PDF reader for Mac, Windows and Linux with no ads or upsells. Highlight, sign and ask AI about PDFs, edit Markdown, view photos.",
     ogTitle: "Doko: Free PDF Reader, Markdown Editor and Photo Viewer",
-    ogDescription: "One free, open-source app for PDFs, Markdown and photos on Mac, Windows and Linux. No account. Your files stay on your computer.",
+    ogDescription: "One free app for PDFs, Markdown and photos on Mac, Windows and Linux. No account. Your files stay on your computer.",
     ogImageAlt: "Doko window with a PDF open and the headline PDFs, photos and Markdown. One reader.",
     ogLocale: "en_US",
   },
@@ -17,11 +17,11 @@ export const en = {
   hero: {
     lines: ["Documents, photos", "and spreadsheets"],
     bold: "One reader",
-    lede: "A free, open-source PDF reader, Markdown editor and photo viewer for Mac, Windows and Linux. No ads, no upsells, no account.",
+    lede: "A free, local-first PDF reader, Markdown editor and photo viewer for Mac, Windows and Linux. No ads, no upsells, no account.",
     get: "Download Doko",
     getMac: "Download for Mac",
     getWin: "Download for Windows",
-    source: "View source",
+    source: "View public releases",
     formats: "Doko opens PDF, Word documents, web pages, Markdown, text and CSV files and JPG, PNG, WebP, GIF and AVIF images.",
     photos: "Photos",
     filesLabel: "Open files",
@@ -82,7 +82,7 @@ export const en = {
     caption: "Doko compared with Adobe Acrobat",
     head: ["Feature", "Doko", "Adobe Acrobat"],
     rows: [
-      ["Price", "Free and open source", "Reader is free; Acrobat Pro is US$19.99/mo"],
+      ["Price", "Free, MIT-licensed", "Reader is free; Acrobat Pro is US$19.99/mo"],
       ["Edit PDF text and images", "Included", "Acrobat Pro"],
       ["Organize pages", "Included", "Acrobat Pro"],
       ["Redact content", "Included", "Acrobat Pro"],
@@ -107,7 +107,7 @@ export const en = {
   faq: {
     h2: ["Questions,", "answered"],
     items: [
-      { q: "Is Doko free?", a: "Yes. Doko is free and open source under the MIT License. There is no paid tier, no subscription and no account." },
+      { q: "Is Doko free?", a: "Yes. Doko is free and distributed under the MIT License. There is no paid tier, no subscription and no account." },
       { q: "Does Doko show ads or upgrade prompts?", a: "No. Doko has no ads, no trials, no paid tier and no upgrade prompts. Every feature is included for everyone." },
       { q: "Does Doko work offline?", a: "Yes. Reading, annotating, signing, editing Markdown and viewing photos all work without an internet connection. Doko goes online only to check for updates, download scan languages you choose, open a link you give it, or answer an Ask AI question." },
       { q: "Does Doko upload my documents?", a: "No. Doko has no analytics or telemetry and never uploads documents on its own. Only when you ask AI a question does the document text, your selected passage and the conversation go to the provider you chose." },
@@ -125,7 +125,7 @@ export const en = {
     firstRun: "First launch: on Mac, open <b>System Settings → Privacy &amp; Security</b> and choose <b>Open Anyway</b>. On Windows, choose <b>More info → Run anyway</b>.",
   },
   footer: {
-    about: "Free, open-source PDF reader, Markdown editor and photo viewer for Windows, macOS and Linux.",
+    about: "Free, local-first PDF reader, Markdown editor and photo viewer for Windows, macOS and Linux.",
     trademarks: "Apple, macOS, Windows, Word, Adobe, Acrobat, ChatGPT, OpenAI, Claude, OpenRouter and Linux are trademarks of their respective owners, shown only to indicate compatibility. Doko is not affiliated with or endorsed by them.",
     privacy: "Privacy",
     changelog: "Changelog",
@@ -133,7 +133,7 @@ export const en = {
   },
   // SoftwareApplication JSON-LD text (the rest lives in src/data/software.ts).
   software: {
-    description: "Doko is a free, open-source, local-first PDF reader, Markdown editor and photo viewer for Windows, macOS and Linux. It highlights, annotates and signs PDFs, answers questions about documents with AI, and keeps files on your computer.",
+    description: "Doko is a free, local-first PDF reader, Markdown editor and photo viewer for Windows, macOS and Linux. It highlights, annotates and signs PDFs, answers questions about documents with AI, and keeps files on your computer.",
     featureList: [
       "PDF reader with search, outline and thumbnails",
       "Highlights, notes, drawing and text boxes",

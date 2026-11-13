@@ -3,6 +3,9 @@ import { readFileSync, existsSync } from 'node:fs';
 import assert from 'node:assert/strict';
 
 const text = s => s.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim();
+const privateRepo = /https:\/\/(?:api\.)?github\.com\/(?:repos\/)?roqusanalytics\/doko(?:\/|#|["'\s])/;
+for (const file of ['../src/components/Landing.astro', '../src/scripts/landing.js', '../src/data/software.ts', '../public/llms.txt'])
+  assert.ok(!privateRepo.test(readFileSync(new URL(file, import.meta.url), 'utf8')), `${file}: public page must not link to the private source repository`);
 const pages = [
   { file: 'index.html', lang: 'en', url: 'https://doko.lt/' },
   { file: 'lt/index.html', lang: 'lt', url: 'https://doko.lt/lt/' },
@@ -11,6 +14,7 @@ const pages = [
 for (const { file, lang, url } of pages) {
   const html = readFileSync(new URL(`../dist/${file}`, import.meta.url), 'utf8');
   const at = msg => `${file}: ${msg}`;
+  assert.ok(!privateRepo.test(html), at('no private source repository URL'));
   assert.match(html, new RegExp(`<html lang="${lang}"`), at(`html lang=${lang}`));
   assert.ok(html.includes(`<link rel="canonical" href="${url}">`), at(`canonical ${url}`));
   for (const [hl, href] of [['en', 'https://doko.lt/'], ['lt', 'https://doko.lt/lt/'], ['x-default', 'https://doko.lt/']])

@@ -1,7 +1,7 @@
 # Code signing
 
 The release workflow uses three GitHub environments in **roqusanalytics/doko**. Keep Apple credentials in
-`release-macos`, Azure credentials in `release-windows`, and this fork's apt signing key in `release-linux`.
+`release-macos`, Azure credentials in `release-windows`, and Doko's apt signing key in `release-linux`.
 Configure each environment to accept only release tags matching `v*` and require an independent release reviewer.
 Protect the creation, update and deletion of those tags with a repository ruleset. These controls are configured
 in GitHub. A workflow file in a tag cannot enforce restrictions on someone who can change that file.
@@ -104,7 +104,7 @@ certificates), and Windows checks the publisher on every update.
 ## Linux apt signing
 
 Doko keeps the existing `Folio Local` profile, Linux package/executable names and apt trust paths for installed users.
-Its signing key and apt repository remain separate from upstream Folio's repository.
+Its signing key and apt repository remain independent of other applications.
 The checked-in `build/linux/folio-archive-keyring.asc` and `.gpg` contain exactly one public primary certificate.
 `APT_SIGNING_KEY` in the `roqusanalytics/doko` environment `release-linux` must contain the corresponding armored
 private signing key. Keep a separate secure backup; never commit the private key or print it in logs.
@@ -122,8 +122,7 @@ keyring embedded in `/opt/Doko/resources/folio-archive-keyring.gpg`.
 
 The package installs its keyring as `/usr/share/keyrings/folio-local-archive-keyring.gpg` and its apt source as
 `/etc/apt/sources.list.d/folio-local.list`, pointing to
-`https://github.com/roqusanalytics/doko/releases/latest/download`. These paths leave the upstream Folio installation
-and its trust configuration separate. Removing the Doko fork removes only its apt configuration.
+`https://github.com/roqusanalytics/doko/releases/latest/download`. These compatibility paths preserve existing installations. Removing Doko removes only its own apt configuration.
 
 Before replacing this key, plan a signed transition that reaches already installed Folio Local clients. Merely
 replacing the checked-in certificate and secret would prevent those clients from authenticating the next update.

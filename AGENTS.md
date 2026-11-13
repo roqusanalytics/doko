@@ -44,8 +44,8 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
 
 ## Releasing: one way only
 
-- Source, CI and signing environments live in private `roqusanalytics/doko`; public releases and all update feeds live in `roqusanalytics/doko-fork`. Never push private source commits or branches to the public download repository. Public release tags target its existing public history.
-- Git: `origin` is `https://github.com/roqusanalytics/doko.git`. Push all work, branches and tags only to `origin`. The `doko-fork` remote is read-only for agents; only `npm run release` creates releases there.
+- `roqusanalytics/doko` is the single public repository for source, CI, signing environments, releases and all update feeds. `roqusanalytics/folio-fork` (formerly `doko-fork`) is retired: never publish releases or push there.
+- Git: `origin` is `https://github.com/roqusanalytics/doko.git`. Push all work, branches and tags only to `origin`; only `npm run release` creates releases.
 - Copies predating this repository split need one manual migration install; changing source URLs cannot rewrite their embedded updater or APT URLs.
 
 - `npm run build:local` prepares a private Apple Silicon Mac app with `electron-builder.local.cjs`, a separate

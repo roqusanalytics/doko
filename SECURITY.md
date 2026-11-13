@@ -58,14 +58,14 @@ Known limitations:
 - **Builds aren't signed with developer certificates yet.** Windows builds are unsigned and macOS builds are ad-hoc
   signed (not notarized); the release build signs both automatically once the certificates are added (see
   [SIGNING.md](SIGNING.md)). Installers are built on GitHub Actions from this repository. Updates are downloaded over
-  HTTPS from [roqusanalytics/doko](https://github.com/roqusanalytics/doko) and checked against the
+  HTTPS from the public [roqusanalytics/doko releases](https://github.com/roqusanalytics/doko/releases) and checked against the
   SHA-512 published with each release, but without a signature the update channel is only as secure as that GitHub
   account. Until Mac builds are signed, Macs don't install updates automatically: Doko announces new versions, which
   are downloaded from the releases page.
 - This fork's Linux apt repository is signed with its own public key
   (`7A6D 385E D5F6 CC7E AFC6 DC5B 06F8 53C5 9B6C B3E2`). The .deb installs it as
   `/usr/share/keyrings/folio-local-archive-keyring.gpg`, scoped with `signed-by` to
-  `/etc/apt/sources.list.d/folio-local.list`. It does not replace upstream Folio's trust.
+  `/etc/apt/sources.list.d/folio-local.list`. It does not replace another application's trust.
   Release checks verify both metadata signatures, the package digest and the embedded public keyring.
 - Local data (recent files, reading positions, an optionally remembered signature) is stored unencrypted in your user
   profile. See [Privacy](README.md#privacy).

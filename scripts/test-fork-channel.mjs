@@ -26,6 +26,27 @@ test("Doko keeps installed application identities and uses the renamed fork", ()
   assert.ok(apt.includes('Release::Label="Folio Local"'));
 });
 
+test("source, releases and Doko ownership share the roqusanalytics/doko repository", () => {
+  const pkg = JSON.parse(readFileSync(path.join(repo, "package.json"), "utf8"));
+  assert.equal(pkg.repository.url, "https://github.com/roqusanalytics/doko.git");
+  assert.deepEqual(pkg.build.publish, [{ provider: "github", owner: "roqusanalytics", repo: "doko", releaseType: "release" }]);
+  assert.equal(pkg.author, "roqusanalytics");
+  const readme = readFileSync(path.join(repo, "README.md"), "utf8");
+  assert.ok(!/rebranded continuation|Forward-Future|Forward Future/.test(readme));
+  const license = readFileSync(path.join(repo, "LICENSE"), "utf8");
+  assert.ok(license.includes("Copyright (c) 2026 roqusanalytics (Doko modifications)"));
+  assert.ok(license.includes("Copyright (c) 2026 mberman84"));
+  assert.equal(pkg.build.linux.maintainer, "roqusanalytics <roquscode@gmail.com>");
+  for (const [file, url] of [
+    ["electron/main.cjs", "https://github.com/roqusanalytics/doko/releases/latest"],
+    ["src/ChangelogDialog.tsx", "https://github.com/roqusanalytics/doko/releases"],
+  ]) {
+    const source = readFileSync(path.join(repo, file), "utf8");
+    assert.ok(source.includes(`"${url}"`), `${file} must link to public releases`);
+    assert.ok(!source.includes("doko-fork") && !source.includes("folio-fork"));
+  }
+});
+
 test("Linux installer keeps the fork's apt source and trust separate", () => {
   const install = readFileSync(path.join(repo, "build/linux/after-install.tpl"), "utf8");
   const remove = readFileSync(path.join(repo, "build/linux/after-remove.tpl"), "utf8");

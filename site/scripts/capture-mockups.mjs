@@ -163,14 +163,13 @@ try {
   const colors = ["Highlight yellow", "Highlight green", "Highlight pink"];
   const targets = ["pools", "Carry", "nesting"];
   for (const [i, target] of targets.entries()) {
-    await page.evaluate(target => {
-      const span = [...document.querySelectorAll(".page .textLayer span")].find(s => s.textContent.includes(target));
-      if (!span) throw new Error("text not found: " + target);
-      span.scrollIntoView({ block: "center" });
-      const range = document.createRange(); range.selectNodeContents(span);
-      const sel = document.getSelection(); sel.removeAllRanges(); sel.addRange(range);
-      document.dispatchEvent(new Event("selectionchange"));
-    }, target);
+    const line = page.locator(".page .textLayer span").filter({ hasText: target }).first();
+    await line.scrollIntoViewIfNeeded();
+    const box = await line.boundingBox();
+    await page.mouse.move(box.x + 1, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width - 1, box.y + box.height / 2, { steps: 8 });
+    await page.mouse.up();
     await page.getByRole("dialog", { name: "Selected text", exact: true }).waitFor();
     await page.getByRole("button", { name: colors[i], exact: true }).click();
     await page.getByRole("dialog", { name: "Selected text", exact: true }).waitFor({ state: "hidden" });

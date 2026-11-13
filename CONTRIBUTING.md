@@ -67,7 +67,7 @@ By contributing, you agree that your contributions are licensed under the projec
 ## Releasing
 
 Maintainers publish releases with the GitHub CLI logged in to an account that can write to
-[roqusanalytics/doko](https://github.com/roqusanalytics/doko). Commit everything, then run:
+[roqusanalytics/doko](https://github.com/roqusanalytics/doko), which holds the source, releases and update feeds. Commit the intended changes, then run:
 
 ```sh
 npm run release                                  # 1.0.0 -> 1.0.1
@@ -78,7 +78,7 @@ This bumps the version and pushes the commit and tag. The tag starts the **Relea
 (`.github/workflows/release-build.yml`), which builds the Windows, macOS, and Linux installers on GitHub Actions and
 checks that each packaged app starts. The script waits for it, downloads the installers, and publishes the release.
 Nothing is published if any platform fails; fix the problem, then run `npm run release -- --publish-only` to publish
-the same tag. After publishing, the script checks the release with `scripts/check-release.mjs`: every platform's files
+the same tag. Release tags on the public download repository point to its existing public history; the private source commit is never pushed there. The script verifies the private source tag and exact CI/build before publication. After publishing, the script checks the release with `scripts/check-release.mjs`: every platform's files
 are present and every update feed (Windows, macOS, AppImage, apt) offers the new version. The daily **Release check**
 workflow repeats that check and opens an issue if anything is off.
 

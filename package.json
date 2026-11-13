@@ -68,9 +68,9 @@
   "productName": "Doko",
   "description": "PDF, Markdown, and photo-folder reader",
   "license": "MIT",
-  "homepage": "https://github.com/roqusanalytics/doko",
+  "homepage": "https://doko.lt",
   "bugs": {
-    "url": "https://github.com/roqusanalytics/doko/issues"
+    "email": "roquscode@gmail.com"
   },
   "main": "electron/main.cjs",
   "build": {
@@ -248,7 +248,7 @@
       "category": "Office",
       "icon": "build/icon.png",
       "synopsis": "A simple, clean PDF reader",
-      "maintainer": "Forward Future <748450+mberman84@users.noreply.github.com>",
+      "maintainer": "roqusanalytics <roquscode@gmail.com>",
       "mimeTypes": [
         "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -289,7 +289,7 @@
     "type": "git",
     "url": "https://github.com/roqusanalytics/doko.git"
   },
-  "author": "Forward Future",
+  "author": "roqusanalytics",
   "desktopName": "folio-local.desktop",
   "overrides": {
     "katex": "$katex",

@@ -6,9 +6,9 @@ export const lt: Copy = {
   url: "https://doko.lt/lt/",
   meta: {
     title: "Doko: nemokama PDF skaityklė, Markdown ir nuotraukų peržiūra",
-    description: "Nemokama atvirojo kodo PDF skaityklė Mac, Windows ir Linux be reklamų. Žymėkite ir pasirašykite PDF, klauskite DI, rašykite Markdown, žiūrėkite nuotraukas.",
+    description: "Nemokama vietinė PDF skaityklė Mac, Windows ir Linux be reklamų. Žymėkite ir pasirašykite PDF, klauskite DI, rašykite Markdown, žiūrėkite nuotraukas.",
     ogTitle: "Doko: nemokama PDF skaityklė, Markdown ir nuotraukų peržiūra",
-    ogDescription: "Viena nemokama atvirojo kodo programa PDF, Markdown ir nuotraukoms Mac, Windows ir Linux. Be paskyros. Failai lieka jūsų kompiuteryje.",
+    ogDescription: "Viena nemokama programa PDF, Markdown ir nuotraukoms Mac, Windows ir Linux. Be paskyros. Failai lieka jūsų kompiuteryje.",
     ogImageAlt: "Doko langas su atidarytu PDF ir antrašte „PDFs, photos and Markdown. One reader.“",
     ogLocale: "lt_LT",
   },
@@ -16,11 +16,11 @@ export const lt: Copy = {
   hero: {
     lines: ["Dokumentai, nuotraukos", "ir lentelės"],
     bold: "Viena skaityklė",
-    lede: "Nemokama atvirojo kodo PDF skaityklė, Markdown redaktorius ir nuotraukų peržiūra Mac, Windows ir Linux. Be reklamų, be mokamų priedų, be paskyros.",
+    lede: "Nemokama vietinė PDF skaityklė, Markdown redaktorius ir nuotraukų peržiūra Mac, Windows ir Linux. Be reklamų, be mokamų priedų, be paskyros.",
     get: "Atsisiųsti Doko",
     getMac: "Atsisiųsti Mac versiją",
     getWin: "Atsisiųsti Windows versiją",
-    source: "Žiūrėti kodą",
+    source: "Vieši leidimai",
     formats: "Doko atidaro PDF, Word dokumentus, tinklalapius, Markdown, teksto ir CSV failus bei JPG, PNG, WebP, GIF ir AVIF nuotraukas.",
     photos: "Nuotraukos",
     filesLabel: "Atidaryti failai",
@@ -81,7 +81,7 @@ export const lt: Copy = {
     caption: "Doko kaip Adobe Acrobat alternatyva: palyginimas",
     head: ["Funkcija", "Doko", "Adobe Acrobat"],
     rows: [
-      ["Kaina", "Nemokama, atvirasis kodas", "Reader nemokama; Acrobat Pro kainuoja US$19.99/mėn."],
+      ["Kaina", "Nemokama, MIT licencija", "Reader nemokama; Acrobat Pro kainuoja US$19.99/mėn."],
       ["PDF teksto ir vaizdų redagavimas", "Įtraukta", "Acrobat Pro"],
       ["Puslapių tvarkymas", "Įtraukta", "Acrobat Pro"],
       ["Turinio uždengimas", "Įtraukta", "Acrobat Pro"],
@@ -105,7 +105,7 @@ export const lt: Copy = {
   faq: {
     h2: ["Klausimai ir", "atsakymai"],
     items: [
-      { q: "Ar Doko nemokama?", a: "Taip. Doko yra nemokama atvirojo kodo PDF skaitymo programa, platinama pagal MIT licenciją. Nėra mokamos versijos, prenumeratos ar paskyros." },
+      { q: "Ar Doko nemokama?", a: "Taip. Doko yra nemokamai platinama PDF skaitymo programa pagal MIT licenciją. Nėra mokamos versijos, prenumeratos ar paskyros." },
       { q: "Ar Doko rodo reklamas ar raginimus pirkti?", a: "Ne. Doko neturi reklamų, bandomųjų versijų, mokamos versijos ir raginimų pirkti. Visos funkcijos prieinamos visiems." },
       { q: "Ar Doko veikia be interneto?", a: "Taip. Skaitymas, žymėjimas, pasirašymas, Markdown redagavimas ir nuotraukų peržiūra veikia be interneto ryšio. Doko jungiasi prie interneto tik tikrindama atnaujinimus, atsisiųsdama jūsų pasirinktas skenavimo kalbas, atidarydama jūsų pateiktą nuorodą arba atsakydama į Ask AI klausimą." },
       { q: "Ar Doko įkelia mano dokumentus į internetą?", a: "Ne. Doko neturi analitikos ar telemetrijos ir niekada savaime neįkelia dokumentų. Tik kai užduodate klausimą DI, dokumento tekstas, pažymėta ištrauka ir pokalbis siunčiami jūsų pasirinktam teikėjui." },
@@ -123,14 +123,14 @@ export const lt: Copy = {
     firstRun: "Pirmą kartą paleidžiant: Mac kompiuteryje atidarykite <b>System Settings → Privacy &amp; Security</b> ir pasirinkite <b>Open Anyway</b>. Windows sistemoje pasirinkite <b>More info → Run anyway</b>.",
   },
   footer: {
-    about: "Nemokama atvirojo kodo PDF skaityklė, Markdown redaktorius ir nuotraukų peržiūra Windows, macOS ir Linux sistemoms.",
+    about: "Nemokama vietinė PDF skaityklė, Markdown redaktorius ir nuotraukų peržiūra Windows, macOS ir Linux sistemoms.",
     trademarks: "Apple, macOS, Windows, Word, Adobe, Acrobat, ChatGPT, OpenAI, Claude, OpenRouter ir Linux yra atitinkamų savininkų prekių ženklai, nurodyti tik suderinamumui parodyti. Doko nėra su jais susijusi ir jų neremiama.",
     privacy: "Privatumas",
     changelog: "Pakeitimų žurnalas",
     license: "Licencija",
   },
   software: {
-    description: "Doko yra nemokama atvirojo kodo PDF skaityklė, Markdown redaktorius ir nuotraukų peržiūra Windows, macOS ir Linux sistemoms. Ji leidžia žymėti, komentuoti ir pasirašyti PDF, su DI atsako į klausimus apie dokumentus, o failai lieka jūsų kompiuteryje.",
+    description: "Doko yra nemokama vietinė PDF skaityklė, Markdown redaktorius ir nuotraukų peržiūra Windows, macOS ir Linux sistemoms. Ji leidžia žymėti, komentuoti ir pasirašyti PDF, su DI atsako į klausimus apie dokumentus, o failai lieka jūsų kompiuteryje.",
     featureList: [
       "PDF skaityklė su paieška, turiniu ir miniatiūromis",
       "Žymėjimas, pastabos, piešimas ir teksto laukai",

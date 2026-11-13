@@ -153,7 +153,6 @@ function saveBlob(blob: Blob, name: string) {
 export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { tabs: DocumentTabs; tabKey: number; upgradeNotes: Release[]; initialGallery?: GalleryDocument }) {
   const headerRef = useRef<HTMLElement>(null);
   const active = useSyncExternalStore(tabs.subscribe, () => tabs.active === tabKey);
-  const multipleTabs = useSyncExternalStore(tabs.subscribe, () => tabs.all.length > 1);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const toastTimer = useRef(0);
@@ -1580,7 +1579,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
           {doc && (
             <>
               <IconButton icon="sidebar" label={keys("Toggle sidebar (Ctrl+\\)")} active={sidebar} onClick={() => setSidebar(!sidebar)} />
-              {!multipleTabs && <div className="doc-title" title={doc.name}>
+              {focus && <div className="doc-title" title={doc.name}>
                 <span>{doc.name}</span>
                 {unsaved && <span className="dirty-dot" role="img" aria-label="Unsaved changes" title="Unsaved changes" />}
               </div>}
@@ -1663,10 +1662,10 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
           />
         </div>
       </header>
-      {!focus && multipleTabs && <DocumentTabBar tabs={tabs} tabKey={tabKey} />}
+      {!focus && <DocumentTabBar tabs={tabs} tabKey={tabKey} />}
 
-      <div className="body" inert={loading} id="reader-panel" role={!focus && multipleTabs ? "tabpanel" : undefined}
-        aria-labelledby={!focus && multipleTabs ? "selected-document-tab" : undefined}>
+      <div className="body" inert={loading} id="reader-panel" role={!focus ? "tabpanel" : undefined}
+        aria-labelledby={!focus ? "selected-document-tab" : undefined}>
         {doc && (
           <div className="sidebar-slot" inert={fileBusy || !!workDialog || !!exportDialog || gallery && (photoBusy || refreshingPhotos || !!photoFailure) ? true : undefined}><Sidebar
             key={doc.pdf.loadingTask.docId}

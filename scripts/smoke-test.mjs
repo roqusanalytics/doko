@@ -148,15 +148,26 @@ try {
   await toolbar.getByRole("button", { name: "Exit edit mode", exact: true }).click();
 
   const docs = page.getByRole("tablist", { name: "Open documents" });
-  assert.equal(await page.locator(".document-tabs").count(), 0);
+  assert.equal(await page.locator(".document-tabs").count(), 1);
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("menuitem", { name: /New tab/ }).click();
   await docs.getByRole("tab", { name: "Library", selected: true }).waitFor();
   assert.equal(await docs.getByRole("tab").count(), 2);
   await docs.getByRole("button", { name: "Close Library" }).click();
-  await page.locator(".doc-title", { hasText: "Doko sample.pdf" }).waitFor();
-  assert.equal(await page.locator(".document-tabs").count(), 0);
-  console.log("ok  the tab strip appears for a second tab and disappears when one remains");
+  await docs.getByRole("tab", { name: "Doko sample.pdf", selected: true }).waitFor();
+  assert.equal(await page.locator(".document-tabs").count(), 1);
+  assert.equal(await docs.getByRole("tab").count(), 1);
+  assert.equal(await page.locator(".doc-title").count(), 0, "the file title belongs in its tab");
+  assert.ok(await page.locator(".document-tabs").evaluate(nav => {
+    const plus = nav.querySelector(".new-document-tab");
+    return nav.firstElementChild === plus && plus.getBoundingClientRect().right <= nav.querySelector(".document-tab").getBoundingClientRect().left;
+  }), "new tab is first, to the left of the document tabs");
+  await page.locator(".document-tabs").screenshot({ path: path.join(shots, `single-document-tab-${process.platform}.png`) });
+  await page.getByRole("button", { name: "New tab", exact: true }).click();
+  await docs.getByRole("tab", { name: "Library", selected: true }).waitFor();
+  await docs.getByRole("button", { name: "Close Library" }).click();
+  await docs.getByRole("tab", { name: "Doko sample.pdf", selected: true }).waitFor();
+  console.log("ok  a single document keeps its tab strip and the leading plus opens the library");
 
   const sidebarToggle = page.getByRole("button", { name: /Toggle sidebar/ });
   const sidebarWasOpen = await sidebarToggle.getAttribute("aria-pressed") === "true";
@@ -301,7 +312,7 @@ try {
     } finally { clearTimeout(paintTimeout); }
     await close.click(); await close.waitFor({ state: "detached" });
   }
-  await page.locator(".doc-title", { hasText: "Another.pdf" }).waitFor();
+  await docs.getByRole("tab", { name: "Another.pdf", selected: true }).waitFor();
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("menuitem", { name: /Close document/ }).click();
   await page.getByRole("button", { name: /Try a sample/ }).click();

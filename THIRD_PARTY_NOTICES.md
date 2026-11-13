@@ -25,9 +25,7 @@ they cover, and Electron's and Chromium's licenses are in the app's installation
 | [electron-updater](https://github.com/electron-userland/electron-builder) and its dependencies | MIT, ISC, BlueOak-1.0.0, Python-2.0 | electron-builder contributors and others |
 | [mammoth](https://github.com/mwilliamson/mammoth.js) (Word document conversion) and its dependencies | BSD-2-Clause, MIT, ISC, Zlib, Python-2.0; JSZip under MIT (of MIT OR GPL-3.0-or-later) | Michael Williamson and others |
 
-The sample document (`public/sample.pdf`) was written for the upstream Folio project and is covered by the MIT License in this repository.
-
-Doko is a rebranded continuation of [Forward-Future/folio](https://github.com/Forward-Future/folio); the upstream project remains credited here and in the README.
+Original application code and the sample document (`public/sample.pdf`) are copyright (c) 2026 mberman84, under the [MIT License](LICENSE). Doko modifications are copyright (c) 2026 roqusanalytics.
 
 ## remark-math and rehype-katex
 

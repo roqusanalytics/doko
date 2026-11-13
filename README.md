@@ -1,7 +1,7 @@
 # Doko
 
 A fast, clean PDF reader for Windows, macOS, and Linux. Read, highlight, annotate, sign, and ask AI about your
-documents. Free and open source, with no Doko account required.
+documents. Developed and maintained by roqusanalytics. Free to use, with no Doko account required.
 
 ![Doko with the Ask AI panel open, answering a question about the document with page citations](docs/screenshots/ask-ai.png)
 
@@ -10,6 +10,10 @@ documents. Free and open source, with no Doko account required.
 | ![Color highlights in a document, with their notes in the sidebar](docs/screenshots/highlights-and-notes.png) | ![Searching a document in the dark theme, with every match highlighted and a list of matching pages](docs/screenshots/search.png) |
 
 ## Download
+
+Downloads and update feeds are public at [roqusanalytics/doko](https://github.com/roqusanalytics/doko/releases/latest), together with the source.
+
+**One-time update migration:** copies released before the repository split still use the old update URL. Download and install the next migration release manually once; later updates use the public feed. On Linux, install the updated `.deb` once to migrate the managed APT source. Keep the existing application profile to retain saved documents and settings. Existing release files have not been changed by the repository rename.
 
 | Platform | Download | Updates |
 | --- | --- | --- |
@@ -21,8 +25,7 @@ documents. Free and open source, with no Doko account required.
 [All releases](https://github.com/roqusanalytics/doko/releases) · [Changelog](CHANGELOG.md) · Prefer not to
 install on Windows? [Doko portable](https://github.com/roqusanalytics/doko/releases/latest) runs as-is (it doesn't auto-update).
 
-Choose the installer for your platform from the latest release. Until the first Doko release, the available builds
-are still named `Folio-*`; new releases use `Doko-*`. Use the downloaded filename in the Linux commands below.
+Choose the `Doko-*` installer for your platform from the latest release. Use the downloaded filename in the Linux commands below.
 
 Doko's builds aren't signed with paid developer certificates yet, so the first launch needs one extra step:
 
@@ -35,11 +38,11 @@ Doko's builds aren't signed with paid developer certificates yet, so the first l
 - **Linux (AppImage):** make it executable (`chmod +x Doko-linux-x86_64.AppImage`) and run it. AppImages need FUSE 2:
   `sudo apt install libfuse2t64` on Ubuntu 24.04 or later, `libfuse2` on older releases.
 
-Or build Doko yourself from source (below).
+Repository collaborators can also build Doko from source (below).
 
 ## Compatibility with existing installs
 
-Doko is the rebranded continuation of [Forward-Future/folio](https://github.com/Forward-Future/folio). Existing installs and update data keep their original identifiers: `FOLIO_*` environment variables, `app.folio.local`, the internal `Folio Local` credential-store name and profile, Linux `folio-local` package/executable/apt paths and key filenames, and the Windows `FolioLocal` ProgID. User data also remains in the existing `%APPDATA%\Folio Local`, `~/Library/Application Support/Folio Local`, and `~/.config/Folio Local` folders. This keeps current installs and their updates working; new Doko installs use `/Applications/Doko.app` on macOS.
+Existing installs and update data keep their compatibility identifiers: `FOLIO_*` environment variables, `app.folio.local`, the internal `Folio Local` credential-store name and profile, Linux `folio-local` package/executable/apt paths and key filenames, and the Windows `FolioLocal` ProgID. User data also remains in the existing `%APPDATA%\Folio Local`, `~/Library/Application Support/Folio Local`, and `~/.config/Folio Local` folders. This preserves existing saved data and application identity; new Doko installs use `/Applications/Doko.app` on macOS.
 
 ## Features
 
@@ -364,7 +367,7 @@ In the browser edition, only selected images are available and Markdown saving d
 After `npm ci` and `npm run build`, `npm run test:content` exercises the new disk and desktop flows.
 `npm run build:local` prepares an Apple Silicon `Doko.app` and update-ready `Doko-mac.zip` under the system temporary
 folder's `doko-local-build/`, without publishing. The ZIP target also embeds the updater configuration. Building outside synced folders avoids Finder metadata breaking codesigning.
-It uses the existing fork profile and the roqusanalytics/doko update feed; the original upstream Folio profile stays independent.
+It uses the existing Doko profile and the public roqusanalytics/doko update feed.
 Public releases still follow the existing three-platform release procedure.
 
 ### How it's put together
@@ -379,7 +382,7 @@ Public releases still follow the existing three-platform release procedure.
   sign-in and requests, OpenRouter keys and requests, and Claude Code). Stored credentials stay in the main process.
 - `scripts/release.mjs` and `.github/workflows/release-build.yml`: the release pipeline (see
   [CONTRIBUTING.md](CONTRIBUTING.md#releasing)). `scripts/smoke-test.mjs` is the cross-platform smoke test CI runs.
-  `scripts/screenshots.mjs` retakes the Ask AI, highlights, and search screenshots at the top of this README (`npm run build`, then `node scripts/screenshots.mjs`).
+  `scripts/screenshots.mjs` retakes all 11 screenshots in this README from the current app, including print previews and settings (`npm run build`, then `node scripts/screenshots.mjs`).
 
 ## Contributing
 
@@ -388,5 +391,4 @@ privately, see [SECURITY.md](SECURITY.md).
 
 ## License
 
-[MIT](LICENSE). Doko is based on [Forward-Future/folio](https://github.com/Forward-Future/folio) and includes third-party software under its own licenses; see
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[MIT](LICENSE). Doko modifications are copyright roqusanalytics. Original and third-party copyright notices are preserved in [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

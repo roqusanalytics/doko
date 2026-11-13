@@ -13,6 +13,9 @@ export function DocumentTabBar({ tabs, tabKey }: { tabs: ReaderContext["tabs"]; 
     }
   }, [tabs.active, tabs.keyboardFocus, tabKey]);
   return <nav className="document-tabs" aria-label="Documents">
+    <button className="new-document-tab icon-btn" title={keys("New tab (Ctrl+T)")} aria-label="New tab" onClick={() => tabs.library()}>
+      <Icon name="plus" size={16} />
+    </button>
     <div className="document-tab-list" role="tablist" aria-label="Open documents">
       {tabs.all.map(tab => {
         const active = tab.key === tabKey;
@@ -36,8 +39,5 @@ export function DocumentTabBar({ tabs, tabKey }: { tabs: ReaderContext["tabs"]; 
         </div>;
       })}
     </div>
-    <button className="new-document-tab icon-btn" title={keys("New tab (Ctrl+T)")} aria-label="New tab" onClick={() => tabs.library()}>
-      <Icon name="plus" size={16} />
-    </button>
   </nav>;
 }

@@ -323,8 +323,8 @@
 
 ## 1.3.2
 
-- Folio now lives in the Forward Future GitHub organization: source at github.com/Forward-Future/folio, downloads and
-  updates at github.com/Forward-Future/folio-releases. Installed copies switch over automatically.
+- Historical project-hosting migration. Current Doko downloads are available at
+  https://github.com/roqusanalytics/doko/releases/latest.
 
 ## 1.3.1
 

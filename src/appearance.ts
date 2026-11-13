@@ -2,7 +2,19 @@ import { readSetting, writeSetting } from "./preferences";
 
 export const WINDOW_TRANSPARENCY_KEY = "folio:window-transparency";
 export const APPEARANCE_KEY = "folio:appearance";
-/** Optional exact color for the panels inside the app; unset follows the theme and palette. The frame always follows the background. */
+export const DEFAULT_BACKGROUND = "#76736f";
+export const DEFAULT_WORK_AREA = "#202327";
+const DEFAULT_COLORS_KEY = "folio:default-colors-v1";
+
+// Apply the new defaults once to existing profiles; later user choices remain theirs.
+export function migrateDefaultColors() {
+  if (readSetting(DEFAULT_COLORS_KEY) === "true") return;
+  // Claim the migration first: a full store must not let later launches overwrite user choices.
+  if (!writeSetting(DEFAULT_COLORS_KEY, "true")) return;
+  writeSetting(APPEARANCE_KEY, DEFAULT_BACKGROUND);
+  writeSetting("folio:panel-color", DEFAULT_WORK_AREA);
+}
+/** Optional exact color for the panels inside the app; empty follows the theme and palette; unset uses the default. The frame always follows the background. */
 export const SURFACE_COLORS = [
   { key: "folio:panel-color", property: "--stage", label: "Work area",
     selector: ":is(.stage, .sidebar, .welcome, .ai-panel, .version-panel, .content-body, .document-tab.selected)" },
@@ -67,13 +79,13 @@ export function appearancePalette(color: string, dark: boolean): Record<string, 
 }
 
 export function nativeAppearanceTheme(theme: string): string {
-  const value = readSetting(APPEARANCE_KEY) || "default";
+  const value = readSetting(APPEARANCE_KEY) || DEFAULT_BACKGROUND;
   const color = appearanceColor(value);
   return color && value !== "default" ? appearancePalette(color, !normalizeColor(value) && theme === "dark")["--appearance-scheme"] : theme;
 }
 
 const properties = Object.keys(appearancePalette("#ffffff", false));
-export function applyAppearance(value = readSetting(APPEARANCE_KEY) || "default") {
+export function applyAppearance(value = readSetting(APPEARANCE_KEY) || DEFAULT_BACKGROUND) {
   const color = appearanceColor(value);
   const root = document.documentElement;
   window.folioDesktop?.setTheme(nativeAppearanceTheme(root.dataset.theme || "light"));
@@ -88,7 +100,7 @@ export function applyAppearance(value = readSetting(APPEARANCE_KEY) || "default"
   // An exact work-area color wins over the palette in both themes, and the text on them adapts.
   const rules: string[] = [];
   for (const { key, property, selector } of SURFACE_COLORS) {
-    const custom = normalizeColor(readSetting(key) || "");
+    const custom = normalizeColor(readSetting(key) ?? DEFAULT_WORK_AREA);
     if (!custom) continue;
     root.style.setProperty(property, custom);
     rules.push(`${selector} { ${Object.entries(surfaceTokens(custom)).map(([name, token]) => `${name}: ${token};`).join(" ")} }`);
@@ -104,7 +116,7 @@ export function surfaceTokens(color: string): Record<string, string> {
   const palette = appearancePalette(color, false);
   const tokens: Record<string, string> = { "color-scheme": palette["--appearance-scheme"], color: "var(--text)" };
   for (const name of ["--surface", "--surface-2", "--text", "--text-2", "--text-3", "--line", "--line-strong", "--hover", "--active", "--accent-text"]) tokens[name] = palette[name];
-  tokens["--glass"] = `color-mix(in srgb, ${palette["--surface"]} 88%, transparent)`;
+  tokens["--glass"] = `color-mix(in srgb, ${palette["--surface"]} var(--glass-opacity, 88%), transparent)`;
   return tokens;
 }
 
@@ -146,6 +158,7 @@ export function saveWindowTransparency(enabled: boolean): boolean {
 }
 
 export function initializeAppearance() {
+  migrateDefaultColors();
   applyAppearance();
   applyWindowTransparency();
   if (!window.frameElement?.classList.contains("document-reader")) {

@@ -1,6 +1,6 @@
 # Doko
 
-> Doko is a free, open-source, local-first PDF reader, Markdown editor and photo viewer for Windows, macOS and Linux. No account, no analytics, no telemetry. Files stay on the user's computer.
+> Doko is a free, local-first PDF reader, Markdown editor and photo viewer for Windows, macOS and Linux. No account, no analytics, no telemetry. Files stay on the user's computer.
 
 ## What Doko does
 
@@ -29,5 +29,6 @@
 
 - Website: https://doko.lt/
 - Download: https://github.com/roqusanalytics/doko/releases/latest
-- Source code and documentation: https://github.com/roqusanalytics/doko
+- Public releases: https://github.com/roqusanalytics/doko/releases
+- Source code: https://github.com/roqusanalytics/doko
 - Privacy details: https://github.com/roqusanalytics/doko#privacy
