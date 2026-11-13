@@ -355,11 +355,13 @@ h2 b { font-weight: 750; }
   content: ""; flex: none; width: 18px; height: 18px; border-radius: 50%;
   background: var(--mint) url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%231A1A1A%27 stroke-width=%273%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27m5 12 5 5 9-10%27/%3E%3C/svg%3E") center / 11px no-repeat;
 }
-.compare { max-width: 940px; margin-inline: auto; }
+.compare { max-width: 940px; margin-inline: auto; overflow-x: auto; }
 .compare table { width: 100%; border-collapse: separate; border-spacing: 0; }
 .compare caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .compare th, .compare td { padding: 18px 20px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--stone); }
 .compare thead th { font-size: .9rem; font-weight: 600; color: var(--graphite); }
+.compare-brand { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.compare-brand svg { width: 20px; height: 20px; flex: none; color: var(--bc); fill: currentColor; }
 .compare tbody th { font-weight: 600; }
 .compare td { color: var(--graphite); }
 .compare .us { background: color-mix(in srgb, var(--mint) 32%, transparent); color: var(--ink); font-weight: 600; }

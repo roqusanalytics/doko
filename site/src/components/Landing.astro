@@ -363,10 +363,10 @@ const faqLd = {
     <ul class="promises" data-reveal>
       {t.compare.promises.map((p) => <li>{p}</li>)}
     </ul>
-    <div class="compare" data-reveal>
+    <div class="compare" role="region" aria-label={t.compare.caption} tabindex="0" data-reveal>
       <table>
         <caption>{t.compare.caption}</caption>
-        <thead><tr><th scope="col">{t.compare.head[0]}</th><th scope="col" class="us">{t.compare.head[1]}</th><th scope="col">{t.compare.head[2]}</th></tr></thead>
+        <thead><tr><th scope="col">{t.compare.head[0]}</th><th scope="col" class="us">{t.compare.head[1]}</th><th scope="col"><span class="compare-brand"><svg role="img" aria-label={logos.acrobat.name} style={`--bc:${logos.acrobat.color}`}><use href="#b-acrobat" /></svg>{t.compare.head[2]}</span></th></tr></thead>
         <tbody>
           {t.compare.rows.map(([f, us, them]) => <tr><th scope="row">{f}</th><td class="us">{us}</td><td>{them}</td></tr>)}
         </tbody>
