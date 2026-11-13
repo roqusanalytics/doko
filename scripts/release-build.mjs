@@ -19,6 +19,18 @@ export function releaseBump(args) {
   return args.find((a, i) => !a.startsWith("--") && (notesAt < 0 || i !== notesAt + 1)) || "patch";
 }
 
+export function verifyReleaseNotes(changelog, version, bump) {
+  if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error("Expected a numeric release version.");
+  const parts = version.split(".").map(Number);
+  const index = ["major", "minor", "patch"].indexOf(bump);
+  if (index >= 0) { parts[index]++; parts.fill(0, index + 1); }
+  const next = index >= 0 ? parts.join(".") : bump;
+  if (!/^\d+\.\d+\.\d+$/.test(next)) throw new Error("Expected a numeric release version.");
+  const section = changelog.split(/^##[ \t]+/m).slice(1).find(part => part.split(/\r?\n/, 1)[0].trim() === next);
+  if (!section || !/^- \S/m.test(section)) throw new Error(`Add ## ${next} with at least one change to CHANGELOG.md before releasing.`);
+  return next;
+}
+
 // Run this in the trusted publisher. A workflow in an unmerged tag could claim its own checks passed.
 export function verifyReleaseTag(api, tag, tagObject, commit) {
   const remote = api(`git/ref/tags/${tag}`);
