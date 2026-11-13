@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.20.21
+
+- Keep the document tab bar visible with a single PDF and place the New tab button first on the left.
+- Restore public downloads and updates after the repository move; older copies need one manual migration install.
+- Publish installers separately from the private source repository.
+
 ## 1.20.20
 
 - Give interface icons a consistent visual weight at compact sizes, with smooth rounded strokes and fixed SVG dimensions.

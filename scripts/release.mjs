@@ -36,6 +36,7 @@ const run = (cmd) => execSync(cmd, { stdio: "inherit", env });
 const gh = (ghArgs, opts = {}) => execFileSync("gh", ghArgs, { env: { ...env, GH_HOST: "github.com" }, encoding: "utf8", ...opts });
 const api = (endpoint) => JSON.parse(gh(["api", "--hostname", "github.com", `repos/${SOURCE_REPO}/${endpoint}`]));
 const git = (...args) => execFileSync("git", args, { env, encoding: "utf8" }).trim();
+const sourceUrl = `https://github.com/${SOURCE_REPO}.git`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 if (!publishOnly) {
@@ -45,8 +46,8 @@ if (!publishOnly) {
   }
   // Releases come from main as pushed. Compare commits rather than branch names, since a worktree's branch
   // often isn't called "main".
-  run("git fetch --quiet origin main");
-  if (execSync("git rev-parse HEAD").toString().trim() !== execSync("git rev-parse origin/main").toString().trim()) {
+  execFileSync("git", ["fetch", "--quiet", sourceUrl, "main"], { env, stdio: "inherit" });
+  if (git("rev-parse", "HEAD") !== git("rev-parse", "FETCH_HEAD")) {
     console.error("This checkout isn't at the latest main. Merge your work into main, then release from it, for example:\n"
       + "  git worktree add ../doko-release origin/main && cd ../doko-release && npm run release");
     process.exit(1);
@@ -62,7 +63,8 @@ const commit = git("rev-parse", "--verify", `${tagObject}^{commit}`);
 if (JSON.parse(git("show", `${commit}:package.json`)).version !== version) throw new Error("The tagged source has a different package version.");
 if (!publishOnly) {
   if (git("rev-parse", "HEAD") !== commit) throw new Error("The release tag differs from the commit being pushed.");
-  execFileSync("git", ["push", "--atomic", "origin", "HEAD:refs/heads/main", ref], { env, stdio: "inherit" });
+  // Ignore origin.pushurl: a migrated checkout may still point it at the public repository.
+  execFileSync("git", ["push", "--atomic", sourceUrl, "HEAD:refs/heads/main", ref], { env, stdio: "inherit" });
 }
 verifyReleaseTag(api, tag, tagObject, commit);
 const query = new URLSearchParams({ event: "push", branch: tag, head_sha: commit, per_page: "2" });
@@ -108,7 +110,7 @@ const body = [
   "",
   "## Download",
   "- **Windows:** **Doko-Setup.exe** (updates itself), or **Doko-Portable.exe** to run without installing.",
-  `- **macOS:** **Doko-mac.dmg** (Apple Silicon and Intel). Developer ID builds update automatically. For ad-hoc builds, see the first-launch instructions in the [README](https://github.com/${SOURCE_REPO}#download).`,
+  "- **macOS:** **Doko-mac.dmg** (Apple Silicon and Intel). For the first launch, use Open Anyway in System Settings → Privacy & Security if macOS blocks the app.",
   "- **Linux:** **Doko-linux-amd64.deb** for Ubuntu/Debian (after that, updates arrive with your system updates), or **Doko-linux-x86_64.AppImage** (updates itself) for other distributions.",
 ].join("\n");
 const folder = mkdtempSync(path.join(tmpdir(), "doko-release-"));

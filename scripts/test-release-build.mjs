@@ -140,10 +140,15 @@ test("normal and resumed publication execute the CI gate and recheck it after do
       });
       const calls = readFileSync(path.join(folder, "calls"), "utf8");
       assert.equal(result.status, 1, result.stderr);
+      const pushes = calls.split("\n").filter(line => line.startsWith('["git","push"')).map(line => JSON.parse(line));
+      assert.deepEqual(pushes, args.length ? [] : [["git", "push", "--atomic", `https://github.com/${SOURCE_REPO}.git`, "HEAD:refs/heads/main", `refs/tags/${tag}`]]);
       assert.ok(calls.includes("/ci.yml/runs?event=push&branch=main&head_sha=" + commit));
       if (scenario === "success") {
         assert.match(result.stderr, /PUBLICATION_REACHED/);
         assert.ok(calls.includes('["gh","release","create"'));
+        const publication = calls.split("\n").filter(line => line.startsWith('["gh","release","create"')).map(line => JSON.parse(line))[0];
+        assert.equal(publication[publication.indexOf("--repo") + 1], RELEASES_REPO);
+        assert.ok(publication.includes("--verify-tag"));
       } else {
         assert.match(result.stderr, /Full CI/);
         assert.ok(!calls.includes('["gh","release","create"'));
@@ -153,7 +158,7 @@ test("normal and resumed publication execute the CI gate and recheck it after do
   }
 });
 
-test("the fork builds and publishes in its own repository", () => {
+test("the source repository builds and publishes its own releases", () => {
   assert.equal(SOURCE_REPO, "roqusanalytics/doko");
   assert.equal(RELEASES_REPO, SOURCE_REPO);
 });
@@ -175,7 +180,7 @@ test("published releases require their era's assets and matching update feeds", 
       }));
       t.mock.method(globalThis, "fetch", async (url) => {
         if (url.startsWith("https://api.github.com/")) {
-          assert.equal(url, `https://api.github.com/repos/${SOURCE_REPO}/releases/latest`);
+          assert.equal(url, `https://api.github.com/repos/${RELEASES_REPO}/releases/latest`);
           return { ok: true, json: async () => ({ tag_name: `v${version}`, assets: manifest
             .filter(asset => asset.name !== missing).map(asset => ({ ...asset, browser_download_url: `https://downloads.example/${asset.name}` })) }) };
         }
