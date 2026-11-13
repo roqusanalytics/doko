@@ -33,7 +33,7 @@ try {
   const motion = await draw.locator('span').evaluate(element => { const css = getComputedStyle(element); return { duration: css.transitionDuration, easing: css.transitionTimingFunction }; });
   assert.ok(parseFloat(motion.duration) >= .24 && motion.easing.startsWith('cubic-bezier'), 'label lift uses a gentle eased transition');
   assert.equal(after.icon, before.icon, 'hover keeps the icon stationary');
-  assert.equal(after.stroke, '1.6', 'shared icons use the refreshed consistent stroke');
+  assert.equal(Number(after.stroke) * 16 / 24, 1.5, 'compact icons keep a 1.5px visible stroke');
   await window.emulateMedia({ reducedMotion: 'reduce' });
   assert.equal((await geometry()).transform, 'none', 'Reduce Motion disables label movement');
   await window.emulateMedia({ reducedMotion: 'no-preference' });

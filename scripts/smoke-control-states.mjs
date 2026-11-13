@@ -78,6 +78,20 @@ try {
 
   for (const theme of ['light', 'dark']) {
     await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+    const icons = await page.locator('.app-icon').evaluateAll(elements => elements.map(icon => {
+      const style = getComputedStyle(icon), size = Number(icon.getAttribute('width'));
+      return { size, weight: Number(icon.getAttribute('stroke-width')) * size / 24,
+        shrink: style.flexShrink, caps: style.strokeLinecap, joins: style.strokeLinejoin };
+    }));
+    assert.ok(icons.length > 10, `${theme}: shared icons are present across the reader`);
+    for (const icon of icons) {
+      assert.ok(icon.weight >= 1.5, `${theme}: no hairline icon strokes at ${icon.size}px`);
+      if (icon.size <= 20) assert.ok(Math.abs(icon.weight - 1.5) < .001, `${theme}: compact icons share the same visible weight`);
+      assert.deepEqual([icon.shrink, icon.caps, icon.joins], ['0', 'round', 'round']);
+    }
+    const dots = page.locator('.topbar .app-icon circle[fill="currentColor"]');
+    assert.equal(await dots.count(), 3, `${theme}: ellipsis uses three clean filled dots`);
+    assert.deepEqual(await dots.evaluateAll(elements => elements.map(dot => getComputedStyle(dot).stroke)), ['none', 'none', 'none']);
     await page.getByRole('button', { name: 'Select', exact: true }).click();
     await page.mouse.move(1, 1);
     await page.waitForTimeout(250);
