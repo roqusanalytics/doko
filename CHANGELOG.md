@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.20.19
+
+- Remove the green focus ring from document search; show keyboard focus with a subtle background instead.
+
 ## 1.20.18
 
 - Use only a background on the Ask AI composer, without a border or focus ring.
