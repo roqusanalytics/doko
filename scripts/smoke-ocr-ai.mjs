@@ -81,11 +81,22 @@ try {
   await settings.getByRole("searchbox", { name: "Model" }).fill("reader");
   await settings.getByRole("button", { name: /Sample Reader/ }).click();
   await settings.getByRole("button", { name: "Close" }).click();
+  // Keep preparation pending so Stop is exercised before a fast OCR run reaches the provider.
+  await page.evaluate(() => {
+    const post = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message, ...rest) {
+      if (message?.action !== "recognize") return post.call(this, message, ...rest);
+      Worker.prototype.postMessage = post;
+      window.resumeOcrPreparation = () => post.call(this, message, ...rest);
+    };
+  });
   await panel.getByRole("textbox").fill("Read every page and find the reference code.");
   await panel.getByRole("button", { name: "Send", exact: true }).click();
+  await page.waitForFunction(() => !!window.resumeOcrPreparation);
   await panel.getByRole("button", { name: "Stop", exact: true }).click();
   await panel.getByRole("button", { name: "Send", exact: true }).waitFor();
   assert.equal(await app.evaluate(() => globalThis.ocrAiTest.requests.length), 0, "Stop during preparation must not send the document");
+  await page.evaluate(() => { window.resumeOcrPreparation(); delete window.resumeOcrPreparation; });
   await panel.getByRole("textbox").fill("Try again: read every page and find the reference code.");
   await panel.getByRole("button", { name: "Send", exact: true }).click();
   await panel.getByRole("button", { name: "(p. 4)", exact: true }).waitFor({ timeout: 90_000 });
@@ -102,12 +113,72 @@ try {
   await panel.getByRole("button", { name: "(p. 4)", exact: true }).click();
   await page.waitForFunction(() => document.querySelector('[aria-label="Page number"]').value === "4");
   await page.locator('[data-page-number="4"] [data-ocr-word]').first().waitFor({ timeout: 30_000 });
+  // A fresh document leaves its scans unvisited so the failure occurs during AI preparation.
+  await page.window.addInitScript(() => {
+    const post = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message, ...rest) {
+      if (message?.action !== "recognize") return post.call(this, message, ...rest);
+      Worker.prototype.postMessage = post;
+      queueMicrotask(() => this.dispatchEvent(new MessageEvent("message", {
+        data: { action: "recognize", jobId: message.jobId, status: "reject", data: "Synthetic OCR preparation failure" },
+      })));
+    };
+  });
+  pdf.setTitle("OCR retry history fixture");
+  await app.evaluate(({ BrowserWindow }, bytes) => BrowserWindow.getAllWindows()[0].webContents.send(
+    "folio:open-file", { name: "OCR retry history.pdf", data: Buffer.from(bytes) }), [...await pdf.save()]);
+  await page.window.waitForFunction(() => document.title.startsWith("OCR retry history.pdf"));
+  await page.getByText("Embedded project: Baltic delivery", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Ask AI", exact: true }).click();
+  const question = "Read every page and find the reference code.";
+  await panel.getByRole("textbox").fill(question);
+  await panel.getByRole("button", { name: "Send", exact: true }).click();
+  await panel.getByText("Doko couldn’t read this document. Your question is below; send it again to retry.", { exact: true }).waitFor();
+  assert.equal(await app.evaluate(() => globalThis.ocrAiTest.requests.length), 1, "failed preparation must not reach the provider");
+  assert.equal(await panel.getByRole("textbox").inputValue(), question);
+  assert.equal(await panel.locator(".msg.user").count(), 0, "failed preparation must return its question to the input, not leave a history turn");
+  await panel.getByRole("button", { name: "Send", exact: true }).click();
+  await panel.getByRole("button", { name: "(p. 4)", exact: true }).waitFor({ timeout: 90_000 });
+  assert.equal(await panel.locator(".msg.user").count(), 1, "retry must leave one visible question");
+  const retried = await app.evaluate(() => globalThis.ocrAiTest.requests.at(-1));
+  const sentUsers = retried.messages.filter(message => message.role === "user");
+  assert.equal(JSON.parse(sentUsers[0].content).document.name, "OCR retry history.pdf");
+  assert.deepEqual(sentUsers.slice(1).map(message => message.content), [question]);
+  await page.screenshot({ path: path.join(shots, "ocr-ai-retry-history.png") });
+  await panel.getByRole("button", { name: "Close Ask AI", exact: true }).click();
+  await page.getByRole("button", { name: "Ask AI", exact: true }).click();
+  await panel.getByText(question, { exact: true }).waitFor();
+  assert.equal(await panel.locator(".msg.user").count(), 1, "reopening must not restore a failed duplicate");
+  await page.waitForFunction(async question => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open("folio");
+      request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+    });
+    try {
+      const files = await new Promise((resolve, reject) => {
+        const request = db.transaction("recent").objectStore("recent").getAll();
+        request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+      });
+      const id = files.find(file => file.name === "OCR retry history.pdf")?.id;
+      if (!id) return false;
+      const chat = await new Promise((resolve, reject) => {
+        const request = db.transaction("ai").objectStore("ai").get(id);
+        request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+      });
+      return chat?.messages.filter(message => message.role === "user" && message.content === question).length === 1;
+    } finally { db.close(); }
+  }, question);
+  await panel.getByRole("textbox").fill(question);
+  await panel.getByRole("button", { name: "Send", exact: true }).click();
+  await panel.getByRole("button", { name: "(p. 4)", exact: true }).nth(1).waitFor();
+  assert.equal(await panel.locator(".msg.user").count(), 2, "a deliberate repeat after a successful answer remains a new turn");
   assert.deepEqual(errors, []);
   await assertHidden(app);
-  console.log("PASS OCR AI: real OCR on unvisited image-only pages, embedded text, page labels in actual provider request, Stop during preparation, retry, citation navigation; no real provider credentials/network");
+  console.log("PASS OCR AI: real OCR, Stop/retry, citations; preparation failure restores input without duplicate visible/provider/reopened history; successful repeat retained; no real provider credentials/network");
 } catch (error) {
+  console.error(error);
   console.error(JSON.stringify({ errors, requests: await app.evaluate(() => globalThis.ocrAiTest?.requests.length).catch(() => null) }));
-  await page?.screenshot({ path: path.join(shots, "ocr-ai-failure.png") }).catch(() => {});
+  await page?.screenshot({ path: path.join(shots, "ocr-ai-failure.png"), timeout: 10_000 }).catch(() => {});
   throw error;
 } finally {
   await app.evaluate(() => { globalThis.ocrAiTest?.restore(); delete globalThis.ocrAiTest; }).catch(() => {});
