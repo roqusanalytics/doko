@@ -115,7 +115,8 @@ try {
   await page.getByLabel("Markdown preview", { exact: true }).waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.appearance), "ocean", "new Markdown frame lost appearance");
   await window.reload();
-  await page.getByRole("button", { name: /Try a sample/ }).waitFor();
+  // Reload may restore a recent PDF; appearance must persist in either reader or library.
+  await page.locator(".topbar").waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.appearance), "ocean", "reload lost appearance");
   await app.evaluate(({ app }, file) => app.emit("open-file", { preventDefault() {} }, file), markdown);
   await page.getByLabel("Markdown preview", { exact: true }).waitFor();
