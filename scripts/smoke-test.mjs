@@ -113,6 +113,9 @@ try {
   // The list of matching pages quotes each page's first match. The words it marks are the ones searched for,
   // also when the match sits many lines down the page. (Text with ligatures is checked at the end.)
   await page.getByRole("button", { name: /^Search/ }).click();
+  assert.deepEqual(await page.getByLabel("Find in document").evaluate(el => {
+    const style = getComputedStyle(el); return [style.outlineStyle, style.boxShadow];
+  }), ["none", "none"], "the focused search field has no ring");
   await page.getByLabel("Find in document").fill("highlight");
   const quoted = page.locator(".search-result-list mark");
   await quoted.nth(2).waitFor();
