@@ -41,7 +41,7 @@
 /* Overlay layouts keep the same inset as the docked panel. */
 @media (max-width: 900px) { .ai-panel { top: 0; right: 8px; bottom: 8px; margin: 0; } }
 @media (max-width: 760px) { .version-panel { inset: 0 8px 8px auto; margin: 0; } }
-:is(.pill, .color-pill, .searchbar, .menu, .selection-popover, .scan-picker-panel, .image-menu, .exit-focus) {
+:is(.pill, .color-pill, .searchbar, .menu, .selection-popover, .scan-picker-panel, .image-menu, .exit-focus, .photo-nav) {
   background: var(--glass);
   backdrop-filter: var(--glass-filter);
   border-color: transparent;

@@ -1778,6 +1778,14 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
           {gallery && (photoBusy || refreshingPhotos || photoFailure || !gallery.files.length) && <div className="photo-status" role={photoFailure ? "alert" : "status"}>
             <p>{photoFailure || (refreshingPhotos ? "Refreshing folder…" : gallery.files.length ? "Loading image…" : "No supported images remain in this folder.")}</p>{photoFailure && <button className="btn ghost" onClick={() => void openPhoto(gallery, gallery.selected)}>Retry</button>}
           </div>}
+          {gallery && gallery.files.length > 1 && (() => {
+            const index = gallery.files.indexOf(gallery.selected);
+            const busy = fileBusy || photoBusy || refreshingPhotos;
+            return <>
+              <button className="pill-btn photo-nav prev" type="button" aria-label="Previous image" title="Previous image (←)" disabled={busy || index <= 0} onClick={() => void openPhoto(gallery, gallery.files[index - 1])}><Icon name="chevronLeft" size={20} /></button>
+              <button className="pill-btn photo-nav next" type="button" aria-label="Next image" title="Next image (→)" disabled={busy || index < 0 || index >= gallery.files.length - 1} onClick={() => void openPhoto(gallery, gallery.files[index + 1])}><Icon name="chevronRight" size={20} /></button>
+            </>;
+          })()}
           {contentEditing && doc && <ContentEditor key={doc.pdf.loadingTask.docId} ref={contentRef} nextSelection={nextSelection} pdf={doc.pdf} viewer={viewerRef.current!} bus={busRef.current!}
             onDirty={setEditorDirty} snapshot={async () => {
               if (doc.password || await doc.pdf.getPermissions() || (await doc.pdf.getSignatures())?.length) throw new Error("Editing requires an unsigned, unencrypted PDF.");
@@ -1855,6 +1863,10 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
               <button className="pill-btn" onClick={() => goTo(page + 1)} disabled={page >= numPages} title="Next page">
                 <Icon name="chevronDown" size={17} />
               </button>
+              {gallery && <>
+                <span className="divider" />
+                <output className="photo-position" aria-label="Image position">{Math.max(0, gallery.files.indexOf(gallery.selected) + 1)} / {gallery.files.length}</output>
+              </>}
               <span className="divider" />
               <button className="pill-btn" onClick={() => zoom(-1)} title={keys("Zoom out (Ctrl −)")}>
                 <Icon name="minus" size={17} />

@@ -1,32 +1,51 @@
+/* The work area and the carousel read as one rounded panel: the stage keeps the top corners, the carousel the bottom ones. */
+.app[data-photo]:not([data-focus]) .stage { margin-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .photo-carousel {
+  position: relative;
   flex: none;
-  padding: 8px 12px 10px;
+  margin: 0 8px 8px;
+  padding: 10px 44px 8px 12px;
   border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--radius) var(--radius);
   background: var(--stage);
 }
-.photo-carousel-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 34px;
-  margin-bottom: 8px;
-}
-.photo-carousel-controls .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-height: 32px;
-  padding: 5px 9px;
-  white-space: nowrap;
-}
-.photo-carousel-controls output {
-  min-width: 56px;
+.photo-carousel-refresh {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
   color: var(--text-2);
-  text-align: center;
-  font-size: 12px;
+}
+.photo-carousel-refresh:not(:disabled):hover { background: var(--hover); color: var(--text); }
+.photo-carousel-refresh:disabled { opacity: .45; }
+/* Previous / Next reuse the floating pill material (glass.css) and .pill-btn colours; shown on hover or keyboard focus (always on touch screens). */
+.photo-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 25;
+  width: 40px;
+  height: 40px;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 160ms, background 160ms, color 160ms;
+}
+.photo-nav.prev { left: 16px; }
+.photo-nav.next { right: 16px; }
+.stage .photo-nav:disabled { opacity: 0; pointer-events: none; }
+.stage:hover .photo-nav:not(:disabled), .photo-nav:focus-visible:not(:disabled) { opacity: 1; }
+.stage .photo-nav:not(:disabled):hover { background: linear-gradient(var(--hover), var(--hover)), var(--glass); }
+@media (hover: none) { .photo-nav:not(:disabled) { opacity: 1; } }
+.photo-position {
+  align-self: center;
+  padding: 0 8px;
+  color: var(--text-2);
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .photo-carousel-thumbnails {
   display: flex;
@@ -91,11 +110,10 @@
   white-space: nowrap;
 }
 @media (max-width: 480px) {
-  .photo-carousel { padding-inline: 8px; }
-  .photo-carousel-controls { gap: 4px; }
-  .photo-carousel-controls .btn { gap: 3px; padding-inline: 6px; font-size: 12px; }
-  .photo-carousel-controls output { min-width: 48px; font-size: 11px; }
-  .photo-carousel-refresh { margin-left: auto; }
+  .photo-carousel { padding-left: 8px; }
+  .photo-nav { width: 36px; height: 36px; }
+  .photo-nav.prev { left: 8px; }
+  .photo-nav.next { right: 8px; }
   .photo-carousel-thumbnail { flex-basis: 80px; }
   .photo-carousel-image { width: 72px; height: 54px; }
 }
@@ -114,7 +132,7 @@
 }
 .app[data-photo] .pdfViewer .page { flex: none; margin: 0; }
 @media (prefers-reduced-motion: reduce) {
-  .photo-carousel-thumbnail { transition: none; }
+  .photo-carousel-thumbnail, .photo-nav { transition: none; }
 }
 
 .file-context-menu[popover]:popover-open { position: fixed; inset: auto; margin: 0; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow: auto; transform: none; animation: none; }
