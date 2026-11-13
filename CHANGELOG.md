@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.20.14
+
+- Choose the Ask AI model inside the message box, next to a smaller Send button. The menu groups ChatGPT, Claude, and OpenRouter models by provider with their logos, newest first.
+- Show the official ChatGPT, Claude, and OpenRouter logos in the provider picker.
+- Remove the horizontal lines from the Ask AI panel.
+
 ## 1.20.13
 
 - Show hover highlights clearly on light and dark backgrounds, and on a work area that differs from the background.
