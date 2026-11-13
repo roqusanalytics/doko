@@ -57,7 +57,9 @@ export function appearancePalette(color: string, dark: boolean): Record<string, 
     "--text": pale ? "#000000" : "#ffffff", "--text-2": readable(pale ? "#383838" : "#ededed"),
     "--text-3": readable(pale ? "#494949" : "#dddddd"),
     "--line": pale ? "#00000020" : "#ffffff25", "--line-strong": pale ? "#00000040" : "#ffffff40",
-    "--hover": "#c5e1cb24", "--active": "color-mix(in srgb, var(--accent) 20%, var(--surface))",
+    // Hover tints toward the text, so it shows on pale and dark colors alike; mid tones need a stronger tint.
+    "--hover": pale ? (luminance(bg) > 0.5 ? "#2f5d3a1a" : "#2f5d3a33") : luminance(bg) < 0.03 ? "#c5e1cb24" : "#c5e1cb40",
+    "--active": "color-mix(in srgb, var(--accent) 20%, var(--surface))",
     "--accent-text": readable(pale ? "#305d40" : "#c5e1cb"), "--accent": "#c5e1cb",
     "--accent-foreground": "#1a1a1a",
     "--accent-soft": "#c5e1cb3d",
@@ -101,7 +103,7 @@ export function applyAppearance(value = readSetting(APPEARANCE_KEY) || "default"
 export function surfaceTokens(color: string): Record<string, string> {
   const palette = appearancePalette(color, false);
   const tokens: Record<string, string> = { "color-scheme": palette["--appearance-scheme"], color: "var(--text)" };
-  for (const name of ["--surface", "--surface-2", "--text", "--text-2", "--text-3", "--line", "--line-strong", "--hover", "--accent-text"]) tokens[name] = palette[name];
+  for (const name of ["--surface", "--surface-2", "--text", "--text-2", "--text-3", "--line", "--line-strong", "--hover", "--active", "--accent-text"]) tokens[name] = palette[name];
   tokens["--glass"] = `color-mix(in srgb, ${palette["--surface"]} 88%, transparent)`;
   return tokens;
 }

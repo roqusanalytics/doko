@@ -10,7 +10,7 @@
   --stage: #f4f3f0;
   --surface: #ffffff;
   --surface-2: #f7f6f3;
-  --hover: rgba(197, 225, 203, 0.14);
+  --hover: rgba(47, 93, 58, 0.1);
   --active: color-mix(in srgb, var(--accent) 20%, var(--surface));
   --text: #1c1b19;
   --text-2: #5f5c56;
