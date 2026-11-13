@@ -112,7 +112,8 @@ function createOpenRouter({ net, safeStorage, file, writeAtomic }) {
       if (!Array.isArray(data)) throw new Error("Couldn't read the model list. Enter a model ID or try again.");
       return data.filter(m => validModel(m?.id) && m.architecture?.input_modalities?.includes("text") && m.architecture?.output_modalities?.includes("text"))
         .map(m => ({ id: m.id, name: typeof m.name === "string" ? m.name.slice(0, 160) : m.id,
-          contextLength: Number.isSafeInteger(m.context_length) && m.context_length > 0 ? m.context_length : null }));
+          contextLength: Number.isSafeInteger(m.context_length) && m.context_length > 0 ? m.context_length : null,
+          created: Number.isSafeInteger(m.created) && m.created > 0 ? m.created : null }));
     },
     ask: async ({ model, document, messages }, emit, signal) => {
       if (!validModel(model)) throw new Error("Choose an OpenRouter model in Settings.");

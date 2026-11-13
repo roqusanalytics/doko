@@ -1,11 +1,11 @@
-import { useId, useRef } from "react";
+import { useId, useRef, type ReactNode } from "react";
 import { Icon } from "./icons";
 import { useAnchoredPopover } from "./anchored-popover";
 
 export function SelectMenu({ label, value, options, onChange, className = "", disabled, title }: {
   label: string;
   value: string;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; icon?: ReactNode }[];
   onChange: (value: string) => void;
   className?: string;
   disabled?: boolean;
@@ -21,12 +21,13 @@ export function SelectMenu({ label, value, options, onChange, className = "", di
       onKeyDown={event => {
         if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); panel.current?.showPopover(); }
       }}>
+      {options.find(option => option.value === value)?.icon}
       <span>{options.find(option => option.value === value)?.label ?? value}</span><Icon name="chevronDown" size={13} />
     </button>
     <div ref={panel} id={id} popover="auto" role="menu" aria-label={`${label} options`} className="menu anchored-popover select-menu">
       {options.map(option => <button type="button" key={option.value} role="menuitemradio" aria-checked={option.value === value}
         onClick={() => { panel.current?.hidePopover(); trigger.current?.focus(); onChange(option.value); }}>
-        <span>{option.label}</span>{option.value === value && <Icon name="check" size={14} />}
+        <span className="select-option">{option.icon}{option.label}</span>{option.value === value && <Icon name="check" size={14} />}
       </button>)}
     </div>
   </>;

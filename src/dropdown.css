@@ -16,7 +16,11 @@
 .select-trigger > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .select-menu button { justify-content: space-between; }
 .anchored-popover.scan-picker-panel { position-anchor: auto; position-area: none; justify-self: auto; --popover-limit: min(320px, 60dvh); }
-.ai-meta .ai-model { max-width: 130px; font: inherit; color: var(--text-2); background: transparent; border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 2px 4px; }
 .print-dialog .select-trigger { background: var(--bg); color: var(--text); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 7px; }
 .print-printer .select-trigger { flex: 1; min-width: 100px; max-width: 100%; }
 .signature-field .select-trigger { min-width: 0; width: 100%; padding: 8px; background: var(--surface); color: var(--text); border: 1px solid var(--line-strong); border-radius: var(--radius); font: inherit; }
+.select-trigger > .provider-logo { flex: none; }
+.select-trigger:has(> .provider-logo) { justify-content: flex-start; }
+.select-trigger:has(> .provider-logo) > span { flex: 1; }
+.select-option { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.select-option > .provider-logo { flex: none; }

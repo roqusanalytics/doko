@@ -5,7 +5,9 @@ import { Icon } from "./icons";
 import { copyText } from "./clipboard";
 import type { PDFDocumentProxy } from "./pdf";
 import { getAiHistory, saveAiHistory } from "./recent";
-import { CLAUDE_CODE_URL, PROVIDERS, savedProvider, saveAiPreference, signInChatGPT, subscribeAiPreferences, USAGE_URL } from "./ai";
+import { ProviderLogo } from "./ProviderLogo";
+import { ModelMenu, type ModelGroup } from "./ModelMenu";
+import { CLAUDE_CODE_URL, PROVIDERS, savedProvider, saveAiPreference, signInChatGPT, subscribeAiPreferences, USAGE_URL, type AiProvider } from "./ai";
 import { Modal } from "./Dialogs";
 import { readSetting } from "./preferences";
 
@@ -144,6 +146,8 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
   const provider = useSyncExternalStore(subscribeAiPreferences, savedProvider);
   const keyRevision = useSyncExternalStore(subscribeAiPreferences, () => readSetting("folio:ai-key-revision"));
   const [models, setModels] = useState<{ id: string; name: string }[]>([]);
+  const [routerModels, setRouterModels] = useState<OpenRouterModel[]>([]);
+  const routerSaved = useSyncExternalStore(subscribeAiPreferences, () => readSetting("folio:ai-model:openrouter") ?? "");
   const modelKey = `folio:ai-model:${provider}`;
   const savedModel = useSyncExternalStore(subscribeAiPreferences, () => readSetting(modelKey) ?? "");
   const model = provider === "chatgpt" && models.length && !models.some(m => m.id === savedModel) ? models[0].id : savedModel;
@@ -202,7 +206,7 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
   const chatgptConnected = !!status?.chatgpt.connected;
   useEffect(() => {
     setSetupError(null);
-    if (!ai || provider !== "chatgpt" || !chatgptConnected) return;
+    if (!ai || !chatgptConnected) return;
     let current = true;
     void ai.chatgptModels().then((result) => {
       if (!current) return;
@@ -214,7 +218,20 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
       setModels(result.models ?? []);
     });
     return () => { current = false; };
-  }, [ai, provider, chatgptConnected]);
+  }, [ai, chatgptConnected]);
+
+  // OpenRouter lists hundreds of models; the menu offers the newest and Settings has the full search.
+  // The list loads when the menu opens, once per key, so the panel makes no request until it's needed.
+  const routerConfigured = !!status?.openrouter?.configured;
+  const routerLoadedFor = useRef<string | null>(null);
+  const loadRouterModels = () => {
+    const key = String(keyRevision);
+    if (!ai || !routerConfigured || routerLoadedFor.current === key) return;
+    routerLoadedFor.current = key;
+    void ai.openRouterModels().then(result => {
+      if (result.ok) setRouterModels(result.models ?? []); else routerLoadedFor.current = null;
+    }).catch(() => { routerLoadedFor.current = null; });
+  };
 
   // Stream answers into the last assistant message.
   useEffect(() => {
@@ -245,6 +262,20 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
   const connected = { chatgpt: chatgptConnected, claude: !!status?.claude.installed && status.claude.loggedIn,
     openrouter: !!status?.openrouter?.configured && !!model };
   const ready = loaded && connected[provider];
+
+  // Newest first. ChatGPT lists its own order; Claude Code takes family names; OpenRouter is sorted by release date.
+  const newestRouter = [...routerModels].sort((a, b) => (b.created ?? 0) - (a.created ?? 0)).slice(0, 6);
+  const routerList = routerSaved && !newestRouter.some(m => m.id === routerSaved)
+    ? [{ id: routerSaved, name: routerModels.find(m => m.id === routerSaved)?.name ?? routerSaved }, ...newestRouter] : newestRouter;
+  const groups: ModelGroup[] = [
+    { provider: "chatgpt", label: "ChatGPT", models: models.length ? models : model && provider === "chatgpt" ? [{ id: model, name: model }] : [],
+      setup: chatgptConnected ? undefined : "Sign in to ChatGPT in Settings" },
+    { provider: "claude", label: "Claude", models: CLAUDE_MODELS,
+      setup: status?.claude.installed && status.claude.loggedIn ? undefined : "Set up Claude Code in Settings" },
+    { provider: "openrouter", label: "OpenRouter", models: routerList, more: "More models in Settings…",
+      setup: routerConfigured ? undefined : "Add an OpenRouter key in Settings" },
+  ];
+  const modelName = (groups.find(group => group.provider === provider)?.models.find(item => item.id === model)?.name) ?? (model.split("/").pop() || "Default");
 
   // Closing the panel, entering focus mode, or opening another document ends an answer in progress the way Stop does.
   // Otherwise it keeps running unseen, holds one of the two answers allowed at a time, and comes back never finishing.
@@ -333,7 +364,7 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
         <div className="ai-title"><Icon name="sparkle" size={16} /> Ask AI</div>
         {ai && <SelectMenu className="ai-provider" label="AI provider" value={provider} disabled={!!busy}
           onChange={value => saveAiPreference("folio:ai-provider", value)}
-          options={Object.entries(PROVIDERS).map(([value, label]) => ({ value, label }))} />}
+          options={(Object.entries(PROVIDERS) as [AiProvider, string][]).map(([value, label]) => ({ value, label, icon: <ProviderLogo provider={value} /> }))} />}
         <div className="ai-head-actions">
           <button ref={newConversationRef} className="pill-btn" title="New conversation" aria-label="New conversation" disabled={!loaded || !messages.length || !!busy} onClick={() => setConfirmNew(true)}>
             <Icon name="plus" size={15} />
@@ -475,21 +506,22 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
               }
             }}
           />
-          {busy ? (
-            <button type="button" className="send-btn" onClick={stop} title="Stop" aria-label="Stop">
-              <Icon name="stop" size={15} />
-            </button>
-          ) : (
-            <button type="submit" className="send-btn" disabled={!ready || !input.trim()} title="Send (Enter)" aria-label="Send">
-              <Icon name="send" size={16} />
-            </button>
-          )}
+          <div className="composer-actions">
+            {ai && status && <ModelMenu groups={groups} provider={provider} model={model} label={modelName} disabled={!!busy} onSettings={onSettings} onOpen={loadRouterModels}
+              onChange={(next, id) => { saveAiPreference(`folio:ai-model:${next}`, id); saveAiPreference("folio:ai-provider", next); }} />}
+            {busy ? (
+              <button type="button" className="send-btn" onClick={stop} title="Stop" aria-label="Stop">
+                <Icon name="stop" size={15} />
+              </button>
+            ) : (
+              <button type="submit" className="send-btn" disabled={!ready || !input.trim()} title="Send (Enter)" aria-label="Send">
+                <Icon name="send" size={16} />
+              </button>
+            )}
+          </div>
         </form>
         {ready && (
           <div className="ai-meta">
-            {provider === "openrouter" ? <button className="link small router-model-link" title={model} onClick={onSettings}>{model}</button> :
-            <SelectMenu value={model} onChange={value => saveAiPreference(modelKey, value)} label="Model" className="ai-model"
-              options={(provider === "chatgpt" ? models : CLAUDE_MODELS).map(model => ({ value: model.id, label: model.name }))} />}
             {provider === "chatgpt" ? (
               <span>Using ChatGPT plan · <a href={USAGE_URL} target="_blank" rel="noreferrer">Manage usage</a></span>
             ) : provider === "openrouter" ? <span>Billed by OpenRouter</span> : (
