@@ -749,7 +749,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     updateFileMenu();
     handle("folio:save-file", (_event, request) => saveFiles.save(request));
-    registerScreenshots(handle, () => win, { hidden: TEST_HIDDEN,
+    registerScreenshots(handle, () => win, { hidden: TEST_HIDDEN, devUrl: DEV_URL,
       fixture: TEST_HIDDEN && process.env.FOLIO_TEST_SCREENSHOT === "1" });
     on("folio:file-menu", (_event, state) => {
       if (!state || !["none", "pdf", "photo", "markdown", "workbook", "html"].includes(state.kind) || typeof state.busy !== "boolean") return;

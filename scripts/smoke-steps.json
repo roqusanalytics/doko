@@ -21,6 +21,9 @@
     "scripts/test-screenshot.cjs"
   ],
   [
+    "scripts/test-screenshot-protocol.mjs"
+  ],
+  [
     "scripts/smoke-screenshot.mjs"
   ],
   [

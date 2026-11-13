@@ -39,11 +39,10 @@ async function captureScreens({ desktopCapturer, screen, systemPreferences, plat
   return { bounds, screens, singleScreen: screens.length === 1 && displays.length > 1 };
 }
 
-function registerScreenshots(handle, getOwner, { hidden = false, fixture = false } = {}) {
+function registerScreenshots(handle, getOwner, { hidden = false, fixture = false, devUrl = null } = {}) {
   const electron = require('electron');
   const { BrowserWindow, ipcMain, nativeImage } = electron;
   let active = null;
-  const page = path.join(__dirname, 'screenshot.html');
   const trusted = event => active?.overlay && event.sender === active.overlay.webContents && event.senderFrame === active.overlay.webContents.mainFrame;
   ipcMain.handle('folio:screenshot-data', event => {
     if (!trusted(event)) throw new Error('Untrusted sender');
@@ -98,7 +97,7 @@ function registerScreenshots(handle, getOwner, { hidden = false, fixture = false
       overlay.webContents.on('will-navigate', event => event.preventDefault());
       overlay.on('closed', cancel);
       overlay.webContents.on('render-process-gone', () => state.finish(new Error('Screen selection stopped unexpectedly. Try again.')));
-      await overlay.loadFile(page);
+      await overlay.loadURL(`${devUrl ?? 'app://folio'}/screenshot.html`);
       if (!state.finished && !hidden) { overlay.setBounds(capture.bounds); overlay.show(); overlay.focus(); }
     } catch (error) {
       state.finish(null);

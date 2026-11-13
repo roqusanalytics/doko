@@ -26,6 +26,25 @@ try {
   await page.getByRole('button', { name: /Try a sample/ }).click();
   await page.locator('.textLayer span:not(.markedContent)').first().waitFor();
   await mockClipboard();
+  // IPC errors cross the preload realm; preserve the actionable message and allow a retry.
+  await app.evaluate(({ ipcMain }) => {
+    globalThis.originalScreenshotHandler = ipcMain._invokeHandlers.get('folio:capture-desktop');
+    ipcMain.removeHandler('folio:capture-desktop');
+    ipcMain.handle('folio:capture-desktop', () => { throw new Error('Allow Doko in Screen Recording, then reopen Doko and try again.'); });
+  });
+  await page.getByRole('button', { name: 'Take a screenshot' }).click();
+  await page.getByRole('alert').getByText('Allow Doko in Screen Recording, then reopen Doko and try again.', { exact: true }).waitFor();
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler('folio:capture-desktop');
+    ipcMain.handle('folio:capture-desktop', globalThis.originalScreenshotHandler);
+    delete globalThis.originalScreenshotHandler;
+  });
+  const retried = app.waitForEvent('window');
+  await page.getByRole('button', { name: 'Try again', exact: true }).click();
+  const retryOverlay = await retried;
+  await retryOverlay.locator('#capture:focus').waitFor();
+  try { await retryOverlay.keyboard.press('Escape'); } catch (error) { if (!retryOverlay.isClosed()) throw error; }
+  await page.getByRole('alert').waitFor({ state: 'detached' });
   const closeKey = async (overlay, key) => {
     try { await overlay.keyboard.press(key); } catch (error) { if (!overlay.isClosed()) throw error; }
   };
