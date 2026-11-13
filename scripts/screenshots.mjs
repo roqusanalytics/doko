@@ -1,5 +1,5 @@
 import { closeHidden } from "./hidden-window.mjs";
-// Takes the README screenshots in docs/screenshots: launches the built app on the sample document and captures
+// Generates developer smoke fixtures, not the public practical gallery: launches the built app on the sample document and captures
 // highlights and notes (light theme), Ask AI with a local demo response, and search (dark theme).
 // No provider sign-in or network request is needed. Run `npm run build` first.
 import assert from "node:assert/strict";
@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
-const out = path.join(root, "docs", "screenshots");
+const out = path.join(root, "release", "capture-fixtures", "readme");
 mkdirSync(out, { recursive: true });
 
 const env = { ...process.env, FOLIO_TEST_USER_DATA: mkdtempSync(path.join(tmpdir(), "folio-shots-")), FOLIO_TEST_HIDDEN: "1" };

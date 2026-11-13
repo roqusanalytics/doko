@@ -25,9 +25,9 @@ export const lt: Copy = {
     photos: "Nuotraukos",
     filesLabel: "Atidaryti failai",
     shots: {
-      pdf: "Doko su atidarytu PDF gidu, trimis pažymėjimais ir jų pastabomis šoninėje juostoje",
-      photo: "Doko naršo pakrantės nuotraukų aplanką su miniatiūrų juosta",
-      md: "Doko rodo Markdown paleidimo kontrolinį sąrašą peržiūros režimu",
+      pdf: "Doko rodo „Pajūrio studija“ projekto PDF aprašą",
+      photo: "Doko atidarytas „Pajūrio studija“ nuotraukų aplankas",
+      md: "Doko rodomas „Pajūrio studija“ projekto Markdown planas peržiūros režimu",
     },
   },
   ai: {

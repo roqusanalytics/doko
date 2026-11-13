@@ -11,6 +11,9 @@ const pages = [
 for (const { file, lang, url } of pages) {
   const html = readFileSync(new URL(`../dist/${file}`, import.meta.url), 'utf8');
   const at = msg => `${file}: ${msg}`;
+  assert.ok(!/\/mockups\/(?!practical-)/.test(html), at('public gallery must use practical app captures'));
+  for (const [asset] of html.matchAll(/\/mockups\/practical-[\w-]+\.jpg/g))
+    assert.ok(existsSync(new URL(`../dist${asset}`, import.meta.url)), at(`screenshot exists: ${asset}`));
   assert.match(html, new RegExp(`<html lang="${lang}"`), at(`html lang=${lang}`));
   assert.ok(html.includes(`<link rel="canonical" href="${url}">`), at(`canonical ${url}`));
   for (const [hl, href] of [['en', 'https://doko.lt/'], ['lt', 'https://doko.lt/lt/'], ['x-default', 'https://doko.lt/']])
