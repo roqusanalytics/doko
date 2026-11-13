@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.20.29
+
+- Keep the update summary available after installing a new version.
+
+## 1.20.28
+
+- Retry a question after a scanned document could not be read without duplicating it in the conversation or saved history.
+- Capture a desktop area in the installed app, then copy, save, or annotate it.
+- Show useful messages when screen capture fails.
+
 ## 1.20.27
 
 - Search recognized text in scanned PDFs, including unvisited pages, with matching-page excerpts and highlighted results.

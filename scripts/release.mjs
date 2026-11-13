@@ -16,7 +16,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { checkRelease, RELEASES_REPO } from "./check-release.mjs";
-import { artifactIds, verifyPublicReleaseRepository, releaseBump, releaseFiles, selectBuild, selectCI, successfulAttempt, successfulCI, verifyReleaseTag, SOURCE_REPO, WORKFLOW, CI_WORKFLOW } from "./release-build.mjs";
+import { artifactIds, verifyPublicReleaseRepository, verifyReleaseNotes, releaseBump, releaseFiles, selectBuild, selectCI, successfulAttempt, successfulCI, verifyReleaseTag, SOURCE_REPO, WORKFLOW, CI_WORKFLOW } from "./release-build.mjs";
 
 const args = process.argv.slice(2);
 const notesAt = args.indexOf("--notes");
@@ -54,6 +54,7 @@ if (!publishOnly) {
       + "  git worktree add ../doko-release origin/main && cd ../doko-release && npm run release");
     process.exit(1);
   }
+  verifyReleaseNotes(readFileSync("CHANGELOG.md", "utf8"), JSON.parse(readFileSync("package.json", "utf8")).version, bump);
   run(`npm version ${bump} -m "Release v%s"`);
 }
 const { version } = JSON.parse(readFileSync("package.json", "utf8"));
