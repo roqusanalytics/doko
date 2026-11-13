@@ -19,6 +19,7 @@ export interface AiContext {
 }
 
 interface Message extends AiMessage {
+  createdAt?: number;
   context?: AiContext;
   error?: { message: string; code?: string; link?: string };
 }
@@ -89,17 +90,17 @@ function CopyResponse({ text }: { text: string }) {
   }, [label]);
 
   return (
-    <button className="link small copy-response" title="Copy response as Markdown"
+    <button className="link small copy-response" title="Copy response as Markdown" aria-label={label}
       onClick={async () => setLabel(await copyText(text) ? "Copied" : "Copy failed")}>
       <Icon name={label === "Copied" ? "check" : "copy"} size={13} />
-      <span aria-live="polite">{label}</span>
+      <span className={label === "Copy failed" ? "copy-error" : "copy-status"} aria-live="polite">{label}</span>
     </button>
   );
 }
 
 // Failed and empty answers aren't kept.
 const storedMessages = (messages: Message[]) =>
-  messages.filter((m) => !m.error && m.content).map(({ role, content, context }) => ({ role, content, ...(context ? { context } : {}) }));
+  messages.filter((m) => !m.error && m.content).map(({ role, content, context, createdAt }) => ({ role, content, ...(context ? { context } : {}), ...(createdAt ? { createdAt } : {}) }));
 
 function NewConversationDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
   return <div onMouseDownCapture={event => {
@@ -317,13 +318,13 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
 
   const send = useCallback(async (question: string) => {
     if (!ai || !question.trim() || busyRef.current || !ready) return;
-    const turn: Message = { role: "user", content: question.trim(), ...(context ? { context } : {}) };
+    const turn: Message = { role: "user", content: question.trim(), createdAt: Date.now(), ...(context ? { context } : {}) };
     const history = [...messages.filter((m) => !m.error && m.content), turn];
     const id = crypto.randomUUID();
     preparing.current = id;
     busyRef.current = id;
     setBusy(id);
-    setMessages([...messages, turn, { role: "assistant", content: "" }]);
+    setMessages([...messages, turn, { role: "assistant", content: "", createdAt: Date.now() }]);
     setInput("");
     onClearContext();
     try {
@@ -455,7 +456,12 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
                     <Suspense fallback={<p style={{ whiteSpace: "pre-wrap" }}>{m.content}</p>}>
                       <AiMarkdown text={m.content} onPage={onGoToPage} />
                     </Suspense>
-                    {(!busy || i < messages.length - 1) && <CopyResponse text={m.content} />}
+                    {(!busy || i < messages.length - 1) && <div className="msg-meta">
+                      <CopyResponse text={m.content} />
+                      {m.createdAt && <time dateTime={new Date(m.createdAt).toISOString()}>
+                        {new Date(m.createdAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
+                      </time>}
+                    </div>}
                   </>
                 ) : (
                   <div className="typing" aria-label="Thinking"><span /><span /><span /></div>
