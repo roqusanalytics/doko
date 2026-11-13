@@ -33,8 +33,11 @@ no previous screenshot is used as an input.
    When a website refresh is requested, create proportional JPEG derivatives for its three screenshot tabs
    and preserve the full native window's aspect ratio in `site/src/components/Landing.astro`.
 
-The landing page's existing `site/public/mockups/practical-*` JPEGs remain separate captures from
-Doko 1.20.26, using the earlier fictional Pajūrio studija project. They are unchanged by this GitHub-only refresh.
+The English landing page uses proportional `site/public/mockups/practical-en-*` JPEG derivatives
+of the current English PDF, photo and Markdown captures above, at 1334 × 870 and 2668 × 1740.
+The Lithuanian landing page keeps `practical-pdf-*`, `practical-photos-*` and `practical-markdown-*`
+from Doko 1.20.26, using the fictional Pajūrio studija project in Lithuanian.
+The page language selects both image resolutions at build time; the build check rejects mixed-language assets.
 
 The automated developer capture scripts are fixture generators only. `scripts/screenshots.mjs` writes to
 `release/capture-fixtures/readme/` and uses a simulated local AI response; `site/scripts/capture-mockups.mjs`

@@ -44,6 +44,7 @@ const symbol = (svg: string, id: string) => {
 const logoSymbols = symbol(logoRaw, "logo") + symbol(markRaw, "mark");
 const t = Astro.props.lang === "lt" ? lt : en;
 const { faq } = t;
+const shotPrefix = Astro.props.lang === "lt" ? "/mockups/practical" : "/mockups/practical-en";
 // Kinetic statement: words reveal on scroll, format icons pop in between them.
 const statement = t.kinetic.statement;
 const softwareLd = { ...software, url: t.url, description: t.software.description, featureList: t.software.featureList };
@@ -177,13 +178,13 @@ const faqLd = {
         </div>
         <div class="views">
           <div class="view on" role="tabpanel" tabindex="0" id="p-pdf" aria-labelledby="t-pdf">
-            <img src="/mockups/practical-pdf-1334.jpg" srcset="/mockups/practical-pdf-1334.jpg 1x, /mockups/practical-pdf-2668.jpg 2x" alt={t.hero.shots.pdf} width="1334" height="870" fetchpriority="high" decoding="async" />
+            <img src={`${shotPrefix}-pdf-1334.jpg`} srcset={`${shotPrefix}-pdf-1334.jpg 1x, ${shotPrefix}-pdf-2668.jpg 2x`} alt={t.hero.shots.pdf} width="1334" height="870" fetchpriority="high" decoding="async" />
           </div>
           <div class="view" role="tabpanel" tabindex="0" id="p-photo" aria-labelledby="t-photo">
-            <img src="/mockups/practical-photos-1334.jpg" srcset="/mockups/practical-photos-1334.jpg 1x, /mockups/practical-photos-2668.jpg 2x" alt={t.hero.shots.photo} width="1334" height="870" loading="lazy" decoding="async" />
+            <img src={`${shotPrefix}-photos-1334.jpg`} srcset={`${shotPrefix}-photos-1334.jpg 1x, ${shotPrefix}-photos-2668.jpg 2x`} alt={t.hero.shots.photo} width="1334" height="870" loading="lazy" decoding="async" />
           </div>
           <div class="view" role="tabpanel" tabindex="0" id="p-md" aria-labelledby="t-md">
-            <img src="/mockups/practical-markdown-1334.jpg" srcset="/mockups/practical-markdown-1334.jpg 1x, /mockups/practical-markdown-2668.jpg 2x" alt={t.hero.shots.md} width="1334" height="870" loading="lazy" decoding="async" />
+            <img src={`${shotPrefix}-markdown-1334.jpg`} srcset={`${shotPrefix}-markdown-1334.jpg 1x, ${shotPrefix}-markdown-2668.jpg 2x`} alt={t.hero.shots.md} width="1334" height="870" loading="lazy" decoding="async" />
           </div>
         </div>
       </div>

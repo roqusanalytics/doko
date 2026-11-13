@@ -26,9 +26,9 @@ export const en = {
     photos: "Photos",
     filesLabel: "Open files",
     shots: {
-      pdf: "Doko showing the Pajūrio studija PDF project brief",
-      photo: "Doko browsing the Pajūrio studija photo folder",
-      md: "Doko showing the Pajūrio studija Markdown project plan in preview",
+      pdf: "Doko showing the North Coast Studio PDF project brief",
+      photo: "Doko browsing the North Coast Studio photo folder",
+      md: "Doko showing the North Coast Studio Markdown project plan in preview",
     },
   },
   ai: {
