@@ -709,7 +709,7 @@ export async function checkReaderTools(app, page, folder, shots) {
   await page.evaluate(() => {
     navigator.clipboard.writeText = async text => { window.folioCopiedResponse = text; };
   });
-  const copyResponse = page.getByTitle("Copy response as Markdown");
+  const copyResponse = page.locator(".copy-response");
   await copyResponse.waitFor();
   const meta = page.locator(".msg.assistant .msg-meta").last();
   const timestamp = await meta.locator("time").getAttribute("datetime");
@@ -737,13 +737,21 @@ export async function checkReaderTools(app, page, folder, shots) {
   await page.evaluate(() => { navigator.clipboard.writeText = async () => { throw new Error("Denied"); }; });
   await copyResponse.click();
   await page.getByRole("button", { name: "Copy failed" }).waitFor();
-  assert.equal(await copyResponse.locator(".copy-error").isVisible(), true, "copy failures remain visible");
+  assert.equal(await copyResponse.getAttribute("data-failed"), "true", "copy failures have a visible error icon");
+  assert.equal(await copyResponse.getAttribute("title"), "Copy failed");
   await page.getByRole("button", { name: "Close Ask AI" }).click();
   await page.getByRole("button", { name: "Ask AI", exact: true }).click();
   assert.equal(await meta.locator("time").getAttribute("datetime"), timestamp, "reopening preserves the response time");
   await page.evaluate(() => { delete navigator.clipboard.writeText; });
   const newConversation = page.getByRole("button", { name: "New conversation", exact: true });
   const composer = page.locator(".composer textarea");
+  assert.deepEqual(await page.locator(".composer").evaluate(el => {
+    const style = getComputedStyle(el); return [style.borderTopWidth, style.boxShadow];
+  }), ["0px", "none"], "composer uses only a background");
+  await composer.focus();
+  assert.deepEqual(await composer.evaluate(el => {
+    const style = getComputedStyle(el); return [style.outlineStyle, style.boxShadow];
+  }), ["none", "none"], "focused composer has no ring");
   const confirmation = page.getByRole("dialog", { name: "Start a new conversation?" });
   const savedAnswer = () => page.evaluate(answer => new Promise((resolve, reject) => {
     const request = indexedDB.open("folio");

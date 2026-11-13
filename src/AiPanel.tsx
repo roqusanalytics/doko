@@ -90,10 +90,11 @@ function CopyResponse({ text }: { text: string }) {
   }, [label]);
 
   return (
-    <button className="link small copy-response" title="Copy response as Markdown" aria-label={label}
+    <button className="link small copy-response" title={label === "Copy response" ? "Copy response as Markdown" : label}
+      aria-label={label} data-failed={label === "Copy failed" || undefined}
       onClick={async () => setLabel(await copyText(text) ? "Copied" : "Copy failed")}>
-      <Icon name={label === "Copied" ? "check" : "copy"} size={13} />
-      <span className={label === "Copy failed" ? "copy-error" : "copy-status"} aria-live="polite">{label}</span>
+      <Icon name={label === "Copied" ? "check" : label === "Copy failed" ? "info" : "copy"} size={13} />
+      <span className="copy-status" aria-live="polite">{label}</span>
     </button>
   );
 }
@@ -458,9 +459,9 @@ export function AiPanel({ pdf, docId, persist, docName, context, onClearContext,
                     </Suspense>
                     {(!busy || i < messages.length - 1) && <div className="msg-meta">
                       <CopyResponse text={m.content} />
-                      {m.createdAt && <time dateTime={new Date(m.createdAt).toISOString()}>
-                        {new Date(m.createdAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
-                      </time>}
+                      {m.createdAt ? <time dateTime={new Date(m.createdAt).toISOString()}>
+                        {new Date(m.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                      </time> : <span title="This response was saved before message timestamps were recorded.">Date unavailable</span>}
                     </div>}
                   </>
                 ) : (

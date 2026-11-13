@@ -437,7 +437,7 @@
 .msg .copy-response { padding: 4px; border-radius: var(--radius); color: var(--text-3); }
 .msg .copy-response:hover { background: var(--hover); color: var(--text); }
 .copy-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.copy-error { color: var(--danger); }
+.msg .copy-response[data-failed] { color: var(--danger); }
 .msg h1, .msg h2, .msg h3, .msg h4, .msg h5, .msg h6 {
   margin: 12px 0 8px;
   font-size: inherit;
@@ -580,12 +580,12 @@
   gap: 4px;
   padding: 10px 8px 8px 12px;
   border-radius: var(--radius);
-  border: 1px solid var(--line-strong);
+  border: none;
   background: var(--surface);
 }
-/* One quiet focus cue: the box edge firms up. The textarea inside draws no ring of its own. */
+/* Keep keyboard focus visible through the fill, without a border or ring. */
 .composer:focus-within {
-  border-color: color-mix(in srgb, var(--text-3) 60%, transparent);
+  background: color-mix(in srgb, var(--surface) 90%, var(--text) 10%);
 }
 .composer textarea:focus-visible {
   outline: none;

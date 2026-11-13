@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.20.18
+
+- Use only a background on the Ask AI composer, without a border or focus ring.
+- Show clearer response dates and times on hover; label older responses whose dates were not recorded.
+- Keep response copy feedback icon-only, including copy failures.
+
 ## 1.20.17
 
 - Match the Ask AI scrollbar to the document work area.
