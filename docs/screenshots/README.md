@@ -1,37 +1,48 @@
 # Public screenshot provenance
 
-The practical gallery uses the installed **Doko 1.20.26** macOS app and its native UI.
-The fictional **Pajūrio studija** project connects a PDF brief, Word proposal, Markdown plan,
-Excel budget, photo folder, and Ask AI conversation. Project documents are freshly generated
-under the ignored `release/practical-capture/files/` workspace. The photo folder reuses three existing real photo source files;
-no previous screenshot image is used as input.
+The GitHub gallery uses the installed **Doko 1.20.27** macOS app and its real native UI.
+The fictional **North Coast Studio** project connects a PDF brief, Word proposal, Markdown launch plan,
+Excel budget, photo folder, and Ask AI conversation. All visible document content, filenames,
+spreadsheet sheet names, questions, and answers in these GitHub captures are in English.
+
+The fresh project files and original captures live under the ignored
+`release/english-capture/files/` and `release/english-capture/raw/` workspaces.
+The photo folder contains three existing real source photos with English filenames;
+no previous screenshot is used as an input.
 
 | Capture | Actual app flow |
 | --- | --- |
-| `pdf-reading.png` | Open and read the project PDF brief |
-| `word-document.png` | Open the `.docx` proposal and view Doko's converted PDF |
-| `markdown-editor.png` | Open and read the project Markdown plan |
-| `excel-workbook.png` | Open the project Excel budget |
-| `photo-gallery.png` | Open the project's photo folder |
-| `ask-ai.png` | Ask about the project document using an existing real provider connection |
+| `pdf-reading.png` | Open and read `Project-brief.pdf` |
+| `word-document.png` | Open `Studio-proposal.docx` and view Doko's converted PDF |
+| `markdown-editor.png` | Open and read `Launch-plan.md` in Markdown preview |
+| `excel-workbook.png` | Open `Project-budget.xlsx`, with two English sheets and the cached budget total |
+| `photo-gallery.png` | Open the `Photos` folder through one of its real JPEG files |
+| `ask-ai.png` | Ask about the English project brief using an existing real provider connection |
 
 ## Refresh protocol
 
 1. Check the installed app version and create fresh, coherent fictional project files in a temporary workspace.
+   Use English content, filenames, sheet names, and metadata for GitHub's public gallery.
 2. Open each file through the installed app's normal native controls. Capture the actual window after content is readable;
-   keep the same window proportions and current default appearance across captures.
-3. For Ask AI, submit a real question through the app and wait for the connected provider's completed response.
+   keep the same window proportions and current appearance across captures.
+3. For Ask AI, submit a real question in English and wait for the connected provider's completed response in English.
    Do not inject a conversation, replace provider responses, or expose account credentials.
-4. Save the six full window captures under the names above. Check each image visually for readable content,
-   matching file type, and private data before replacing the public assets.
-5. Create proportional JPEG derivatives of the PDF, photo, and Markdown captures for the landing page at
-   `site/public/mockups/practical-{pdf,photos,markdown}-{1334,2668}.jpg`. Preserve the whole captured window;
-   use its actual aspect ratio in `Landing.astro`.
-6. Check all README links and the site's three screenshot tabs, including mobile layout. Updating these files
-   does not publish or deploy the website.
+4. Save the six full window captures under the names above. Check each image visually for English text,
+   readable content, matching file type, and private data before replacing the public assets.
+5. Check all README image links. A GitHub-only refresh does not replace or deploy the website's gallery.
+   When a website refresh is requested, create proportional JPEG derivatives for its three screenshot tabs
+   and preserve the full native window's aspect ratio in `site/src/components/Landing.astro`.
+
+The landing page's existing `site/public/mockups/practical-*` JPEGs remain separate captures from
+Doko 1.20.26, using the earlier fictional Pajūrio studija project. They are unchanged by this GitHub-only refresh.
 
 The automated developer capture scripts are fixture generators only. `scripts/screenshots.mjs` writes to
 `release/capture-fixtures/readme/` and uses a simulated local AI response; `site/scripts/capture-mockups.mjs`
 writes to `release/capture-fixtures/site/`. Neither script is a source for the public practical gallery.
 
-The original native captures are 2668 × 1740 pixels. Native capture JPEG bytes are encoded as genuine PNG for the README without changing or cropping their pixels. The website uses 1334 × 870 and 2668 × 1740 proportional derivatives; captures are not upscaled. Word is shown after Doko's actual conversion to PDF, and the Excel view is read-only. The completed Ask AI answer correctly identifies 7 920 Eur, 11 December 2026, and the three document risks.
+The six original full-window captures are 2668 × 1740 pixels. Native capture JPEG bytes are encoded as genuine PNG for the README without changing or cropping their pixels.
+Word is shown after Doko's actual conversion to PDF, and the Excel view is read-only.
+The fictional budget is EUR 7,200 of work plus a EUR 720 reserve, for EUR 7,920 excluding VAT;
+the planned launch is December 11, 2026.
+
+The completed real ChatGPT response correctly identifies the total, launch date, and the three documented risks: late copy, scope growth, and mobile readability.

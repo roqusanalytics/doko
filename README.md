@@ -5,20 +5,20 @@ documents. Free and open source, with no Doko account required.
 
 ## Doko in everyday use
 
-One fictional **Pajūrio studija** project, opened in the installed Doko app: a PDF brief, Word proposal,
+One fictional **North Coast Studio** project, opened in the installed Doko app with English content and filenames: a PDF brief, Word proposal,
 Markdown plan, Excel budget, photo folder, and a real Ask AI conversation.
 
 | PDF reading | Word → PDF |
 | --- | --- |
-| ![Pajūrio studija project brief open as a PDF in Doko](docs/screenshots/pdf-reading.png) | ![Pajūrio studija Word proposal converted to PDF in Doko](docs/screenshots/word-document.png) |
+| ![North Coast Studio project brief open as a PDF in Doko](docs/screenshots/pdf-reading.png) | ![North Coast Studio Word proposal converted to PDF in Doko](docs/screenshots/word-document.png) |
 
 | Markdown | Excel workbook |
 | --- | --- |
-| ![Pajūrio studija project plan in Doko's Markdown preview](docs/screenshots/markdown-editor.png) | ![Pajūrio studija project budget open as an Excel workbook in Doko](docs/screenshots/excel-workbook.png) |
+| ![North Coast Studio project plan in Doko's Markdown preview](docs/screenshots/markdown-editor.png) | ![North Coast Studio project budget open as an Excel workbook in Doko](docs/screenshots/excel-workbook.png) |
 
 | Photo gallery | Ask AI |
 | --- | --- |
-| ![Pajūrio studija photo folder open in Doko's gallery](docs/screenshots/photo-gallery.png) | ![A real Ask AI conversation about the Pajūrio studija document in Doko](docs/screenshots/ask-ai.png) |
+| ![North Coast Studio photo folder open in Doko's gallery](docs/screenshots/photo-gallery.png) | ![A real Ask AI conversation about the North Coast Studio document in Doko](docs/screenshots/ask-ai.png) |
 
 [Capture provenance and refresh instructions](docs/screenshots/README.md).
 
