@@ -13,6 +13,13 @@ try {
     assert.equal(normalizeColor(invalid), null);
     assert.equal(appearanceColor(invalid), null);
   }
+  // A hover tint must change the color it sits on enough to be seen (luminance ratio of at least 1.08).
+  const hoverVisible = (background, hover) => {
+    const alpha = parseInt(hover.slice(7, 9), 16) / 255;
+    const over = `#${[1, 3, 5].map(index => Math.round(parseInt(background.slice(index, index + 2), 16) * (1 - alpha) + parseInt(hover.slice(index, index + 2), 16) * alpha).toString(16).padStart(2, "0")).join("")}`;
+    const a = luminance(background), b = luminance(over);
+    return (Math.max(a, b) + .05) / (Math.min(a, b) + .05) >= 1.08;
+  };
   const colors = [...APPEARANCE_PRESETS.map(preset => preset.color), "#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#757575", "#767676", "#777777", "#ff00ff", "#ffff00"];
   for (const color of colors) for (const dark of [false, true]) {
     const palette = appearancePalette(color, dark);
@@ -31,6 +38,7 @@ try {
       assert.ok((Math.max(a, b) + .05) / (Math.min(a, b) + .05) >= 4.5, "primary-button text lacks contrast");
     }
     if (!dark) assert.equal(palette["--bg"], color);
+    for (const surface of ["--bg", "--frame", "--stage"]) assert.ok(hoverVisible(palette[surface], palette["--hover"]), `${color} ${dark}: hover is invisible on ${surface}`);
   }
   // Text on an exact frame or work-area color adapts: every text tone stays readable on that color and its surfaces.
   for (const color of [...colors, "#8ff5c0", "#1b1f24", "#2a2a2c", "#18181a", "#e2e0da", "#f4f3f0"]) {
@@ -39,6 +47,7 @@ try {
       const a = luminance(background), b = luminance(tokens[text]);
       assert.ok((Math.max(a, b) + .05) / (Math.min(a, b) + .05) >= 4.5, `${color}: ${text} on ${background} lacks contrast`);
     }
+    assert.ok(hoverVisible(color, tokens["--hover"]), `${color}: hover is invisible on the exact surface color`);
     assert.equal(tokens.color, "var(--text)");
     assert.equal(tokens["color-scheme"], luminance(color) > 0.179 ? "light" : "dark");
   }
