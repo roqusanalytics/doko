@@ -17,7 +17,7 @@ export function migrateDefaultColors() {
 /** Optional exact color for the panels inside the app; empty follows the theme and palette; unset uses the default. The frame always follows the background. */
 export const SURFACE_COLORS = [
   { key: "folio:panel-color", property: "--stage", label: "Work area",
-    selector: ":is(.stage, .sidebar, .welcome, .ai-panel, .version-panel, .content-body, .document-tab.selected)" },
+    selector: ":is(.stage, .photo-carousel, .sidebar, .welcome, .ai-panel, .version-panel, .content-body, .document-tab.selected)" },
 ] as const;
 export const APPEARANCE_PRESETS = [
   { id: "default", name: "Paper", color: "#f5f4f1" },

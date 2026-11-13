@@ -47,7 +47,6 @@ export function PhotoCarousel({ doc, selected, busy, onSelect, onRefresh, onActi
   const root = useRef<HTMLDivElement>(null);
   const buttons = useRef(new Map<string, HTMLButtonElement>());
   const [near, setNear] = useState<Set<string>>(() => new Set());
-  const index = doc.files.indexOf(selected);
   const select = (next: number) => {
     const name = doc.files[next];
     if (name && !busy) onSelect(name);
@@ -97,12 +96,7 @@ export function PhotoCarousel({ doc, selected, busy, onSelect, onRefresh, onActi
   };
 
   return <section className="photo-carousel" aria-label="Photo gallery">
-    <div className="photo-carousel-controls">
-      <button className="btn ghost" type="button" aria-label="Previous image" disabled={busy || index <= 0} onClick={() => select(index - 1)}><Icon name="chevronLeft" /> <span>Previous</span></button>
-      <output aria-label="Image position">{index >= 0 ? index + 1 : 0} / {doc.files.length}</output>
-      <button className="btn ghost" type="button" aria-label="Next image" disabled={busy || index < 0 || index >= doc.files.length - 1} onClick={() => select(index + 1)}><span>Next</span> <Icon name="chevronRight" /></button>
-      {onRefresh && <button className="btn ghost photo-carousel-refresh" type="button" disabled={busy || refreshing} aria-label="Refresh gallery" onClick={onRefresh}>{refreshing ? "Refreshing…" : "Refresh"}</button>}
-    </div>
+    {onRefresh && <button className="photo-carousel-refresh" type="button" disabled={busy || refreshing} aria-label="Refresh gallery" title={refreshing ? "Refreshing…" : "Refresh gallery"} onClick={onRefresh}><Icon name="rotate" size={15} /></button>}
     <div className="photo-carousel-thumbnails" ref={root} role="group" aria-label="Choose an image">
       {doc.files.map((name, fileIndex) => <button key={name} ref={button => {
         if (button) buttons.current.set(name, button); else buttons.current.delete(name);
