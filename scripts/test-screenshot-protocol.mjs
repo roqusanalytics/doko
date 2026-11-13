@@ -114,6 +114,9 @@ try {
       if (process.platform === 'darwin' && copiedBundle) {
         execFileSync('/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister', ['-u', copiedBundle], { stdio: 'ignore' });
       }
-    } finally { rmSync(temp, { recursive: true, force: true }); }
+    } finally {
+      // Windows can briefly retain the copied executable's lock after the process tree exits.
+      rmSync(temp, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+    }
   }
 }
