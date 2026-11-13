@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.20.30
+
+- Match the photo carousel background to the selected Work area color in Settings, with readable text in light and dark themes.
+
 ## 1.20.29
 
 - Keep the update summary available after installing a new version.
