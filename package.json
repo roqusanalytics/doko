@@ -155,7 +155,7 @@
       {
         "provider": "github",
         "owner": "roqusanalytics",
-        "repo": "doko-fork",
+        "repo": "doko",
         "releaseType": "release"
       }
     ],

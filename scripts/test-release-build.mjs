@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { checkRelease, RELEASE_ARTIFACTS, RELEASES_REPO } from "./check-release.mjs";
-import { artifactIds, publicReleaseTarget, releaseBump, releaseFiles, selectBuild, selectCI, successfulAttempt, successfulCI, verifyReleaseTag, SOURCE_REPO } from "./release-build.mjs";
+import { artifactIds, verifyPublicReleaseRepository, releaseBump, releaseFiles, selectBuild, selectCI, successfulAttempt, successfulCI, verifyReleaseTag, SOURCE_REPO } from "./release-build.mjs";
 
 const tag = "v1.2.3";
 const commit = "a".repeat(40);
@@ -110,8 +110,7 @@ test("normal and resumed publication execute the CI gate and recheck it after do
       }
       if (args[0] === "api") {
         const endpoint = args.at(-1);
-        if (endpoint === "repos/${RELEASES_REPO}") return JSON.stringify({ full_name: "${RELEASES_REPO}", private: false, default_branch: "main" });
-        if (endpoint === "repos/${RELEASES_REPO}/git/ref/heads/main") return JSON.stringify({ ref: "refs/heads/main", object: { type: "commit", sha: "${"b".repeat(40)}" } });
+        if (endpoint === "repos/${RELEASES_REPO}") return JSON.stringify({ full_name: "${RELEASES_REPO}", private: process.env.CI_SCENARIO === "private", default_branch: "main" });
         if (endpoint.includes("git/ref/tags/")) return JSON.stringify({ ref: "refs/tags/v1.2.3", object: { sha: build.head_sha } });
         if (endpoint.endsWith("git/ref/heads/main")) return JSON.stringify({ object: { sha: build.head_sha } });
         if (endpoint.includes("/ci.yml/runs?")) {
@@ -135,13 +134,18 @@ test("normal and resumed publication execute the CI gate and recheck it after do
     }
   `);
   for (const args of [[], ["--publish-only"]]) {
-    for (const scenario of ["failed", "rerun", "success"]) {
+    for (const scenario of ["private", "failed", "rerun", "success"]) {
       writeFileSync(path.join(folder, "calls"), "");
       const result = spawnSync(process.execPath, ["release.mjs", ...args], {
         cwd: folder, encoding: "utf8", env: { ...process.env, CI_SCENARIO: scenario },
       });
       const calls = readFileSync(path.join(folder, "calls"), "utf8");
       assert.equal(result.status, 1, result.stderr);
+      if (scenario === "private") {
+        assert.match(result.stderr, /public release repository/);
+        assert.ok(!calls.includes('["git","push"') && !calls.includes("npm version") && !calls.includes('["gh","run","download"'));
+        continue;
+      }
       const pushes = calls.split("\n").filter(line => line.startsWith('["git","push"')).map(line => JSON.parse(line));
       assert.deepEqual(pushes, args.length ? [] : [["git", "push", "--atomic", `https://github.com/${SOURCE_REPO}.git`, "HEAD:refs/heads/main", `refs/tags/${tag}`]]);
       assert.ok(calls.includes("/ci.yml/runs?event=push&branch=main&head_sha=" + commit));
@@ -150,8 +154,7 @@ test("normal and resumed publication execute the CI gate and recheck it after do
         assert.ok(calls.includes('["gh","release","create"'));
         const publication = calls.split("\n").filter(line => line.startsWith('["gh","release","create"')).map(line => JSON.parse(line))[0];
         assert.equal(publication[publication.indexOf("--repo") + 1], RELEASES_REPO);
-        assert.equal(publication[publication.indexOf("--target") + 1], "b".repeat(40));
-        assert.ok(!calls.split("\n").some(line => line.startsWith('["git","push"') && line.includes(RELEASES_REPO)));
+        assert.ok(publication.includes("--verify-tag"));
       } else {
         assert.match(result.stderr, /Full CI/);
         assert.ok(!calls.includes('["gh","release","create"'));
@@ -161,22 +164,16 @@ test("normal and resumed publication execute the CI gate and recheck it after do
   }
 });
 
-test("private source builds publish downloads to the separate public repository", () => {
+test("source and downloads use the public Doko repository", () => {
   assert.equal(SOURCE_REPO, "roqusanalytics/doko");
-  assert.equal(RELEASES_REPO, "roqusanalytics/doko-fork");
-  assert.notEqual(RELEASES_REPO, SOURCE_REPO);
+  assert.equal(RELEASES_REPO, SOURCE_REPO);
 });
 
-test("public release tags target existing public history instead of private source", () => {
-  const repository = { full_name: RELEASES_REPO, private: false, default_branch: "main" };
-  const ref = { ref: "refs/heads/main", object: { type: "commit", sha: "b".repeat(40) } };
-  const target = (repo = repository, branch = ref) => publicReleaseTarget(endpoint => endpoint === "" ? repo : branch);
-  assert.equal(target(), ref.object.sha);
-  for (const change of [{ private: true }, { private: undefined }, { full_name: SOURCE_REPO }, { default_branch: "" }]) {
-    assert.throws(() => target({ ...repository, ...change }), /public release repository/);
-  }
-  for (const branch of [{}, { ...ref, ref: "refs/tags/v1.2.3" }, { ...ref, object: { type: "tag", sha: commit } }, { ...ref, object: { type: "commit", sha: "bad" } }]) {
-    assert.throws(() => target(repository, branch), /existing public branch commit/);
+test("publication rejects private or renamed repositories", () => {
+  const repository = { full_name: RELEASES_REPO, private: false };
+  verifyPublicReleaseRepository(() => repository);
+  for (const change of [{ private: true }, { private: undefined }, { full_name: "roqusanalytics/folio-fork" }]) {
+    assert.throws(() => verifyPublicReleaseRepository(() => ({ ...repository, ...change })), /public release repository/);
   }
 });
 

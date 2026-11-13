@@ -6,17 +6,12 @@ export const SOURCE_REPO = "roqusanalytics/doko";
 export const WORKFLOW = "release-build.yml";
 export const CI_WORKFLOW = "ci.yml";
 
-// Public release tags must never publish the private source commit or its ancestors.
-export function publicReleaseTarget(api) {
+// A renamed or private repository would leave public downloads and updates inaccessible.
+export function verifyPublicReleaseRepository(api) {
   const repository = api("");
-  if (repository.full_name !== RELEASES_REPO || repository.private !== false || !repository.default_branch) {
+  if (repository.full_name !== RELEASES_REPO || repository.private !== false) {
     throw new Error("Downloads must be published in the public release repository.");
   }
-  const ref = api(`git/ref/heads/${repository.default_branch}`);
-  if (ref.ref !== `refs/heads/${repository.default_branch}` || ref.object?.type !== "commit" || !/^[0-9a-f]{40}$/.test(ref.object.sha)) {
-    throw new Error("The public release target must be an existing public branch commit.");
-  }
-  return ref.object.sha;
 }
 
 export function releaseBump(args) {

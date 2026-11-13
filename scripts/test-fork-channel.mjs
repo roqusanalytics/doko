@@ -7,7 +7,7 @@ import { test } from "node:test";
 
 const repo = path.resolve(import.meta.dirname, "..");
 
-test("Doko keeps installed application identities and uses the renamed fork", () => {
+test("Doko keeps installed application identities and uses the public Doko channel", () => {
   const pkg = JSON.parse(readFileSync(path.join(repo, "package.json"), "utf8"));
   assert.equal(pkg.name, "folio-local");
   assert.equal(pkg.productName, "Doko");
@@ -18,7 +18,7 @@ test("Doko keeps installed application identities and uses the renamed fork", ()
   assert.equal(pkg.build.nsis.shortcutName, "Doko");
   assert.equal(pkg.folioLocal, true);
   assert.equal(pkg.build.publish[0].owner, "roqusanalytics");
-  assert.equal(pkg.build.publish[0].repo, "doko-fork");
+  assert.equal(pkg.build.publish[0].repo, "doko");
   const main = readFileSync(path.join(repo, "electron/main.cjs"), "utf8");
   assert.ok(main.includes('app.setName("Folio Local")'), "Keep the credential-store identity stable");
   const apt = readFileSync(path.join(repo, "scripts/apt-repo.sh"), "utf8");
@@ -26,17 +26,17 @@ test("Doko keeps installed application identities and uses the renamed fork", ()
   assert.ok(apt.includes('Release::Label="Folio Local"'));
 });
 
-test("private source metadata stays separate from public releases", () => {
+test("source metadata and releases use the public Doko repository", () => {
   const pkg = JSON.parse(readFileSync(path.join(repo, "package.json"), "utf8"));
   assert.equal(pkg.repository.url, "https://github.com/roqusanalytics/doko.git");
-  assert.deepEqual(pkg.build.publish, [{ provider: "github", owner: "roqusanalytics", repo: "doko-fork", releaseType: "release" }]);
+  assert.deepEqual(pkg.build.publish, [{ provider: "github", owner: "roqusanalytics", repo: "doko", releaseType: "release" }]);
   for (const [file, url] of [
-    ["electron/main.cjs", "https://github.com/roqusanalytics/doko-fork/releases/latest"],
-    ["src/ChangelogDialog.tsx", "https://github.com/roqusanalytics/doko-fork/releases"],
+    ["electron/main.cjs", "https://github.com/roqusanalytics/doko/releases/latest"],
+    ["src/ChangelogDialog.tsx", "https://github.com/roqusanalytics/doko/releases"],
   ]) {
     const source = readFileSync(path.join(repo, file), "utf8");
     assert.ok(source.includes(`"${url}"`), `${file} must link to public releases`);
-    assert.ok(!source.includes("https://github.com/roqusanalytics/doko/releases"));
+    assert.ok(!source.includes("https://github.com/roqusanalytics/doko-fork/releases"));
   }
 });
 
@@ -50,7 +50,7 @@ test("Linux installer keeps the fork's apt source and trust separate", () => {
     assert.ok(!script.includes("/etc/apt/sources.list.d/folio.list"));
     assert.ok(!script.includes("Forward-Future"));
   }
-  assert.ok(install.includes("https://github.com/roqusanalytics/doko-fork/releases/latest/download"));
+  assert.ok(install.includes("https://github.com/roqusanalytics/doko/releases/latest/download"));
   assert.ok(install.includes("folio-local.list.disabled"));
 });
 
@@ -60,8 +60,8 @@ test("Linux apt upgrade migrates the old managed URL and preserves administrator
   const source = path.join(folder, "folio-local.list");
   const disabled = `${source}.disabled`;
   const keyring = "/usr/share/keyrings/folio-local-archive-keyring.gpg";
-  const oldEntry = `deb [arch=amd64 signed-by=${keyring}] https://github.com/roqusanalytics/doko/releases/latest/download ./`;
-  const newEntry = oldEntry.replace("/doko/", "/doko-fork/");
+  const oldEntry = `deb [arch=amd64 signed-by=${keyring}] https://github.com/roqusanalytics/doko-fork/releases/latest/download ./`;
+  const newEntry = oldEntry.replace("/doko-fork/", "/doko/");
   const install = readFileSync(path.join(repo, "build/linux/after-install.tpl"), "utf8");
   const updateSource = install.slice(install.indexOf("# Migrate only our original entry"))
     .replaceAll("/etc/apt/sources.list.d/folio-local.list.disabled", disabled);

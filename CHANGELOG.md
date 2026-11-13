@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.20.24
+
+- Use the public Doko repository for downloads, update feeds and releases.
+- Reject publication if the release repository is private or renamed.
+
 ## 1.20.23
 
 - Use a warm gray background (`#76736f`) and dark work area (`#202327`) by default for new and existing profiles. Later color choices are preserved.

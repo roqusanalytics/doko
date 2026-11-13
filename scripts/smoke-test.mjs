@@ -590,7 +590,7 @@ try {
   await newer.click();
   assert.deepEqual(await summaries.allTextContents(), firstPage);
   assert.equal(await whatsNew.getByRole("link", { name: "View releases on GitHub" }).getAttribute("href"),
-    "https://github.com/roqusanalytics/doko-fork/releases");
+    "https://github.com/roqusanalytics/doko/releases");
   await page.keyboard.press("Escape");
   await page.getByRole("dialog", { name: "Settings" }).waitFor();
   await page.keyboard.press("Escape");
