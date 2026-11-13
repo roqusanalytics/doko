@@ -128,6 +128,12 @@
     "scripts/smoke-ocr-search.mjs"
   ],
   [
+    "scripts/test-ai-document-text.mjs"
+  ],
+  [
+    "scripts/smoke-ocr-ai.mjs"
+  ],
+  [
     "scripts/test-security-worker-lifecycle.mjs"
   ],
   [

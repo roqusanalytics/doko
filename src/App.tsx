@@ -1939,6 +1939,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
           <AiPanel
             key={`${doc.sourceId ?? doc.id}:${doc.password ? 0 : chatGeneration}`}
             pdf={doc.pdf}
+            getPageText={n => findRef.current!.getPageText(n, doc.pdf)}
             docId={doc.sourceId ?? doc.id}
             persist={!doc.password}
             docName={doc.name}

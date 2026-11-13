@@ -5,7 +5,7 @@ export type PageText = Awaited<ReturnType<PDFPageProxy["getTextContent"]>>;
 type TextReader = (page: PDFPageProxy) => Promise<PageText>;
 type FindState = { query: string; type?: string };
 
-/** Keep PDF.js matching, offsets and navigation; substitute text only for search. */
+/** Keep PDF.js matching, offsets and navigation; share recognized text with search and AI. */
 export class OcrFindController {
   private pdf: PDFDocumentProxy | null = null;
   private reader: TextReader | null = null;
@@ -48,9 +48,19 @@ export class OcrFindController {
     this.reset(true);
   }
 
-  getPageText(n: number): Promise<PageText> {
-    const pdf = this.pdf!, reader = this.reader;
-    return pdf.getPage(n).then(page => reader ? reader(page) : page.getTextContent({ disableNormalization: true }));
+  async getPageText(n: number, expectedPdf = this.pdf): Promise<PageText> {
+    const pdf = this.pdf, reader = this.reader;
+    const check = () => {
+      if (!pdf || pdf !== expectedPdf || pdf !== this.pdf || reader !== this.reader) {
+        throw new DOMException("Document text changed", "AbortError");
+      }
+    };
+    check();
+    const page = await pdf!.getPage(n);
+    check();
+    const text = reader ? await reader(page) : await page.getTextContent({ disableNormalization: true });
+    check();
+    return text;
   }
 
   private reset(resume: boolean) {

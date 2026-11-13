@@ -153,7 +153,22 @@ try {
     controller.setDocument(native);
     find("Native");
     await until(() => controller.pageMatches[0]?.length === 1, "New document retained old reader");
+    bus.dispatch("findbarclose", {});
+    const rejectedAsAbort = async promise => {
+      try { await promise; } catch (error) { if (error.name === "AbortError") return; throw error; }
+      throw new Error("Stale document text was accepted");
+    };
+    await rejectedAsAbort(controller.getPageText(1, pdf));
+    let finishText;
+    controller.setTextReader(native, () => new Promise(resolve => { finishText = resolve; }));
+    const pendingText = controller.getPageText(1, native);
+    await until(() => !!finishText, "AI text read did not begin");
+    controller.setTextReader(native, async () => text("New language text"));
+    finishText(text("Old language text"));
+    await rejectedAsAbort(pendingText);
+    if ((await controller.getPageText(1, native)).items[0].str !== "New language text") throw new Error("Fresh AI text reader unavailable");
     controller.setDocument(null);
+    await rejectedAsAbort(controller.getPageText(1, native));
     return { reads, attempts, failures: failures.length, loads };
   });
   assert.deepEqual(search, { reads: 1, attempts: 2, failures: 2, loads: 2 });
