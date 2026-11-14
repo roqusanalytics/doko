@@ -65,6 +65,20 @@ function objectText(m: WrappedPdfiumModule, page: number) {
   } finally { m.FPDFText_ClosePage(textPage); }
 }
 
+function standardFontName(m: WrappedPdfiumModule, font: number) {
+  const length = m.FPDFFont_GetBaseFontName(font, 0, 0);
+  const name = length ? buffer(m, length, ptr => {
+    m.FPDFFont_GetBaseFontName(font, ptr, length);
+    return m.pdfium.UTF8ToString(ptr).replace(/^[A-Z]{6}\+/, "");
+  }) : "";
+  const match = /^(Arial|Helvetica|LiberationSans|TimesNewRomanPS|Times|CourierNewPS|Courier)(?:[-,]?(BoldItalic|BoldOblique|Bold|Italic|Oblique|Roman|Regular))?(?:MT)?$/.exec(name);
+  if (!match) return null;
+  const family = /^(Arial|Helvetica|LiberationSans)$/.test(match[1]) ? "Helvetica" : match[1].startsWith("Times") ? "Times" : "Courier";
+  const bold = match[2]?.includes("Bold"), italic = /Italic|Oblique/.test(match[2] ?? "");
+  return family === "Times" ? `Times-${bold ? italic ? "BoldItalic" : "Bold" : italic ? "Italic" : "Roman"}`
+    : family + (bold ? italic ? "-BoldOblique" : "-Bold" : italic ? "-Oblique" : "");
+}
+
 function pageView(m: WrappedPdfiumModule, page: number) {
   const count = m.FPDFPage_CountObjects(page);
   if (count > 20000) throw new Error("This page has too many objects to edit.");
@@ -79,7 +93,7 @@ function pageView(m: WrappedPdfiumModule, page: number) {
         m.FPDFFont_GetBaseFontName(font, ptr, length);
         return m.pdfium.UTF8ToString(ptr).replace(/^[A-Z]{6}\+/, "");
       }) : "";
-      fonts.set(font, [name, m.FPDFFont_GetFlags(font), m.FPDFFont_GetWeight(font)].join("/"));
+      fonts.set(font, standardFontName(m, font) ?? [name, m.FPDFFont_GetFlags(font), m.FPDFFont_GetWeight(font)].join("/"));
     }
     return fonts.get(font)!;
   };
@@ -125,7 +139,7 @@ function pageView(m: WrappedPdfiumModule, page: number) {
         const ink = (fill || stroke || "0,0,0,255").split(",").slice(0, 3);
         const target: EditTarget = { index, end: index, kind: "text", label, box,
           style: { origin: [x, y], axis: [a, b], size: size * Math.hypot(c, d), flags: m.FPDFFont_GetFlags(font),
-            bold: m.FPDFFont_GetWeight(font) >= 600, color: `rgb(${ink.join(" ")})` } };
+            bold: standardFontName(m, font)?.includes("Bold") ?? m.FPDFFont_GetWeight(font) >= 600, color: `rgb(${ink.join(" ")})` } };
         targets.push(target);
         previous = { target, style, right, x };
       }
@@ -152,6 +166,20 @@ function save(m: WrappedPdfiumModule, doc: number) {
 function replaceFontRun(m: WrappedPdfiumModule, doc: number, page: number, target: EditTarget, text: string) {
   const objects = Array.from({ length: target.end - target.index + 1 }, (_, offset) => m.FPDFPage_GetObject(page, target.index + offset));
   const fonts = [...new Set(objects.map(obj => m.FPDFTextObj_GetFont(obj)))];
+  // Rebuilding cannot preserve clipping or blend state with this PDFium API.
+  if (objects.some(obj => m.FPDFClipPath_CountPaths(m.FPDFPageObj_GetClipPath(obj)) > 0 || m.FPDFPageObj_HasTransparency(obj))) {
+    throw new Error("This text uses effects that can't be preserved while editing. Nothing was changed.");
+  }
+  const marks = buffer(m, 4096, ptr => Array.from({ length: m.FPDFPageObj_CountMarks(objects[0]) }, (_, index) => {
+    const mark = m.FPDFPageObj_GetMark(objects[0], index);
+    if (!m.FPDFPageObjMark_GetName(mark, ptr, 4092, ptr + 4092) || m.pdfium.HEAPU32[(ptr + 4092) / 4] > 4092) {
+      throw new Error("Couldn't preserve this text's document tags.");
+    }
+    const name = m.pdfium.UTF16ToString(ptr), count = m.FPDFPageObjMark_CountParams(mark);
+    const hasId = m.FPDFPageObjMark_GetParamIntValue(mark, "MCID", ptr);
+    if (count < 0 || count > (hasId ? 1 : 0)) throw new Error("This text uses document tags that can't be preserved. Nothing was changed.");
+    return { name, id: hasId ? m.pdfium.HEAP32[ptr / 4] : undefined };
+  }));
   const preferred = new Map<string, number>();
   const originalLetters = Array.from(target.label), originalFonts: (number | undefined)[] = [], origins: (number | undefined)[] = [];
   const members = new Set(objects), glyphs = new Map<number, { char: string; x: number }[]>();
@@ -187,6 +215,7 @@ function replaceFontRun(m: WrappedPdfiumModule, doc: number, page: number, targe
   const scratchIndex = m.FPDF_GetPageCount(doc), scratch = m.FPDFPage_New(doc, scratchIndex, 100, 100);
   if (!scratch) throw new Error("Couldn't prepare the text edit.");
   const original = objects[0], created: number[] = [], inserted = new Set<number>();
+  let fallback = 0;
   try {
     buffer(m, 64, ptr => {
       if (!m.FPDFPageObj_GetMatrix(original, ptr) || !m.FPDFTextObj_GetFontSize(original, ptr + 24)) throw new Error("Couldn't read the text style.");
@@ -214,7 +243,12 @@ function replaceFontRun(m: WrappedPdfiumModule, doc: number, page: number, targe
         let font = retained ?? preferred.get(char);
         if (index < prefix && origins[index] !== undefined) x = origins[index]!;
         if (!font) {
-          for (const candidate of fonts) {
+          // Embedded subsets may omit newly typed letters; preserve existing glyphs and substitute only missing ones.
+          if (!fallback) {
+            const name = standardFontName(m, fonts[0]);
+            if (name) fallback = m.FPDFText_LoadStandardFont(doc, name);
+          }
+          for (const candidate of [...fonts, ...(fallback ? [fallback] : [])]) {
             const probe = m.FPDFPageObj_CreateTextObj(doc, candidate, size);
             if (!probe) continue;
             buffer(m, (char.length + 1) * 2, textPtr => { m.pdfium.stringToUTF16(char, textPtr, (char.length + 1) * 2); m.FPDFText_SetText(probe, textPtr); });
@@ -228,6 +262,12 @@ function replaceFontRun(m: WrappedPdfiumModule, doc: number, page: number, targe
         const obj = m.FPDFPageObj_CreateTextObj(doc, font, size);
         if (!obj) throw new Error("Couldn't create replacement text.");
         created.push(obj);
+        for (const { name, id } of marks) {
+          const mark = m.FPDFPageObj_AddMark(obj, name);
+          if (!mark || (id !== undefined && !m.FPDFPageObjMark_SetIntParam(doc, obj, mark, "MCID", id))) {
+            throw new Error("Couldn't preserve this text's document tags.");
+          }
+        }
         buffer(m, (char.length + 1) * 2, textPtr => {
           m.pdfium.stringToUTF16(char, textPtr, (char.length + 1) * 2);
           if (!m.FPDFText_SetText(obj, textPtr)) throw new Error("Couldn't change this text.");
@@ -253,6 +293,7 @@ function replaceFontRun(m: WrappedPdfiumModule, doc: number, page: number, targe
   } finally {
     for (const obj of created) if (!inserted.has(obj)) m.FPDFPageObj_Destroy(obj);
     m.FPDF_ClosePage(scratch); m.FPDFPage_Delete(doc, scratchIndex);
+    if (fallback) m.FPDFFont_Close(fallback);
   }
 }
 
@@ -261,25 +302,33 @@ function replaceText(m: WrappedPdfiumModule, doc: number, page: number, target: 
   if (m.FPDFPageObj_GetType(obj) !== 1 || text.length > 32767 || /[\u0000-\u001f]/u.test(text)) {
     throw new Error("Enter a single line of text.");
   }
-  // Type3 font subsets can have no names. Retain their glyph fonts rather than flattening a line into the first subset.
+  // Retain glyph fonts rather than flattening a line into the first subset.
   if (text && new Set(Array.from({ length: target.end - target.index + 1 }, (_, i) => m.FPDFTextObj_GetFont(m.FPDFPage_GetObject(page, target.index + i)))).size > 1) {
     replaceFontRun(m, doc, page, target, text);
     return;
   }
-  const firstToRemove = text ? target.index + 1 : target.index;
-  for (let i = target.end; i >= firstToRemove; i--) {
+  const original = objectText(m, page).get(obj) ?? "";
+  const setText = (value: string) => buffer(m, (value.length + 1) * 2, ptr => {
+    m.pdfium.stringToUTF16(value, ptr, (value.length + 1) * 2);
+    if (!m.FPDFText_SetText(obj, ptr)) throw new Error("Couldn't change this text.");
+  });
+  if (text) {
+    setText(text);
+    // Subsets can silently substitute a missing glyph. Restore before trying the per-glyph replacement.
+    if (objectText(m, page).get(obj) !== text) {
+      setText(original);
+      if (target.style && target.style.axis[0] > 0 && target.style.axis[1] === 0) {
+        replaceFontRun(m, doc, page, target, text);
+        return;
+      }
+      throw new Error("This font can't display all of those characters.");
+    }
+  }
+  for (let i = target.end; i >= (text ? target.index + 1 : target.index); i--) {
     const fragment = m.FPDFPage_GetObject(page, i);
     if (!m.FPDFPage_RemoveObject(page, fragment)) throw new Error("Couldn't replace the full text run.");
     m.FPDFPageObj_Destroy(fragment);
   }
-  if (!text) return;
-  const size = (text.length + 1) * 2;
-  buffer(m, size, ptr => {
-    m.pdfium.stringToUTF16(text, ptr, size);
-    if (!m.FPDFText_SetText(obj, ptr)) throw new Error("Couldn't change this text.");
-  });
-  // Subset fonts can silently substitute a missing glyph. Read back the changed object before accepting it.
-  if (objectText(m, page).get(obj) !== text) throw new Error("This font can't display all of those characters.");
 }
 
 self.onmessage = async ({ data }: MessageEvent<EditorRequest>) => {

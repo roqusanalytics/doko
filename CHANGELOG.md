@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.20.32
+
+- Keep PDF titles editable when newly typed letters are missing from an embedded font subset.
+
 ## 1.20.31
 
 - Photo galleries: the carousel now joins the work area card, with Previous and Next arrows on the image edges, the position next to the page controls, and a small refresh button.
