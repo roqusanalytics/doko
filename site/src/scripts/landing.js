@@ -1,8 +1,9 @@
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
-import "./texture.js"; // builds the dithered reel track before the motion below animates it
+import "./texture.js";
 import { isDark, onTheme } from "./theme.js";
+import { bentoDemos } from "./bento-demos.js";
 
 // Hero tabs: the demo moves to the next file every few seconds, in a loop. Hovering the screenshot or switcher,
 // or focusing inside it, pauses it (WCAG 2.2.2); leaving resumes. Arrow keys move between files.
@@ -156,10 +157,6 @@ addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8),
   const $ = (s, root = document) => [...root.querySelectorAll(s)];
   const live = el => ({ trigger: el, start: 'top 80%', end: 'bottom top', toggleActions: 'play pause resume pause' });
 
-  function draw(paths) {
-    paths.forEach(p => { const len = p.getTotalLength(); gsap.set(p, { strokeDasharray: len, strokeDashoffset: len }); });
-    return paths;
-  }
   function pulse(svg) {
     $('.dot', svg).forEach((dot, i) => {
       const path = svg.querySelector('#' + dot.dataset.path);
@@ -269,51 +266,7 @@ addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8),
     // 3. Bento cards enter together, then each one plays its own loop while visible.
     gsap.from('.cell', { y: 60, opacity: 0, duration: 1.3, stagger: .09, ease: 'expo.out', scrollTrigger: { trigger: '.bento', start: 'top 80%', once: true } });
 
-    const hl = document.querySelector('[data-cell="hl"]');
-    const marks = $('.hl', hl), sw = $('.swatches i', hl), pin = hl.querySelector('.pin');
-    const pick = i => () => sw.forEach((s, j) => s.classList.toggle('cur', i === j));
-    gsap.timeline({ repeat: -1, repeatDelay: 1.2, scrollTrigger: live(hl) })
-      .set(marks, { backgroundSize: '0% 100%' }).set(pin, { opacity: 0, y: 12, scale: .96 }).call(pick(-1))
-      .call(pick(0), null, .4).to(marks[0], { backgroundSize: '100% 100%', duration: .9, ease: 'power2.inOut' }, .7)
-      .call(pick(1), null, 2).to(marks[1], { backgroundSize: '100% 100%', duration: .9, ease: 'power2.inOut' }, 2.3)
-      .to(pin, { opacity: 1, y: 0, scale: 1, duration: .6, ease: 'expo.out' }, 3.5)
-      .to({}, { duration: 2.5 });
-
-    // Spreadsheet card: the same rows flip between table and source view, like Doko's CSV editor.
-    const table = document.querySelector('[data-cell="table"] .tmini');
-    const asSource = on => () => table.classList.toggle('as-src', on);
-    gsap.timeline({ repeat: -1, scrollTrigger: live(table) })
-      .from($('.grid span', table), { opacity: 0, y: 6, duration: .5, stagger: .04, ease: 'power2.out' })
-      .call(asSource(true), null, '+=1.8')
-      .call(asSource(false), null, '+=2.2')
-      .to({}, { duration: .6 });
-
-    const md = document.querySelector('[data-cell="md"]');
-    gsap.timeline({ repeat: -1, repeatDelay: 1.5, scrollTrigger: live(md) })
-      .fromTo($('.md-src span', md), { clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0% 0 0)', duration: .5, stagger: .45, ease: 'steps(10)' })
-      .fromTo($('.md-out > *', md), { opacity: 0, x: -8 }, { opacity: 1, x: 0, duration: .4, stagger: .45, ease: 'power2.out' }, .3)
-      .to({}, { duration: 2.2 });
-
-    const reels = $('[data-cell="photo"] .reel-track'); // colour track and its dithered twin move as one
-    gsap.to(reels, { xPercent: -50, duration: 30, ease: 'none', repeat: -1, scrollTrigger: live(reels[0]) });
-
-    const sign = document.querySelector('[data-cell="sign"]');
-    const stroke = draw($('.sig path', sign));
-    gsap.timeline({ repeat: -1, repeatDelay: 1.4, scrollTrigger: live(sign) })
-      .set(stroke, { strokeDashoffset: (i, p) => p.getTotalLength() })
-      .to(stroke, { strokeDashoffset: 0, duration: 2.2, ease: 'power1.inOut' })
-      .to({}, { duration: 1.6 });
-
-    const pagesCell = document.querySelector('[data-cell="pages"]');
-    const pg = $('.pages i', pagesCell);
-    const gap = () => pg[2].offsetLeft - pg[1].offsetLeft;
-    gsap.timeline({ repeat: -1, repeatDelay: 1, scrollTrigger: live(pagesCell) })
-      .to(pg[1], { x: gap, y: -10, duration: .7, ease: 'power3.inOut' })
-      .to(pg[2], { x: () => -gap(), y: 10, duration: .7, ease: 'power3.inOut' }, '<')
-      .to([pg[1], pg[2]], { y: 0, duration: .3 }, '>-.1')
-      .to(pg[3], { rotation: 90, duration: .6, ease: 'expo.inOut' }, '+=.5')
-      .to(pg[3], { rotation: 0, duration: .6, ease: 'expo.inOut' }, '+=.6')
-      .to([pg[1], pg[2]], { x: 0, duration: .7, ease: 'power3.inOut' }, '+=.6');
+    const stopDemos = bentoDemos(live);
 
     pulse(document.querySelector('.local'));
 
@@ -338,7 +291,7 @@ addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8),
     const relock = () => lockTl.invalidate();
     ScrollTrigger.addEventListener('refreshInit', relock);
     // matchMedia reverts styles, not classes: restore the resting state.
-    return () => { ScrollTrigger.removeEventListener('refreshInit', relock); window.removeEventListener('wires', rerun); sparkCtx?.revert(); asSource(false)(); sw.forEach(s => s.classList.remove('cur')); };
+    return () => { ScrollTrigger.removeEventListener('refreshInit', relock); window.removeEventListener('wires', rerun); sparkCtx?.revert(); stopDemos(); };
   });
 
 }

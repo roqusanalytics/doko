@@ -73,29 +73,6 @@ function halftone(canvas) {
   }
 }
 
-// Photo reel: a dithered copy of the track runs underneath, so photos "develop" as they cross the middle.
-const reel = document.querySelector('.reel');
-if (reel) {
-  const track = reel.querySelector('.reel-track');
-  track.innerHTML += track.innerHTML; // wide enough for a seamless loop
-  const mono = track.cloneNode(false);
-  mono.classList.add('is-dither');
-  const paint = [];
-  for (const img of track.children) {
-    const c = document.createElement('canvas');
-    mono.append(c);
-    const draw = () => dither(c, img);
-    paint.push(draw);
-    img.addEventListener('load', draw); // lazy images report complete before they load, so listen as well
-    draw();
-  }
-  const colour = document.createElement('div');
-  colour.className = 'reel-color';
-  reel.append(mono, colour);
-  colour.append(track);
-  onTheme(() => paint.forEach(f => f()));
-}
-
 // Standalone dithered pictures load their photo only when they come near the viewport.
 document.querySelectorAll('canvas[data-dither]').forEach(c => {
   const img = new Image();

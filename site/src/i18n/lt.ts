@@ -50,7 +50,8 @@ export const lt: Copy = {
       p2: ["Kolonija ant rytinės atbrailos nepakito. ", "Naujos poros atskrido dviem savaitėmis anksčiau", " nei įprastai."],
       p3: "Uosto stoties orų duomenys pridėti 4 puslapyje.",
     },
-    pin: ["Pastaba", "Palyginti su 2023 m. duomenimis."],
+    you: "Jūs",
+    notes: ["Palyginti su 2023","Paklausti, kodėl anksčiau"],
     hl: ["Žymėkite ir rašykite pastabas", "Penkios spalvos, pastabos prie bet kurios ištraukos, rašiklis ir teksto laukai. Viskas išsaugoma automatiškai."],
     table: ["Atidarykite lenteles", "Redaguokite CSV kaip lentelę arba kaip tekstą. Skaitykite Excel knygas po lapą."],
     tableMini: { modes: ["Lentelė", "Tekstas"], rows: [["Darbas", "Val.", "EUR"], ["Dizainas", "30", "1800"], ["Kūrimas", "26", "1560"], ["Iš viso", "", "7920"]] },
@@ -58,7 +59,6 @@ export const lt: Copy = {
     md: ["Rašykite Markdown", "Redaguokite ir peržiūrėkite. Išsaugoma tiesiai į originalų failą."],
     sign: ["Pasirašykite dokumentus", "Nufotografuokite savo parašą ir padėkite jį puslapyje."],
     pages: ["Tvarkykite puslapius", "Keiskite tvarką, sukite, trinkite. Uždenkite turinį ar apsaugokite kopiją slaptažodžiu."],
-    photoAlts: ["Jūros uolos saulėlydžio metu", "Žvejų uostas auštant", "Švyturys žaliame kyšulyje", "Tripirščiai kirai, perintys ant uolos atbrailos", "Rūke paskendęs miško takas prie jūros", "Pajūrinės armerijos žiedai virš kranto"],
     photo: ["Naršykite nuotraukų aplankus", "Atidarykite vieną nuotrauką ir slinkite per visą aplanką. Apkirpkite, keiskite dydį, koreguokite."],
     local: {
       say: ["Be paskyros,", "dokumentai ir pastabos lieka jūsų kompiuteryje"],

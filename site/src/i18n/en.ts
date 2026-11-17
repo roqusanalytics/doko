@@ -51,7 +51,8 @@ export const en = {
       p2: ["The colony on the east ledge stayed the same size. ", "New pairs arrived two weeks earlier", " than usual."],
       p3: "Weather records from the harbour station are attached on page 4.",
     },
-    pin: ["Note", "Compare with the 2023 count."],
+    you: "You",
+    notes: ["Compare with 2023","Ask the rangers why"],
     hl: ["Highlight and take notes", "Five colors, notes on any passage, pen and text boxes. Everything saves on its own."],
     table: ["Open spreadsheets", "Edit CSV as a table or as text. Read Excel workbooks sheet by sheet."],
     tableMini: { modes: ["Table", "Source"], rows: [["Item", "Hours", "EUR"], ["Design", "30", "1800"], ["Build", "26", "1560"], ["Total", "", "7920"]] },
@@ -59,7 +60,6 @@ export const en = {
     md: ["Write Markdown", "Edit and preview. Save writes the original file."],
     sign: ["Sign documents", "Photograph your signature and place it on the page."],
     pages: ["Organize pages", "Reorder, rotate, delete. Redact or password-protect a copy."],
-    photoAlts: ["Sea cliffs at sunset", "Fishing harbour at dawn", "Lighthouse on a green headland", "Kittiwakes nesting on a cliff ledge", "Misty forest path near the sea", "Sea thrift flowers above the coast"],
     photo: ["Browse photo folders", "Open one image, scroll the folder. Crop, resize, adjust."],
     local: {
       say: ["No account,", "documents and notes stay on your computer"],

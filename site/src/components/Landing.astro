@@ -219,66 +219,105 @@ const faqLd = {
       </div>
       <ul class="bento">
         <li class="cell c-hl" data-cell="hl">
-          <div class="viz">
-            <div class="swatches" aria-hidden="true"><i style="--c:#F5D565"></i><i style="--c:#8FD3A0"></i><i style="--c:#9CC3F5"></i><i style="--c:#F2A7C9"></i><i style="--c:#F28B82"></i></div>
-            <div class="sheet" aria-hidden="true">
-              <h4>{t.bento.sheet.title}</h4>
-              <p><span class="hl" style="--hl:#F8E08A">{t.bento.sheet.p1[0]}</span>{t.bento.sheet.p1[1]}</p>
-              <p>{t.bento.sheet.p2[0]}<span class="hl" style="--hl:#BFE6C7">{t.bento.sheet.p2[1]}</span>{t.bento.sheet.p2[2]}</p>
-              <p>{t.bento.sheet.p3}</p>
+          <div class="viz demo-viz">
+            <div class="demo d-hl" aria-hidden="true">
+              <div class="app">
+                <div class="app-bar"><span class="on">Select</span><span>Highlight</span><span>Draw</span><span>Text</span><span>Sign</span></div>
+                <div class="app-body hl-body">
+                  <div class="hl-side"><div class="hl-tabs"><b>Pages</b><b class="on">Notes</b></div>
+                    <div class="hl-note" style="--c:#5EDC9A">p. 1 · {t.bento.sheet.p1[0]}<small>{t.bento.notes[0]}</small></div>
+                    <div class="hl-note" style="--c:#FFD84D">p. 1 · {t.bento.sheet.p2[1]}<small>{t.bento.notes[1]}</small></div>
+                  </div>
+                  <div class="app-page">
+                    <h4>{t.bento.sheet.title}</h4>
+                    <p><span class="mk" style="--hc:#5EDC9AB3">{t.bento.sheet.p1[0]}</span>{t.bento.sheet.p1[1]}</p>
+                    <p>{t.bento.sheet.p2[0]}<span class="mk" style="--hc:#FFD84DB3">{t.bento.sheet.p2[1]}</span>{t.bento.sheet.p2[2]}</p>
+                    <p>{t.bento.sheet.p3}</p>
+                  </div>
+                </div>
+              </div>
+              <i class="sel"><i></i><i></i></i>
+              <div class="hl-bar">{["#FFD84D", "#5EDC9A", "#6CB8FF", "#FF8FC7", "#FF5A4E"].map((c) => <i style={`--c:${c}`}></i>)}<span class="hl-field"></span><span class="hl-ai">Ask AI</span></div>
+              <span class="ptr"><svg viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" /></svg><b>{t.bento.you}</b></span>
             </div>
-            <div class="pin" aria-hidden="true"><small>{t.bento.pin[0]}</small>{t.bento.pin[1]}</div>
           </div>
           <div class="cap"><h3>{t.bento.hl[0]}</h3><p>{t.bento.hl[1]}</p></div>
         </li>
 
         <li class="cell c-2" data-cell="table">
-          <div class="viz">
-            <div class="tmini" aria-hidden="true">
-              <div class="seg">{t.bento.tableMini.modes.map((m, i) => <span class={i ? "" : "on"}>{m}</span>)}</div>
-              <div class="grid">{t.bento.tableMini.rows.map((r) => r.map((c) => <span>{c}</span>))}</div>
-              <pre class="src">{t.bento.tableMini.rows.map((r) => r.join(";")).join("\n")}</pre>
+          <div class="viz demo-viz">
+            <div class="demo d-tb" aria-hidden="true">
+              <div class="app">
+                <div class="app-bar"><em>Budget.csv</em><span class="seg">{t.bento.tableMini.modes.map((m, i) => <b class={i ? "" : "on"}>{m}</b>)}</span></div>
+                <div class="app-body">
+                  <div class="tb-grid">{t.bento.tableMini.rows.map((r, i) => r.map((c, j) => <span class={i === 1 && j === 1 ? "tb-cell" : ""}>{c}</span>))}</div>
+                  <pre class="tb-src">{t.bento.tableMini.rows.map((r, i) => i === 1 ? <mark>{[r[0], "32", r[2]].join(";")}</mark> : r.join(";")).map((l) => <span>{l}</span>)}</pre>
+                </div>
+              </div>
+              <span class="ptr"><svg viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" /></svg><b>{t.bento.you}</b></span>
             </div>
           </div>
           <div class="cap"><h3>{t.bento.table[0]}</h3><p>{t.bento.table[1]}</p></div>
         </li>
 
         <li class="cell c-2" data-cell="md">
-          <div class="viz bleed">
-            <div class="md-mini" aria-hidden="true">
-              <div class="md-src"><span># {t.bento.mdMini.title}</span><span>- [x] {t.bento.mdMini.items[0]}</span><span>- [x] {t.bento.mdMini.items[1]}</span><span>- [ ] {t.bento.mdMini.items[2]}</span></div>
-              <div class="md-out"><strong>{t.bento.mdMini.title}</strong><span><i class="box done"></i>{t.bento.mdMini.items[0]}</span><span><i class="box done"></i>{t.bento.mdMini.items[1]}</span><span><i class="box"></i>{t.bento.mdMini.items[2]}</span></div>
+          <div class="viz demo-viz">
+            <div class="demo d-md" aria-hidden="true">
+              <div class="app">
+                <div class="app-bar"><em>Trip.md</em><span class="md-view">&lt;/&gt;</span><span class="md-save">Save</span></div>
+                <div class="app-body">
+                  <div class="md-doc"><h5>{t.bento.mdMini.title}</h5>{t.bento.mdMini.items.map((it, i) => <p class="md-li"><i class={i < 2 ? "done" : "md-todo done"}></i>{it}</p>)}</div>
+                  <pre class="md-srcv"><span># {t.bento.mdMini.title}</span>{t.bento.mdMini.items.map((it, i) => i === 2 ? <mark>- [x] {it}</mark> : <span>- [x] {it}</span>)}</pre>
+                </div>
+              </div>
+              <span class="ptr"><svg viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" /></svg><b>{t.bento.you}</b></span>
             </div>
           </div>
           <div class="cap"><h3>{t.bento.md[0]}</h3><p>{t.bento.md[1]}</p></div>
         </li>
 
-        
-
         <li class="cell c-2" data-cell="sign">
-          <div class="viz bleed">
-            <div class="sig" aria-hidden="true">
-              <svg viewBox="0 0 260 90"><path d="M10 62c14-30 26-46 34-44 10 3-12 50-2 52 9 2 18-30 28-30 8 0 0 26 8 26s14-22 22-22c6 0 2 18 9 18 8 0 12-14 20-14 7 0 4 12 11 12 10 0 20-10 30-16 9-5 22-8 40-6"/></svg>
-              <hr>
+          <div class="viz demo-viz">
+            <div class="demo d-sg" aria-hidden="true">
+              <div class="app">
+                <div class="app-bar"><span>Select</span><span>Draw</span><span class="sg-tab">Sign</span></div>
+                <div class="app-body">
+                  <div class="app-page sg-page"><i></i><i></i><i class="short"></i><div class="sg-line"><svg class="sg-stamp" viewBox="0 0 260 90"><path d="M10 62c14-30 26-46 34-44 10 3-12 50-2 52 9 2 18-30 28-30 8 0 0 26 8 26s14-22 22-22c6 0 2 18 9 18 8 0 12-14 20-14 7 0 4 12 11 12 10 0 20-10 30-16 9-5 22-8 40-6" /></svg><i class="sg-box"><i></i><i></i></i></div></div>
+                </div>
+              </div>
+              <div class="sg-panel"><svg class="sg-thumb" viewBox="0 0 260 90"><path d="M10 62c14-30 26-46 34-44 10 3-12 50-2 52 9 2 18-30 28-30 8 0 0 26 8 26s14-22 22-22c6 0 2 18 9 18 8 0 12-14 20-14 7 0 4 12 11 12 10 0 20-10 30-16 9-5 22-8 40-6" /></svg></div>
+              <span class="sg-ok">Approve</span>
+              <span class="ptr"><svg viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" /></svg><b>{t.bento.you}</b></span>
             </div>
           </div>
           <div class="cap"><h3>{t.bento.sign[0]}</h3><p>{t.bento.sign[1]}</p></div>
         </li>
 
         <li class="cell c-2" data-cell="pages">
-          <div class="viz">
-            <div class="pages" aria-hidden="true"><i>1</i><i class="sel">2</i><i class="sel">3</i><i>4</i></div>
+          <div class="viz demo-viz">
+            <div class="demo d-pg" aria-hidden="true">
+              <div class="app">
+                <div class="app-bar"><em>Organize pages</em><span class="pg-save">Save copy</span></div>
+                <div class="app-body pg-body">{[1, 2, 3, 4].map((n) => <div class="pg"><i class="pg-paper"><i></i><i></i><i></i></i><b>{n}</b><span class="pg-rot">⟳</span></div>)}</div>
+              </div>
+              <span class="toast pg-toast">Saved a copy</span>
+              <span class="ptr"><svg viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" /></svg><b>{t.bento.you}</b></span>
+            </div>
           </div>
           <div class="cap"><h3>{t.bento.pages[0]}</h3><p>{t.bento.pages[1]}</p></div>
         </li>
 
         <li class="cell c-photo" data-cell="photo">
-          <div class="viz">
-            <div class="reel" aria-hidden="true">
-              <div class="reel-track">
-                <img src="/photos/coast-cliffs.jpg" alt={t.bento.photoAlts[0]} loading="lazy" width="132" height="176"><img src="/photos/fishing-harbour.jpg" alt={t.bento.photoAlts[1]} loading="lazy" width="132" height="176"><img src="/photos/lighthouse.jpg" alt={t.bento.photoAlts[2]} loading="lazy" width="132" height="176"><img src="/photos/kittiwakes.jpg" alt={t.bento.photoAlts[3]} loading="lazy" width="132" height="176"><img src="/photos/forest-path.jpg" alt={t.bento.photoAlts[4]} loading="lazy" width="132" height="176"><img src="/photos/sea-thrift.jpg" alt={t.bento.photoAlts[5]} loading="lazy" width="132" height="176">
-                <img src="/photos/coast-cliffs.jpg" alt="" loading="lazy" width="132" height="176"><img src="/photos/fishing-harbour.jpg" alt="" loading="lazy" width="132" height="176"><img src="/photos/lighthouse.jpg" alt="" loading="lazy" width="132" height="176"><img src="/photos/kittiwakes.jpg" alt="" loading="lazy" width="132" height="176"><img src="/photos/forest-path.jpg" alt="" loading="lazy" width="132" height="176"><img src="/photos/sea-thrift.jpg" alt="" loading="lazy" width="132" height="176">
+          <div class="viz demo-viz">
+            <div class="demo d-ph" aria-hidden="true">
+              <div class="app">
+                <div class="app-bar"><em>Coastal Photos</em><span class="ph-crop-tab">Crop</span><span>Rotate</span><span>Adjust</span><span class="ph-apply">Apply</span></div>
+                <div class="app-body ph-body">
+                  <div class="ph-main"><div class="ph-pic"><img src="/photos/coast-cliffs.jpg" alt="" loading="lazy" /><img src="/photos/lighthouse.jpg" alt="" loading="lazy" class="ph-next" /><i class="ph-frame"><i></i><i></i></i></div></div>
+                  <div class="ph-strip">{["coast-cliffs", "lighthouse", "kittiwakes", "sea-thrift"].map((p, i) => <img src={`/photos/${p}.jpg`} alt="" loading="lazy" class={i ? "" : "on"} />)}</div>
+                </div>
               </div>
+              <span class="ptr"><svg viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" /></svg><b>{t.bento.you}</b></span>
             </div>
           </div>
           <div class="cap"><h3>{t.bento.photo[0]}</h3><p>{t.bento.photo[1]}</p></div>
