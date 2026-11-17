@@ -36,7 +36,7 @@ export function useAnchoredPopover(trigger: RefObject<HTMLButtonElement | null>,
         if (popup.getAttribute("role") === "menu") {
           const items = popup.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');
           (popup.querySelector<HTMLButtonElement>('[aria-checked="true"]') ?? items[0])?.focus();
-        }
+        } else popup.querySelector<HTMLElement>("[data-autofocus]")?.focus();
       } else delete popup.dataset.positioned;
     };
     const key = (event: KeyboardEvent) => {

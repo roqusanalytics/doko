@@ -81,17 +81,38 @@ async function saveSession(next) {
   if (await canProtectSession()) writeAtomic("chatgpt-session.bin", await safeStorage.encryptStringAsync(JSON.stringify(next)));
 }
 
-async function postForm(url, params) {
-  const response = await net.fetch(url, {
-    method: "POST",
-    redirect: "error",
-    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
-    body: new URLSearchParams(params).toString(),
+// Waiters cancel independently; a shared token rotation must finish for the remaining callers.
+function waitForAbort(promise, signal) {
+  if (!signal) return promise;
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    if (signal.aborted) { promise.catch(() => {}); abort(); return; }
+    signal.addEventListener("abort", abort, { once: true });
+    promise.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
   });
-  const text = await response.text();
-  let json = null;
-  try { json = JSON.parse(text); } catch {}
-  return { ok: response.ok, status: response.status, json, text };
+}
+
+const AUTH_TIMEOUT_MS = 30_000;
+const RESPONSE_STALL_MS = 60_000;
+const RESPONSE_TIMEOUT_MS = 300_000;
+const timeoutError = (message) => Object.assign(new Error(message), { code: "timeout" });
+
+async function postForm(url, params) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(timeoutError("OpenAI sign-in timed out. Please try again.")), AUTH_TIMEOUT_MS);
+  try {
+    const response = await waitForAbort(net.fetch(url, {
+      method: "POST",
+      redirect: "error",
+      signal: controller.signal,
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+      body: new URLSearchParams(params).toString(),
+    }), controller.signal);
+    const text = await waitForAbort(response.text(), controller.signal);
+    let json = null;
+    try { json = JSON.parse(text); } catch {}
+    return { ok: response.ok, status: response.status, json, text };
+  } finally { clearTimeout(timer); }
 }
 
 let openIdConfig = null;
@@ -239,8 +260,9 @@ async function signInChatGPT() {
 }
 
 let refreshing = null;
-async function accessToken(force = false) {
-  const current = await loadSession();
+async function accessToken(force = false, signal) {
+  signal?.throwIfAborted();
+  const current = await waitForAbort(loadSession(), signal);
   if (!current) throw Object.assign(new Error("Continue with ChatGPT to use your plan in Doko."), { code: "signed_out" });
   if (!force && current.expiresAt - 60_000 > Date.now()) return current.accessToken;
   // Refresh tokens rotate: never run two refreshes at once.
@@ -264,7 +286,7 @@ async function accessToken(force = false) {
       idToken: t.id_token ?? current.idToken, expiresAt: Date.now() + (t.expires_in ?? 3600) * 1000 });
     return session.accessToken;
   })().finally(() => { refreshing = null; });
-  return refreshing;
+  return waitForAbort(refreshing, signal);
 }
 
 async function signOutChatGPT() {
@@ -303,45 +325,68 @@ async function chatgptModels() {
 }
 
 async function askChatGPT({ model, document, messages }, emit, signal) {
-  const body = JSON.stringify(chatRequest(model, document, messages));
-  const send = (token) => net.fetch(`${API}/responses`, {
-    method: "POST", signal, body,
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "text/event-stream" },
-  });
-  let response = await send(await accessToken());
-  if (response.status === 401) response = await send(await accessToken(true));
-  if (!response.ok) {
-    let code = "";
-    try { const j = await response.json(); code = j.error?.code ?? j.code ?? ""; } catch {}
-    throw usageError(code, response.status);
-  }
-  // Server-sent events: blank-line separated blocks of "event:" / "data:" lines.
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let completed = false;
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let split;
-    while ((split = buffer.indexOf("\n\n")) >= 0) {
-      const block = buffer.slice(0, split);
-      buffer = buffer.slice(split + 2);
-      const data = block.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trim()).join("\n");
-      if (!data || data === "[DONE]") continue;
-      let event;
-      try { event = JSON.parse(data); } catch { continue; }
-      if (event.type === "response.output_text.delta" && typeof event.delta === "string") emit(event.delta);
-      else if (event.type === "response.completed") completed = true;
-      else if (event.type === "response.failed" || event.type === "error") {
-        throw usageError(event.response?.error?.code ?? event.error?.code ?? event.code ?? "", 0);
-      } else if (event.type === "response.incomplete") {
-        throw new Error("The answer was cut short. Try a shorter question or a smaller selection.");
+  const controller = new AbortController();
+  signal = AbortSignal.any([signal, controller.signal]);
+  const timeout = () => controller.abort(timeoutError("ChatGPT took too long to respond. Please try again."));
+  const deadline = setTimeout(timeout, RESPONSE_TIMEOUT_MS);
+  let stall;
+  let reader;
+  const waiting = (promise) => {
+    clearTimeout(stall);
+    stall = setTimeout(timeout, RESPONSE_STALL_MS);
+    return waitForAbort(promise, signal);
+  };
+  try {
+    const body = JSON.stringify(chatRequest(model, document, messages));
+    const send = (token) => {
+      signal.throwIfAborted();
+      return net.fetch(`${API}/responses`, {
+        method: "POST", signal, body,
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "text/event-stream" },
+      });
+    };
+    let response = await waiting(send(await accessToken(false, signal)));
+    if (response.status === 401) {
+      void response.body?.cancel().catch(() => {});
+      response = await waiting(send(await accessToken(true, signal)));
+    }
+    if (!response.ok) {
+      let code = "";
+      try { const j = await waiting(response.json()); code = j.error?.code ?? j.code ?? ""; } catch { signal.throwIfAborted(); }
+      throw usageError(code, response.status);
+    }
+    // Server-sent events: blank-line separated blocks of "event:" / "data:" lines.
+    reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { value, done } = await waiting(reader.read());
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let split;
+      while ((split = buffer.indexOf("\n\n")) >= 0) {
+        const block = buffer.slice(0, split);
+        buffer = buffer.slice(split + 2);
+        const data = block.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trim()).join("\n");
+        if (!data || data === "[DONE]") continue;
+        let event;
+        try { event = JSON.parse(data); } catch { continue; }
+        if (event.type === "response.output_text.delta" && typeof event.delta === "string") emit(event.delta);
+      else if (event.type === "response.completed") return;
+        else if (event.type === "response.failed" || event.type === "error") {
+          throw usageError(event.response?.error?.code ?? event.error?.code ?? event.code ?? "", 0);
+        } else if (event.type === "response.incomplete") {
+          throw new Error("The answer was cut short. Try a shorter question or a smaller selection.");
+        }
       }
     }
+    throw new Error("The connection to ChatGPT ended early. Please try again.");
+  } finally {
+    clearTimeout(deadline);
+    clearTimeout(stall);
+    // Cleanup must not wait on a stalled stream before releasing the active request slot.
+    if (reader) void reader.cancel().catch(() => {});
   }
-  if (!completed) throw new Error("The connection to ChatGPT ended early. Please try again.");
 }
 
 function usageError(code, status) {

@@ -273,18 +273,20 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
     preparing.current?.controller.abort();
     preparing.current = null;
     const id = busyRef.current;
+    setBusy(null);
     if (!id) return;
     busyRef.current = null;
     void ai?.cancel(id);
     const list = messagesRef.current;
     const last = list[list.length - 1];
     const kept = last?.role === "assistant" && !last.content && !last.error ? list.slice(0, -1) : list;
+    setMessages(kept);
     if (generation !== null) {
       rememberChat(docId, persist, kept, generation);
       // The cached conversation survives a failed save and is retried when the panel reopens.
       if (persist) void saveAiHistory(docId, storedMessages(kept), generation).catch(() => {});
     }
-  }, [ai, docId, persist, generation]);
+  }, [ai, pdf, docId, persist, generation]);
   const stop = () => {
     if (!busy) return;
     if (preparing.current?.id !== busy) { void ai?.cancel(busy); return; }

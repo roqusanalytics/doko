@@ -87,7 +87,7 @@ try {
     const oldNotes = await recent.getNotes(a), oldChat = await recent.getAiHistory(a);
     await recent.saveNotes({ id: a, note: "new private note", marks: [], updatedAt: 2 }, oldNotes.generation);
     await recent.saveAiHistory(a, [{ role: "user", content: "new private question" }], oldChat.generation);
-    return { id: card.id === smallId, thumb: card.thumb, lastPage: card.lastPage, contents: await card.data.text(),
+    return { id: card.id === smallId, thumb: card.thumb, lastPage: card.lastPage, contents: await (await recent.getRecent(card.id)).data.text(),
       savedNote: (await recent.getNotes(smallId)).value.note, savedChat: (await recent.getAiHistory(smallId)).messages[0].content,
       separate: a !== b && a !== sampled && b !== sampled, oldNotes: oldNotes.value, oldChat: oldChat.messages,
       otherNotes: (await recent.getNotes(b)).value, otherChat: (await recent.getAiHistory(b)).messages };
@@ -236,7 +236,8 @@ try {
       const ctx = canvas.getContext("2d");
       ctx.drawImage(image, 0, 0, 1, 1);
       const [r, , b] = ctx.getImageData(0, 0, 1, 1).data;
-      return { bytes: await card.data.text(), preview: r > b ? "red" : "blue" };
+      const { getRecent } = await import("/src/recent.ts");
+      return { bytes: await (await getRecent(card.id)).data.text(), preview: r > b ? "red" : "blue" };
     }));
   });
   assert.deepEqual(previews, [{ bytes: red, preview: "red" }, { bytes: blue, preview: "blue" }]);

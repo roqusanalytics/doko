@@ -150,5 +150,29 @@
   ],
   [
     "scripts/smoke-reader-drop.mjs"
+  ],
+  [
+    "scripts/test-ai-lifecycle.mjs"
+  ],
+  [
+    "scripts/test-editor-session.mjs"
+  ],
+  [
+    "scripts/test-gallery-image.mjs"
+  ],
+  [
+    "scripts/test-build-artifact-guard.mjs"
+  ],
+  [
+    "scripts/smoke-recent-search.mjs"
+  ],
+  [
+    "scripts/test-searchbar.mjs"
+  ],
+  [
+    "scripts/test-audit-cache-cleanup.mjs"
+  ],
+  [
+    "scripts/test-search-page-cache.mjs"
   ]
 ]

@@ -14,8 +14,8 @@ export interface EditTarget {
   style?: { origin: number[]; axis: number[]; size: number; flags: number; bold: boolean; color: string };
 }
 export type Change = { kind: "text"; index: number; text: string } | { kind: "image"; index: number; file: File };
-export type EditorRequest = { source: Uint8Array } | { page: number } | { page: number; change: Change; snapshot: Uint8Array };
-export type EditorReply = { page: number; targets: EditTarget[] } | { bytes: Uint8Array } | { error: string; page?: number };
+export type EditorRequest = { dispose: true } | { source: Uint8Array } | { page: number } | { page: number; change: Change; snapshot: Uint8Array };
+export type EditorReply = { disposed: true } | { page: number; targets: EditTarget[] } | { bytes: Uint8Array } | { error: string; page?: number };
 
 const ready = (async () => {
   const response = await fetch(wasmUrl);
@@ -25,6 +25,7 @@ const ready = (async () => {
   return engine;
 })();
 let source: Uint8Array;
+let inspection: { doc: number; ptr: number } | undefined;
 
 function buffer<T>(m: WrappedPdfiumModule, size: number, use: (ptr: number) => T): T {
   const ptr = m.pdfium.wasmExports.malloc(size);
@@ -32,20 +33,40 @@ function buffer<T>(m: WrappedPdfiumModule, size: number, use: (ptr: number) => T
   try { return use(ptr); } finally { m.pdfium.wasmExports.free(ptr); }
 }
 
-function withPage<T>(m: WrappedPdfiumModule, bytes: Uint8Array, number: number, use: (doc: number, page: number) => T): T {
-  return buffer(m, bytes.length, ptr => {
+function openDocument(m: WrappedPdfiumModule, bytes: Uint8Array) {
+  const ptr = m.pdfium.wasmExports.malloc(bytes.length);
+  if (!ptr) throw new Error("There isn't enough memory to edit this PDF.");
+  let doc = 0;
+  try {
     m.pdfium.HEAPU8.set(bytes, ptr);
-    const doc = m.FPDF_LoadMemDocument(ptr, bytes.length, "");
+    doc = m.FPDF_LoadMemDocument(ptr, bytes.length, "");
     if (!doc) throw new Error("Couldn't open this PDF for editing.");
-    try {
-      if (m.EPDF_IsEncrypted(doc) || m.FPDF_GetSignatureCount(doc) > 0) {
-        throw new Error("Editing requires an unsigned, unencrypted PDF.");
-      }
-      const page = m.FPDF_LoadPage(doc, number - 1);
-      if (!page) throw new Error("Couldn't open this page.");
-      try { return use(doc, page); } finally { m.FPDF_ClosePage(page); }
-    } finally { m.FPDF_CloseDocument(doc); }
-  });
+    if (m.EPDF_IsEncrypted(doc) || m.FPDF_GetSignatureCount(doc) > 0) {
+      throw new Error("Editing requires an unsigned, unencrypted PDF.");
+    }
+    return { doc, ptr };
+  } catch (error) {
+    if (doc) m.FPDF_CloseDocument(doc);
+    m.pdfium.wasmExports.free(ptr);
+    throw error;
+  }
+}
+
+function closeDocument(m: WrappedPdfiumModule, opened: { doc: number; ptr: number }) {
+  m.FPDF_CloseDocument(opened.doc);
+  m.pdfium.wasmExports.free(opened.ptr);
+}
+
+function inspectPage<T>(m: WrappedPdfiumModule, doc: number, number: number, use: (doc: number, page: number) => T): T {
+  const page = m.FPDF_LoadPage(doc, number - 1);
+  if (!page) throw new Error("Couldn't open this page.");
+  try { return use(doc, page); } finally { m.FPDF_ClosePage(page); }
+}
+
+function withPage<T>(m: WrappedPdfiumModule, bytes: Uint8Array, number: number, use: (doc: number, page: number) => T): T {
+  const opened = openDocument(m, bytes);
+  try { return inspectPage(m, opened.doc, number, use); }
+  finally { closeDocument(m, opened); }
 }
 
 function objectText(m: WrappedPdfiumModule, page: number) {
@@ -331,30 +352,42 @@ function replaceText(m: WrappedPdfiumModule, doc: number, page: number, target: 
   }
 }
 
-self.onmessage = async ({ data }: MessageEvent<EditorRequest>) => {
-  if ("source" in data) { source = data.source; return; }
-  try {
-    const m = await ready;
-    const { page } = data;
-    if (!("change" in data)) {
-      const { targets } = withPage(m, source, page, (_doc, handle) => pageView(m, handle));
-      self.postMessage({ page, targets } satisfies EditorReply);
-      return;
+// Serialize source replacement and disposal with requests waiting for PDFium or image edits.
+let pending = Promise.resolve();
+self.onmessage = ({ data }: MessageEvent<EditorRequest>) => {
+  pending = pending.then(async () => {
+    try {
+      const m = await ready;
+      if ("source" in data || "dispose" in data) {
+        if (inspection) { closeDocument(m, inspection); inspection = undefined; }
+        if ("dispose" in data) {
+          self.postMessage({ disposed: true } satisfies EditorReply);
+          self.close();
+        } else source = data.source;
+        return;
+      }
+      const { page } = data;
+      if (!("change" in data)) {
+        inspection ??= openDocument(m, source);
+        const { targets } = inspectPage(m, inspection.doc, page, (_doc, handle) => pageView(m, handle));
+        self.postMessage({ page, targets } satisfies EditorReply);
+        return;
+      }
+      const { change, snapshot } = data;
+      const result = withPage(m, snapshot, page, (doc, handle) => {
+        const { targets, imageCount } = pageView(m, handle);
+        const target = targets.find(t => t.index === change.index && t.kind === change.kind);
+        if (!target) throw new Error("Select the item again.");
+        if (change.kind === "image") return replacePageImage(snapshot, page, target.ordinal!, imageCount, change.file);
+        replaceText(m, doc, handle, target, change.text);
+        if (!m.FPDFPage_GenerateContent(handle)) throw new Error("Couldn't write this page.");
+        return save(m, doc);
+      });
+      const bytes = await result;
+      self.postMessage({ bytes } satisfies EditorReply, { transfer: [bytes.buffer as ArrayBuffer] });
+    } catch (reason) {
+      self.postMessage({ error: reason instanceof Error ? reason.message : "Couldn't edit this PDF.",
+        page: "page" in data && !("change" in data) ? data.page : undefined } satisfies EditorReply);
     }
-    const { change, snapshot } = data;
-    const result = withPage(m, snapshot, page, (doc, handle) => {
-      const { targets, imageCount } = pageView(m, handle);
-      const target = targets.find(t => t.index === change.index && t.kind === change.kind);
-      if (!target) throw new Error("Select the item again.");
-      if (change.kind === "image") return replacePageImage(snapshot, page, target.ordinal!, imageCount, change.file);
-      replaceText(m, doc, handle, target, change.text);
-      if (!m.FPDFPage_GenerateContent(handle)) throw new Error("Couldn't write this page.");
-      return save(m, doc);
-    });
-    const bytes = await result;
-    self.postMessage({ bytes } satisfies EditorReply, { transfer: [bytes.buffer as ArrayBuffer] });
-  } catch (reason) {
-    self.postMessage({ error: reason instanceof Error ? reason.message : "Couldn't edit this PDF.",
-      page: "change" in data ? undefined : data.page } satisfies EditorReply);
-  }
+  });
 };

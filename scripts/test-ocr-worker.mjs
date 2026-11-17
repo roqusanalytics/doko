@@ -145,6 +145,33 @@ test("OCR owns and terminates its physical worker throughout initialization", as
       await assert.rejects(startOcrWorker("/ocr", ["eng"], "cache", controller.signal), { name: "AbortError" });
       assert.equal(FakeWorker.workers.length, count);
     });
+    await t.test("a silent recognition timeout stops the worker and a fresh attempt succeeds", async () => {
+      const controller = new AbortController();
+      const ready = await startOcrWorker("/ocr", ["eng"], "cache", controller.signal);
+      const native = FakeWorker.workers.at(-1);
+      const originalSet = globalThis.setTimeout, originalClear = globalThis.clearTimeout;
+      let expire, clears = 0;
+      globalThis.setTimeout = (callback, delay) => { assert.equal(delay, 60_000); expire = callback; return 987; };
+      globalThis.clearTimeout = id => { assert.equal(id, 987); clears++; };
+      FakeWorker.pause = "recognize";
+      try {
+        const pending = assert.rejects(ready.recognize(new Uint8Array([1])), /OCR recognition timed out/);
+        expire();
+        await pending;
+        assert.equal(ready.stopped, true);
+        assert.equal(native.terminated, 1);
+        assert.equal(clears, 1);
+        controller.abort();
+        assert.equal(native.terminated, 1);
+      } finally {
+        globalThis.setTimeout = originalSet; globalThis.clearTimeout = originalClear;
+        FakeWorker.pause = undefined;
+      }
+      const retryController = new AbortController();
+      const retry = await startOcrWorker("/ocr", ["eng"], "cache", retryController.signal);
+      assert.equal((await retry.recognize(new Uint8Array([1]))).data.blocks[0].text, "Read again");
+      retryController.abort();
+    });
   } finally {
     globalThis.Worker = previousWorker;
     globalThis.window = previousWindow;

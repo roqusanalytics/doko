@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ContextMenu } from "./ContextMenu";
 import { Icon } from "./icons";
+import { readGalleryImage } from "./galleryImage";
 import "./photo-carousel.css";
 
 const MAX_BYTES = 100 * 1024 * 1024;
@@ -9,15 +10,14 @@ const MAX_PIXELS = 80_000_000;
 function PhotoThumbnail({ doc, name, near }: { doc: GalleryDocument; name: string; near: boolean }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
+  const { id, files, blobs } = doc;
   useEffect(() => {
     let stopped = false;
     let objectUrl = "";
     setUrl(""); setError("");
     if (!near) return;
     void (async () => {
-      const blob = doc.blobs?.[name] ?? (doc.id && window.folioDesktop
-        ? await window.folioDesktop.content.image(doc.id, name).then(result => new Blob([new Uint8Array(result.data)], { type: result.mime }))
-        : undefined);
+      const blob = await readGalleryImage({ id, files, blobs }, name);
       if (!blob) throw new Error("Image unavailable");
       if (blob.size > MAX_BYTES) throw new Error("Image too large");
       if (stopped) return;
@@ -25,7 +25,7 @@ function PhotoThumbnail({ doc, name, near }: { doc: GalleryDocument; name: strin
       setUrl(objectUrl);
     })().catch(() => { if (!stopped) setError("Image unavailable"); });
     return () => { stopped = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [doc, name, near]);
+  }, [id, files, blobs, name, near]);
   return url && !error
     ? <img src={url} alt="" onError={() => setError("Image unavailable")} onLoad={event => {
       const image = event.currentTarget;

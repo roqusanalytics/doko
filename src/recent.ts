@@ -10,9 +10,12 @@ export interface RecentFile {
   thumb: string;
   data: Blob;
 }
+export type RecentSummary = Omit<RecentFile, "data">;
+const summaryOf = ({ data: _data, ...summary }: RecentFile): RecentSummary => summary;
 
 const DB_NAME = "folio";
 const STORE = "recent";
+const METADATA = "recentMetadata";
 const POSITIONS = "recentPositions";
 const LEGACY = "recentByName";
 const NOTES = "notes";
@@ -25,7 +28,7 @@ let connection: Promise<IDBDatabase> | null = null;
 export function openFolioDatabase(): Promise<IDBDatabase> {
   if (connection) return connection;
   connection = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 7);
+    const req = indexedDB.open(DB_NAME, 8);
     let blocked = false;
     req.onblocked = () => {
       blocked = true;
@@ -47,6 +50,14 @@ export function openFolioDatabase(): Promise<IDBDatabase> {
         database.createObjectStore("versionPdfs");
       }
       if (!database.objectStoreNames.contains("clearGenerations")) database.createObjectStore("clearGenerations");
+      if (!database.objectStoreNames.contains(METADATA)) {
+        const metadata = database.createObjectStore(METADATA, { keyPath: "id" });
+        const cursor = req.transaction!.objectStore(STORE).openCursor();
+        cursor.onsuccess = () => {
+          const row = cursor.result;
+          if (row) { metadata.put(summaryOf(row.value)); row.continue(); }
+        };
+      }
     };
     req.onsuccess = () => {
       const database = req.result;
@@ -93,7 +104,7 @@ async function migrateRecent(database: IDBDatabase) {
       try { id = await contentKey(new Uint8Array(await file.data.arrayBuffer())); } catch { continue; }
     }
     await new Promise<void>((resolve, reject) => {
-      const transaction = database.transaction([LEGACY, STORE], "readwrite");
+      const transaction = database.transaction([LEGACY, STORE, METADATA], "readwrite");
       const legacy = transaction.objectStore(LEGACY);
       const current = transaction.objectStore(STORE);
       // Two tabs can start the same migration. Moving each row atomically avoids resurrecting a removed card.
@@ -104,7 +115,11 @@ async function migrateRecent(database: IDBDatabase) {
         if (!id) return;
         const dest = current.getKey(id);
         dest.onsuccess = () => {
-          if (dest.result === undefined) current.put({ ...file, id, size: file.data.size, thumb: "", lastPage: 1 });
+          if (dest.result === undefined) {
+            const migrated = { ...file, id, size: file.data.size, thumb: "", lastPage: 1 };
+            current.put(migrated);
+            transaction.objectStore(METADATA).put(summaryOf(migrated));
+          }
         };
       };
       transaction.oncomplete = () => resolve();
@@ -113,11 +128,20 @@ async function migrateRecent(database: IDBDatabase) {
   }
 }
 
-export async function listRecent(): Promise<RecentFile[]> {
+export async function listRecent(): Promise<RecentSummary[]> {
   try {
-    const all = await tx<RecentFile[]>("readonly", (s) => s.getAll());
-    const positions = await Promise.all(all.map(file => tx<number | undefined>("readonly", s => s.get(file.id), POSITIONS)));
-    return all.map((file, index) => ({ ...file, lastPage: positions[index] ?? file.lastPage })).sort((a, b) => b.openedAt - a.openedAt);
+    const database = await openFolioDatabase();
+    return await new Promise((resolve, reject) => {
+      const transaction = database.transaction([METADATA, POSITIONS], "readonly");
+      const all = transaction.objectStore(METADATA).getAll();
+      const positions = transaction.objectStore(POSITIONS);
+      const ids = positions.getAllKeys(), pages = positions.getAll();
+      transaction.oncomplete = () => {
+        const byId = new Map(ids.result.map((id, index) => [id, pages.result[index]]));
+        resolve(all.result.map(file => ({ ...file, lastPage: byId.get(file.id) ?? file.lastPage })).sort((a, b) => b.openedAt - a.openedAt));
+      };
+      transaction.onabort = () => reject(transaction.error);
+    });
   } catch {
     return [];
   }
@@ -137,15 +161,18 @@ export async function saveRecent(file: RecentFile) {
   try {
     const database = await openFolioDatabase();
     await new Promise<void>((resolve, reject) => {
-      const transaction = database.transaction([STORE, POSITIONS], "readwrite");
+      const transaction = database.transaction([STORE, POSITIONS, METADATA], "readwrite");
       const store = transaction.objectStore(STORE);
       const positions = transaction.objectStore(POSITIONS);
       store.put(file);
       positions.put(file.lastPage, file.id);
-      const all: IDBRequest<RecentFile[]> = store.getAll();
+      const metadata = transaction.objectStore(METADATA);
+      metadata.put(summaryOf(file));
+      const all: IDBRequest<RecentSummary[]> = metadata.getAll();
       all.onsuccess = () => {
         for (const old of all.result.sort((a, b) => b.openedAt - a.openedAt).slice(MAX_RECENT)) {
           store.delete(old.id);
+          metadata.delete(old.id);
           positions.delete(old.id);
         }
       };
@@ -174,33 +201,26 @@ export async function updateLastPage(id: string, lastPage: number) {
 }
 
 export async function clearRecent() {
-  try {
-    const db = await openFolioDatabase();
-    const stores = db.objectStoreNames.contains(LEGACY) ? [STORE, POSITIONS, LEGACY] : [STORE, POSITIONS];
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(stores, "readwrite");
-      for (const name of stores) transaction.objectStore(name).clear();
-      transaction.oncomplete = () => resolve();
-      transaction.onabort = () => reject(transaction.error);
-    });
-  } catch {
-    /* ignore */
-  }
+  const db = await openFolioDatabase();
+  const stores = db.objectStoreNames.contains(LEGACY) ? [STORE, POSITIONS, METADATA, LEGACY] : [STORE, POSITIONS, METADATA];
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(stores, "readwrite");
+    for (const name of stores) transaction.objectStore(name).clear();
+    transaction.oncomplete = () => resolve();
+    transaction.onabort = () => reject(transaction.error);
+  });
 }
 
 export async function removeRecent(id: string) {
-  try {
-    const db = await openFolioDatabase();
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction([STORE, POSITIONS], "readwrite");
-      transaction.objectStore(STORE).delete(id);
-      transaction.objectStore(POSITIONS).delete(id);
-      transaction.oncomplete = () => resolve();
-      transaction.onabort = () => reject(transaction.error);
-    });
-  } catch {
-    /* ignore */
-  }
+  const db = await openFolioDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction([STORE, POSITIONS, METADATA], "readwrite");
+    transaction.objectStore(STORE).delete(id);
+    transaction.objectStore(METADATA).delete(id);
+    transaction.objectStore(POSITIONS).delete(id);
+    transaction.oncomplete = () => resolve();
+    transaction.onabort = () => reject(transaction.error);
+  });
 }
 
 // ── Highlights and notes ──────────────────────────────────────────────

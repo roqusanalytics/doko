@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "./icons";
 import { keys } from "./platform";
 
@@ -26,14 +26,24 @@ export function SearchBar({
   const [caseSensitive, setCase] = useState(false);
   const [entireWord, setWord] = useState(false);
 
+  const searched = useRef(false);
+
   // Search as you type, debounced so large documents stay responsive.
   useEffect(() => {
-    const t = window.setTimeout(() => onFind(query, { caseSensitive, entireWord }), 160);
+    if (!query && !searched.current) return;
+    const t = window.setTimeout(() => {
+      searched.current = !!query;
+      onFind(query, { caseSensitive, entireWord });
+    }, 160);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, caseSensitive, entireWord]);
 
-  const step = (previous: boolean) => query && onFind(query, { again: true, previous, caseSensitive, entireWord });
+  const step = (previous: boolean) => {
+    if (!query) return;
+    searched.current = true;
+    onFind(query, { again: true, previous, caseSensitive, entireWord });
+  };
 
   const status =
     !query ? "" : error ?? (result.state === 3 ? "Searching…" : result.total === 0 ? "No results" : `${result.current} of ${result.total}`);

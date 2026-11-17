@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { clearRecent, listRecent, removeRecent, type RecentFile } from "./recent";
+import { useEffect, useId, useRef, useState } from "react";
+import { clearRecent, getRecent, listRecent, removeRecent, type RecentFile, type RecentSummary } from "./recent";
+import { useAnchoredPopover } from "./anchored-popover";
 import { Icon } from "./icons";
 import { keys } from "./platform";
 import { formatBytes } from "./Dialogs";
@@ -64,8 +65,32 @@ interface Props {
   loading: boolean;
 }
 
+function RemoveRecentButton({ files, busy, all = false, onRemove }: {
+  files: RecentSummary[]; busy: boolean; all?: boolean; onRemove(): void;
+}) {
+  const trigger = useRef<HTMLButtonElement>(null), panel = useRef<HTMLDivElement>(null);
+  const id = useId(), open = useAnchoredPopover(trigger, panel);
+  return <span onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+    <button ref={trigger} className={all ? "link" : "recent-remove"} title={all ? undefined : "Remove from recent"}
+      disabled={busy} popoverTarget={id} aria-expanded={open} aria-haspopup="dialog">
+      {all ? "Clear all" : <Icon name="close" size={13} />}
+    </button>
+    <div ref={panel} id={id} popover="auto" role="dialog" aria-label="Remove recent files" className="anchored-popover recent-confirm">
+      <strong>Remove {all ? "all recent files" : "this recent file"} from Doko?</strong>
+      <p>Local copies will be removed. Original files stay safe. Open them again to restore these cards.</p>
+      <ul>{files.map(file => <li key={file.id}>{file.name}</li>)}</ul>
+      <footer>
+        <button data-autofocus className="btn" onClick={() => panel.current?.hidePopover()}>Cancel</button>
+        <button className="btn" disabled={busy} onClick={() => { panel.current?.hidePopover(); onRemove(); }}>Remove ({files.length})</button>
+      </footer>
+    </div>
+  </span>;
+}
+
 export function Welcome({ active, onPick, onOpenUrl, onOpenRecent, onSample, loading }: Props) {
-  const [recent, setRecent] = useState<RecentFile[]>([]);
+  const [recent, setRecent] = useState<RecentSummary[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<{ message: string; retry(): void } | null>(null);
   const [version, setVersion] = useState<string | null>(null);
 
   const [update, setUpdate] = useState<UpdateStatus | null>(null);
@@ -82,9 +107,28 @@ export function Welcome({ active, onPick, onOpenUrl, onOpenRecent, onSample, loa
     return () => { cancelled = true; };
   }, [active]);
 
-  const forget = async (id: string) => {
-    await removeRecent(id);
-    setRecent((r) => r.filter((f) => f.id !== id));
+  const forget = async (id?: string) => {
+    if (busy) return;
+    setBusy(true); setFailure(null);
+    try {
+      if (id) await removeRecent(id); else await clearRecent();
+      setRecent(r => id ? r.filter(f => f.id !== id) : []);
+    } catch (error) {
+      console.error("Couldn't remove recent files", error);
+      setFailure({ message: "Couldn't remove the local copies. Device storage is unavailable. Your files are safe.", retry: () => void forget(id) });
+    } finally { setBusy(false); }
+  };
+  const openRecent = async (id: string) => {
+    if (busy) return;
+    setBusy(true); setFailure(null);
+    try {
+      const file = await getRecent(id);
+      if (!file) throw new Error("The saved document is unavailable.");
+      onOpenRecent(file);
+    } catch (error) {
+      console.error("Couldn't open a recent file", error);
+      setFailure({ message: "Couldn't read this local copy. Open the original file, or try again. The original file is safe.", retry: () => void openRecent(id) });
+    } finally { setBusy(false); }
   };
 
   return (
@@ -120,20 +164,12 @@ export function Welcome({ active, onPick, onOpenUrl, onOpenRecent, onSample, loa
           <section className="recent">
             <div className="recent-head">
               <h3>Recent</h3>
-              <button
-                className="link"
-                onClick={async () => {
-                  if (!confirm("Remove all recent files from Doko? The original files aren't affected.")) return;
-                  await clearRecent();
-                  setRecent([]);
-                }}
-              >
-                Clear all
-              </button>
+              <RemoveRecentButton files={recent} busy={busy} all onRemove={() => void forget()} />
             </div>
             <div className="recent-grid">
               {recent.map((f) => (
-                <div key={f.id} className="recent-card" onClick={() => onOpenRecent(f)} role="button" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && onOpenRecent(f)}>
+                <div key={f.id} className="recent-card" onClick={() => void openRecent(f.id)} role="button" aria-disabled={busy} tabIndex={0}
+                  onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); void openRecent(f.id); } }}>
                   <div className="recent-thumb">
                     {f.thumb ? <img src={f.thumb} alt="" /> : <Icon name="file" size={28} />}
                     {f.lastPage > 1 && (
@@ -146,21 +182,18 @@ export function Welcome({ active, onPick, onOpenUrl, onOpenRecent, onSample, loa
                       {timeAgo(f.openedAt)} · {f.pages} {f.pages === 1 ? "page" : "pages"} · {formatBytes(f.size)}
                     </span>
                   </div>
-                  <button
-                    className="recent-remove"
-                    title="Remove from recent"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      forget(f.id);
-                    }}
-                  >
-                    <Icon name="close" size={13} />
-                  </button>
+                  <RemoveRecentButton files={[f]} busy={busy} onRemove={() => void forget(f.id)} />
                 </div>
               ))}
             </div>
           </section>
         )}
+        <div aria-live="polite">
+          {busy && <p role="status">Working…</p>}
+          {failure && <div className="form-error" role="alert"><p>{failure.message}</p>
+            <button className="btn" disabled={busy} onClick={failure.retry}>Try again</button>
+          </div>}
+        </div>
 
         {version && (
           <p className="version">

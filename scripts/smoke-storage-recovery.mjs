@@ -8,7 +8,7 @@ import {electronPath} from './electron-path.mjs';
 import {readerPage} from './reader-page.mjs';
 import {assertHidden,closeHidden} from './hidden-window.mjs';
 const root=path.resolve(import.meta.dirname,'..'),temp=mkdtempSync(path.join(tmpdir(),'doko-storage-recovery-'));
-const server=await createServer({root,logLevel:'error',plugins:[{name:'future-schema-fixture',transform(source,id){if(id.endsWith('/src/recent.ts?future-schema'))return source.replace('indexedDB.open(DB_NAME, 7)','indexedDB.open(DB_NAME, 8)');}}],server:{host:'127.0.0.1',port:0}});
+const server=await createServer({root,cacheDir:path.join(temp,'vite'),logLevel:'error',plugins:[{name:'future-schema-fixture',transform(source,id){if(id.endsWith('/src/recent.ts?future-schema'))return source.replace('indexedDB.open(DB_NAME, 8)','indexedDB.open(DB_NAME, 9)');}}],server:{host:'127.0.0.1',port:0}});
 let app;
 try {
  await server.listen();
@@ -150,17 +150,17 @@ try {
   if((await r.getNotes('copy-after-clear')).value||(await r.getAiHistory('copy-after-clear')).messages.length)throw new Error('Copy resurrected cleared data');
   const db=await r.openFolioDatabase();db.close();
   const future=await import('/src/recent.ts?future-schema');
-  const blocker=await new Promise((resolve,reject)=>{const request=indexedDB.open('folio',7);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+  const blocker=await new Promise((resolve,reject)=>{const request=indexedDB.open('folio',8);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
   blocker.onversionchange=()=>{};
   let blockedRejected=false;
   try{await future.openFolioDatabase();}catch{blockedRejected=true;}
   blocker.close();
   if(!blockedRejected)throw new Error('Blocked schema upgrade did not reject for retry');
   const upgraded=await future.openFolioDatabase();
-  if(upgraded.version!==8||!upgraded.objectStoreNames.contains('clearGenerations'))throw new Error('Future upgrade failed with an existing clearGenerations store');
+  if(upgraded.version!==9||!upgraded.objectStoreNames.contains('clearGenerations'))throw new Error('Future upgrade failed with an existing clearGenerations store');
   if((await future.getNotes('copy-after-clear')).generation!==notes.generation+1)throw new Error('Future upgrade discarded clear generation');
  });
  assert.deepEqual(errors,[]);
  await assertHidden(app);
- console.log('PASS storage recovery: read rejection preserves old notes; concurrent edits/same-ID reload/clear race protected; quota error visible; close blocked; notes retry persists; failed AI read never overwrites history; AI save failure blocks document close even after panel unmount; AI retry retains messages; save-copy data excludes embedded marks, preserves existing target and clear generations, and atomically rolls back both stores on AI write failure; v7-to-v8 fixture upgrades existing clearGenerations and recentPositions; no unhandled rejection');
+ console.log('PASS storage recovery: read rejection preserves old notes; concurrent edits/same-ID reload/clear race protected; quota error visible; close blocked; notes retry persists; failed AI read never overwrites history; AI save failure blocks document close even after panel unmount; AI retry retains messages; save-copy data excludes embedded marks, preserves existing target and clear generations, and atomically rolls back both stores on AI write failure; v8-to-v9 fixture upgrades existing clearGenerations and recentPositions; no unhandled rejection');
 } finally {if(app)await closeHidden(app);await server.close();rmSync(temp,{recursive:true,force:true});}

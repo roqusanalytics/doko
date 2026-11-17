@@ -54,7 +54,11 @@ export async function startOcrWorker(base: string, languages: string[], cachePat
     await request("loadLanguage", { langs: languages, options: { langPath: path, cachePath, cacheMethod: "readOnly", gzip: true, lstmOnly: true } });
     await request("initialize", { langs: languages, oem: OEM.LSTM_ONLY, config: {} });
     await request("setParameters", { params: { tessedit_pageseg_mode: PSM.AUTO } });
-    return { get stopped() { return stopped; }, recognize: image => request<RecognizeResult>("recognize", { image, options: {}, output: { blocks: true, text: false } }) };
+    return { get stopped() { return stopped; }, async recognize(image) {
+      const timer = setTimeout(() => stop(new Error("OCR recognition timed out. Change page to try again.")), 60_000);
+      try { return await request<RecognizeResult>("recognize", { image, options: {}, output: { blocks: true, text: false } }); }
+      finally { clearTimeout(timer); }
+    } };
   } catch (error) {
     stop(error);
     throw error;

@@ -110,7 +110,10 @@ export function recognizeScannedPages(bus: EventBus, viewer: PDFViewer, language
       const activeWorker = await worker;
       let words: Word[];
       try { words = await readWords(page, activeWorker, signal); }
-      catch (error) { if (activeWorker.stopped) workerStartFailed = true; throw error; }
+      catch (error) {
+        if (activeWorker.stopped) { worker = undefined; workerStartFailed = false; }
+        throw error;
+      }
       signal.throwIfAborted();
       if (words.length) {
         prepareOcrHighlighter(view);

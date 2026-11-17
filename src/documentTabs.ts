@@ -34,6 +34,7 @@ interface Tab {
   closing?: boolean;
   suspending?: boolean;
   suspendTimer?: number;
+  suspendDue?: boolean;
 }
 
 /** pdf.js installs editing, selection and clipboard handlers on its window. Give each live
@@ -83,7 +84,11 @@ export class DocumentTabs {
     const previous = this.entry(this.active);
     this.active = key;
     window.clearTimeout(next.suspendTimer);
-    if (previous && previous !== next) previous.suspendTimer = window.setTimeout(() => { void this.suspend(previous); }, 30_000);
+    next.suspendDue = false;
+    if (previous && previous !== next) {
+      window.clearTimeout(previous.suspendTimer);
+      previous.suspendTimer = window.setTimeout(() => { previous.suspendDue = true; void this.suspend(previous); }, 30_000);
+    }
     this.keyboardFocus = focusTab ? key : undefined;
     for (const tab of this.entries) if (tab.frame) {
       tab.frame.inert = tab !== next;
@@ -117,7 +122,10 @@ export class DocumentTabs {
       tab.frame?.remove();
       tab.frame = undefined;
     } catch { /* Keep the live reader when storage or flushing fails. */ }
-    finally { tab.suspending = false; }
+    finally {
+      tab.suspending = false;
+      if (tab.reader && tab.reader !== reader) this.retrySuspension(tab);
+    }
   }
   library() {
     const blank = this.entries.find(tab => !tab.name && !tab.closing) ?? this.create();
@@ -165,9 +173,14 @@ export class DocumentTabs {
     tab.source = undefined;
     tab.reader.open(source);
   }
+  private retrySuspension(tab: Tab) {
+    if (!tab.suspendDue || tab.key === this.active || tab.closing || !tab.reader?.suspend) return;
+    window.clearTimeout(tab.suspendTimer);
+    tab.suspendTimer = window.setTimeout(() => { void this.suspend(tab); }, 0);
+  }
   bind(key: number, reader: Reader) {
     const tab = this.entry(key);
-    if (tab) { tab.reader = reader; this.deliver(tab); }
+    if (tab) { tab.reader = reader; this.deliver(tab); this.retrySuspension(tab); }
   }
   contentFor(key: number) { return this.entry(key)?.content; }
   rename(key: number, name: string) {
@@ -214,7 +227,7 @@ export class DocumentTabs {
   }
   markDirty(key: number, dirty: boolean) {
     const tab = this.entry(key);
-    if (tab && tab.dirty !== dirty) { tab.dirty = dirty; this.changed(); }
+    if (tab && tab.dirty !== dirty) { tab.dirty = dirty; this.changed(); if (!dirty) this.retrySuspension(tab); }
   }
   failed(key: number) {
     const tab = this.entry(key);

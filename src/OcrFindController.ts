@@ -11,6 +11,7 @@ export class OcrFindController {
   private reader: TextReader | null = null;
   private generation = 0;
   private failed = false;
+  private text = new Map<number, Promise<PageText>>();
   private controller!: PDFFindController;
   private events!: EventBus;
   onIsPageVisible: ((n: number) => boolean) | null = null;
@@ -38,6 +39,7 @@ export class OcrFindController {
     if (pdf === this.pdf) return;
     this.pdf = pdf;
     this.reader = null;
+    this.text.clear();
     this.reset(false);
   }
 
@@ -45,21 +47,32 @@ export class OcrFindController {
     // pagesinit precedes PDFViewer's delayed setDocument after its first render.
     this.pdf = pdf;
     this.reader = reader;
+    this.text.clear();
     this.reset(true);
   }
 
-  async getPageText(n: number, expectedPdf = this.pdf): Promise<PageText> {
+  getPageText(n: number, expectedPdf = this.pdf): Promise<PageText> {
     const pdf = this.pdf, reader = this.reader;
     const check = () => {
       if (!pdf || pdf !== expectedPdf || pdf !== this.pdf || reader !== this.reader) {
         throw new DOMException("Document text changed", "AbortError");
       }
     };
-    check();
-    const page = await pdf!.getPage(n);
-    check();
-    const text = reader ? await reader(page) : await page.getTextContent({ disableNormalization: true });
-    check();
+    try { check(); } catch (error) { return Promise.reject(error); }
+    const existing = this.text.get(n);
+    if (existing) { this.text.delete(n); this.text.set(n, existing); return existing; }
+    const text = (async () => {
+      const page = await pdf!.getPage(n);
+      check();
+      const content = reader ? await reader(page) : await page.getTextContent({ disableNormalization: true });
+      check();
+      return content;
+    })().catch(error => {
+      if (this.text.get(n) === text) this.text.delete(n);
+      throw error;
+    });
+    this.text.set(n, text);
+    if (this.text.size > 100) this.text.delete(this.text.keys().next().value!);
     return text;
   }
 
@@ -89,11 +102,10 @@ export class OcrFindController {
     if (pdf) this.controller.setDocument(new Proxy(pdf, { get: (target, key) => key === "getPage" ? async (n: number) => {
       try {
         if (generation !== this.generation) throw new DOMException("Search cancelled", "AbortError");
-        const page = await target.getPage(n);
         return { getTextContent: async () => {
           try {
             if (generation !== this.generation) throw new DOMException("Search cancelled", "AbortError");
-            return reader ? await reader(page) : await page.getTextContent({ disableNormalization: true });
+            return await this.getPageText(n, pdf);
           } catch (error) { return fail(error); }
         } };
       } catch (error) { return fail(error); }

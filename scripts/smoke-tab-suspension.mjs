@@ -10,7 +10,7 @@ import { readerPage } from "./reader-page.mjs";
 import { assertHidden, closeHidden } from "./hidden-window.mjs";
 
 const root = path.resolve(import.meta.dirname, ".."), temp = mkdtempSync(path.join(tmpdir(), "doko-tab-suspension-"));
-const server = await createServer({ root, logLevel: "error", server: { host: "127.0.0.1", port: 0 } });
+const server = await createServer({ root, cacheDir: path.join(temp, "vite"), logLevel: "error", server: { host: "127.0.0.1", port: 0 } });
 let app;
 try {
   await server.listen();
@@ -39,6 +39,23 @@ try {
     tabs.library();
   });
   await page.getByRole("button", { name: /Try a sample/ }).waitFor();
+  // A refused attempt is retried when the inactive reader binds after its temporary state clears.
+  assert.equal(await window.evaluate(async first => {
+    const tabs = window.suspensionTabs, tab = tabs.all.find(tab => tab.key === first);
+    clearTimeout(tab.suspendTimer);
+    tab.suspendDue = true;
+    const reader = tab.reader, original = reader.suspend;
+    let attempts = 0;
+    reader.suspend = async () => { attempts++; return undefined; };
+    await tabs.suspend(tab);
+    tabs.bind(first, { ...reader, suspend: async () => { attempts++; return original(); } });
+    await new Promise(resolve => setTimeout(resolve, 50));
+    reader.suspend = original;
+    return attempts === 2 && !tab.frame && tab.source?.kind === "blob";
+  }, first), true, "Inactive tab should retry after a reader rebind");
+  await window.evaluate(first => window.suspensionTabs.select(first), first);
+  await page.getByRole("textbox", { name: "Page number" }).waitFor();
+  await page.evaluate(() => window.frameElement.readerContext.tabs.library());
   // A reader rebind during flushing safely defers suspension; wait for the inactive reader to settle.
   await window.waitForFunction(async first => {
     const tabs = window.suspensionTabs, tab = tabs.all.find(tab => tab.key === first);

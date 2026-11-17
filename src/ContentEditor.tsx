@@ -97,6 +97,7 @@ export function ContentEditor({ ref, nextSelection, pdf, viewer, bus, snapshot, 
     for (const event of events) bus.on(event, schedule);
     const fail = (reason: Error) => { setError(reason.message); waiter.current?.reject(reason); waiter.current = null; };
     w.onmessage = ({ data }: MessageEvent<EditorReply>) => {
+      if ("disposed" in data) return;
       if ("error" in data) {
         if (data.page === undefined) fail(new Error(data.error));
         else setError(data.error);
@@ -112,7 +113,12 @@ export function ContentEditor({ ref, nextSelection, pdf, viewer, bus, snapshot, 
     return () => {
       for (const event of events) bus.off(event, schedule);
       cancelAnimationFrame(frame);
-      w.terminate(); worker.current = null;
+      const timeout = setTimeout(() => w.terminate(), 1000);
+      w.onmessage = ({ data }: MessageEvent<EditorReply>) => {
+        if ("disposed" in data) { clearTimeout(timeout); w.terminate(); }
+      };
+      w.postMessage({ dispose: true } satisfies EditorRequest);
+      worker.current = null;
       waiter.current?.reject(new Error("The document changed.")); waiter.current = null;
       for (const host of hosts.values()) host.remove();
     };

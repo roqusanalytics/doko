@@ -157,6 +157,7 @@ try {
   await page.getByRole("button", { name: "Bookmark page 1", exact: true }).click();
   await switchTo("photo2.png"); await switchTo("photo1.png");
   assert.equal(await page.getByRole("button", { name: "Bookmark page 1", exact: true }).getAttribute("aria-pressed"), "true");
+  assert.equal(await sidebar.getAttribute("aria-pressed"), "true", "photo navigation retains the open reading sidebar");
   await page.getByRole("tab", { name: "Notes", exact: true }).click();
   assert.equal(await page.getByRole("textbox", { name: "Notes about this document", exact: true }).inputValue(), "Photo reading note");
   // The native file can exist before the renderer receives its save completion.

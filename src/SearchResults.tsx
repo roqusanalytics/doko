@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { PDFDocumentProxy } from "./pdf";
 import type { EventBus } from "./viewer";
 import type { OcrFindController } from "./OcrFindController";
@@ -20,12 +20,10 @@ export function SearchResults({ pdf, controller, bus, onSelect }: {
 }) {
   const [results, setResults] = useState<PageResult[]>([]);
   const [pageCount, setPageCount] = useState(0);
-  const textCache = useRef(new Map<number, Promise<string>>());
 
   useEffect(() => {
     let generation = 0;
     let timer = 0;
-    textCache.current.clear();
     const refresh = async () => {
       const request = ++generation;
       const pages = (controller.pageMatches ?? []).flatMap((matches: number[], index: number) =>
@@ -34,15 +32,8 @@ export function SearchResults({ pdf, controller, bus, onSelect }: {
       const next: PageResult[] = [];
       for (const entry of pages.slice(0, 100)) {
         if (request !== generation) return;
-        let text = textCache.current.get(entry.page);
-        if (!text) {
-          // Match offsets count characters in the text as pdf.js's find controller reads it: not normalized.
-          // Normalized text can be longer (a ligature becomes two letters), which moves the marked words.
-          text = controller.getPageText(entry.page).then(content =>
-            content.items.map(item => "str" in item ? item.str : "").join(""));
-          textCache.current.set(entry.page, text);
-        }
-        const content = await text.catch(() => "");
+        const content = await controller.getPageText(entry.page).then(text =>
+          text.items.map(item => "str" in item ? item.str : "").join("")).catch(() => "");
         const offset = entry.offset;
         next.push({ page: entry.page, count: entry.count,
           before: (offset > 55 ? "..." : "") + content.slice(Math.max(0, offset - 55), offset),
@@ -66,7 +57,7 @@ export function SearchResults({ pdf, controller, bus, onSelect }: {
       setResults([]);
       setPageCount(0);
     };
-    const textChanged = () => { textCache.current.clear(); clear(); schedule(); };
+    const textChanged = () => { clear(); schedule(); };
     bus.on("updatetextlayermatches", schedule);
     bus.on("updatefindmatchescount", schedule);
     bus.on("find", clear);

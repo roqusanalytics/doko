@@ -1689,6 +1689,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 .storage-warning { position: absolute; z-index: 25; top: 12px; left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 24px)); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-radius: var(--radius); color: var(--text); background: var(--surface); box-shadow: 0 4px 20px #0003; font-size: 13px; }
 .storage-warning span { flex: 1 1 240px; }
+.recent-confirm { width: min(340px, calc(100vw - 16px)); padding: 16px; color: var(--text); font-size: 13px; }
+.recent-confirm p { line-height: 1.5; }
+.recent-confirm ul { max-height: 160px; overflow: auto; padding-left: 20px; overflow-wrap: anywhere; }
+.recent-confirm footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 
 /* ── Update control: one icon button; the icon and click action follow the updater state ── */
 .update-control { position: relative; display: flex; }

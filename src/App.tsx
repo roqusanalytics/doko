@@ -15,6 +15,7 @@ import { FIT_SCALES, flushViews, readView, writeView, type ReadingView } from ".
 import { DocumentTabBar } from "./DocumentTabBar";
 import { trackTitlebar } from "./titlebar";
 import type { DocumentTabs, OpenSource } from "./documentTabs";
+import { readGalleryImage } from "./galleryImage";
 import { BROWSER_ACCEPT, CONTENT_ACCEPT, IPC_PREFIX, localSources } from "./content-source";
 import { SearchResults } from "./SearchResults";
 import { Icon, type IconName } from "./icons";
@@ -497,10 +498,12 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         const previous = revision ?? exported;
         if (previous && docRef.current !== previous) return false;
         if (!revision && !galleryRef.current && !tabs.opened(tabKey, id, name)) return false;
-        const saved = edit?.view ?? (previous ? readView(previous.id) ?? { page: pageRef.current, scale: viewer.currentScaleValue,
+        const galleryView = galleryRef.current && !revision ? { page: 1, scale: "page-fit", rotation: 0,
+          sidebar: preferencesRef.current.sidebar, spread: false } : undefined;
+        const saved = galleryView ?? edit?.view ?? (previous ? readView(previous.id) ?? { page: pageRef.current, scale: viewer.currentScaleValue,
           rotation: viewer.pagesRotation, ...preferencesRef.current } : readView(id));
         if (galleryRef.current && !revision) photoAutoFit.current = true;
-        restoreRef.current = galleryRef.current && !revision ? { page: 1, scale: "page-fit", rotation: 0, sidebar: false, spread: false } : initialPage && !previous ? null : saved;
+        restoreRef.current = galleryView ?? (initialPage && !previous ? null : saved);
         lastPageRef.current = Math.min(initialPage ?? saved?.page ?? existing?.lastPage ?? 1, pdf.numPages);
         pageRef.current = lastPageRef.current;
         if (saved) {
@@ -991,11 +994,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       const draft = photoDrafts.current.get(name);
       let bytes = draft?.bytes;
       if (!bytes) {
-        let blob = next.blobs?.[name];
-        if (!blob && next.id && window.folioDesktop) {
-          const image = await window.folioDesktop.content.image(next.id, name);
-          blob = new Blob([new Uint8Array(image.data)], { type: image.mime });
-        }
+        const blob = await readGalleryImage(next, name);
         if (!blob) throw new Error("This image is no longer available.");
         const { photoPdf } = await import("./documentExport");
         bytes = await photoPdf(blob, signal);
@@ -1217,7 +1216,9 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
           if (source.note && docRef.current?.name === source.name) flash(source.note);
           break;
         case "blob":
-          if (!await openBlob(source.name, source.blob) && source.recentId) void removeRecent(source.recentId);
+          if (!await openBlob(source.name, source.blob) && source.recentId) {
+            void removeRecent(source.recentId).catch(error => console.warn("Couldn't remove an unavailable recent file", error));
+          }
           break;
         case "word": {
           const signal = beginOpen();
