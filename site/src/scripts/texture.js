@@ -1,6 +1,6 @@
 // Monochrome textures drawn in the element's current text colour: halftone dot fields,
 // 1-bit dithered photos and the ASCII scramble on section indexes.
-const dark = matchMedia('(prefers-color-scheme: dark)');
+import { isDark, onTheme } from "./theme.js";
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
@@ -23,7 +23,7 @@ function dither(canvas, img, cell = 3, fade = 0, focusY = .5) {
   const o = off.getContext('2d', { willReadFrequently: true });
   const s = Math.max(cols / img.naturalWidth, rows / img.naturalHeight), dw = img.naturalWidth * s, dh = img.naturalHeight * s;
   o.drawImage(img, (cols - dw) / 2, (rows - dh) * focusY, dw, dh);
-  const d = o.getImageData(0, 0, cols, rows).data, inv = dark.matches;
+  const d = o.getImageData(0, 0, cols, rows).data, inv = isDark();
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = getComputedStyle(canvas).color;
   for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
@@ -66,7 +66,7 @@ function halftone(canvas) {
   size();
   new ResizeObserver(() => { size(); kick(); }).observe(canvas);
   new IntersectionObserver(es => { seen = es.at(-1).isIntersecting; if (seen) kick(); }).observe(canvas);
-  dark.addEventListener('change', () => { size(); kick(); });
+  onTheme(() => { size(); kick(); });
   if (!calm && matchMedia('(hover: hover)').matches) {
     host.addEventListener('pointermove', e => { const r = canvas.getBoundingClientRect(); px = e.clientX - r.left; py = e.clientY - r.top; });
     host.addEventListener('pointerleave', () => { px = py = -1e4; });
@@ -93,14 +93,14 @@ if (reel) {
   colour.className = 'reel-color';
   reel.append(mono, colour);
   colour.append(track);
-  dark.addEventListener('change', () => paint.forEach(f => f()));
+  onTheme(() => paint.forEach(f => f()));
 }
 
 // Standalone dithered pictures load their photo only when they come near the viewport.
 document.querySelectorAll('canvas[data-dither]').forEach(c => {
   const img = new Image();
   const draw = () => dither(c, img, +c.dataset.cell || 3, +c.dataset.fade || 0, +(c.dataset.focusY ?? .5));
-  img.addEventListener('load', () => { draw(); new ResizeObserver(draw).observe(c); dark.addEventListener('change', draw); });
+  img.addEventListener('load', () => { draw(); new ResizeObserver(draw).observe(c); onTheme(draw); });
   new IntersectionObserver(([e], io) => { if (e.isIntersecting) { img.src = c.dataset.dither; io.disconnect(); } }, { rootMargin: '600px' }).observe(c);
 });
 

@@ -2,11 +2,15 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import "./texture.js"; // builds the dithered reel track before the motion below animates it
+import { isDark, onTheme } from "./theme.js";
 
-// Hero tabs: arrow keys move between files; the demo advances on its own until someone interacts.
+// Hero tabs: the demo moves to the next file every few seconds, in a loop. Hovering the screenshot or switcher,
+// or focusing inside it, pauses it (WCAG 2.2.2); leaving resumes. Arrow keys move between files.
 const tabs = [...document.querySelectorAll('[role="tab"]')];
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
-let timer = null;
+const tablist = document.querySelector('.tabs'), stage = document.querySelector('.stage');
+const DELAY = 4800; // keep in sync with the progress line animation in landing.css
+let timer = null, hovered = false, focused = false, chosen = false;
 function show(i, focus) {
   tabs.forEach((t, j) => {
     const on = i === j;
@@ -14,27 +18,32 @@ function show(i, focus) {
     t.tabIndex = on ? 0 : -1;
     document.getElementById(t.getAttribute('aria-controls')).classList.toggle('on', on);
   });
-  document.querySelectorAll('.tagx[data-tab]').forEach(p => p.classList.toggle('on', +p.dataset.tab === i));
   if (focus) tabs[i].focus();
 }
 const current = () => tabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
-const stop = () => { clearInterval(timer); timer = null; };
+const pause = () => { clearTimeout(timer); timer = null; tablist.classList.remove('playing'); }; // .playing draws the progress line
+const play = () => {
+  pause();
+  if (calm || hovered || focused || chosen) return;
+  void tablist.offsetWidth; // restart the line animation from empty
+  tablist.classList.add('playing');
+  timer = setTimeout(() => { if (!document.hidden) show((current() + 1) % tabs.length); play(); }, DELAY);
+};
 tabs.forEach((t, i) => {
-  t.addEventListener('click', () => { stop(); show(i); });
+  t.addEventListener('click', () => { chosen = true; pause(); show(i); }); // a chosen file stays: the only way to stop the loop on touch screens (WCAG 2.2.2)
   t.addEventListener('keydown', e => {
     const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
-    if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); stop(); show(e.key === 'Home' ? 0 : tabs.length - 1, true); }
-    if (step) { e.preventDefault(); stop(); show((i + step + tabs.length) % tabs.length, true); }
+    if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); show(e.key === 'Home' ? 0 : tabs.length - 1, true); }
+    if (step) { e.preventDefault(); show((i + step + tabs.length) % tabs.length, true); }
   });
 });
-document.querySelectorAll('.tagx[data-tab]').forEach(p => p.addEventListener('click', () => { stop(); show(+p.dataset.tab); }));
-if (!calm) {
-  // One pass through the three files, then it stops (WCAG 2.2.2); any hover or focus stops it sooner.
-  let steps = 0;
-  timer = setInterval(() => { if (document.hidden) return; show((current() + 1) % tabs.length); if (++steps >= tabs.length - 1) stop(); }, 4800);
-  document.querySelector('.window').addEventListener('pointerenter', stop, { once: true });
-  document.querySelector('.window').addEventListener('focusin', stop, { once: true });
+for (const el of [document.querySelector('.window'), tablist]) {
+  el.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') { hovered = true; pause(); } });
+  el.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { hovered = false; play(); } });
 }
+stage.addEventListener('focusin', e => { if (e.target.matches(':focus-visible')) { focused = true; pause(); } }); // keyboard focus only; a mouse click must not freeze the loop
+stage.addEventListener('focusout', e => { if (!stage.contains(e.relatedTarget)) { focused = false; play(); } });
+play();
 
 // Hero scene: thin curves from every format to the Doko icon. Positions come from layout (offset*), so
 // transforms from the animations below never skew them.
@@ -51,13 +60,25 @@ function drawWires() {
     const [tx, ty] = centre(f), cs = getComputedStyle(f), c = (cs.getPropertyValue('--w') || cs.getPropertyValue('--c')).trim(); // --w: wire colour when the tile colour would vanish
     const ex = hx + (tx < hx ? -r : r) * .7;
     const curve = o => `M${tx},${ty} C${tx + (ex - tx) * .55},${ty + o} ${ex - (ex - tx) * .35},${hy + o * .4} ${ex},${hy + o * .2}`;
-    for (const o of [-10, -5, 0, 5, 10]) out += `<path class="w" stroke="${c}" d="${curve(o)}"/>`;
-    out += `<path class="spark" data-i="${i}" stroke="${c}" d="${curve(0)}"/>`;
+    for (const o of [-10, -5, 0, 5, 10]) out += `<path class="w" data-i="${i}" stroke="${c}" d="${curve(o)}"/>`;
+    out += `<path class="spark" data-i="${i}" stroke="${c}" style="color:${c}" d="${curve(0)}"/>`; // color feeds the CSS glow
   });
   wiresSvg.innerHTML = out;
 }
 drawWires();
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { drawWires(); window.dispatchEvent(new Event('wires')); });
+onTheme(() => { drawWires(); window.dispatchEvent(new Event('wires')); });
+
+// Light/dark button: remembers the choice in this browser; without a choice the system setting applies.
+const themeBtn = document.querySelector('[data-theme-toggle]');
+const syncTheme = () => themeBtn.setAttribute('aria-pressed', isDark());
+syncTheme();
+onTheme(syncTheme);
+themeBtn.addEventListener('click', () => {
+  const next = isDark() ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('doko-theme', next); } catch {} // private mode: the choice lasts for this page only
+  dispatchEvent(new Event('themechange'));
+});
 let sparkCtx;
 let sceneWidth = scene.clientWidth;
 // Redraw only on real width changes; the observer also fires once on observe().
@@ -92,8 +113,29 @@ fetch('https://api.github.com/repos/roqusanalytics/doko/releases/latest', { head
       if (file) a.href = file.browser_download_url;
     }
     if (mine) get.href = mine.href;
+    const ver = document.querySelector('[data-version]');
+    const date = new Date(release.published_at).toLocaleDateString(document.documentElement.lang, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+    ver.textContent = `${ver.dataset.version} ${release.tag_name} · ${date}`;
+    ver.hidden = false;
   })
   .catch(err => console.warn('Direct download links unavailable, using the release page.', err));
+
+// Phones and tablets cannot install Doko: say so in the download section and offer to copy the link.
+if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (touch && /mac/i.test(platform))) {
+  const note = document.querySelector('.phone-note'), copy = note.querySelector('[data-copy]');
+  note.hidden = false;
+  copy.addEventListener('click', () => (navigator.clipboard?.writeText(location.origin + location.pathname) ?? Promise.reject())
+    .then(() => { copy.textContent = copy.dataset.copy; })
+    .catch(() => { copy.textContent = location.origin + location.pathname; })); // no clipboard access: show the link to copy by hand
+}
+
+// Ask AI "combination lock": provider, file and citation roll into place, then the matching answer appears.
+// Each picker is as wide as its current word; neighbours show faintly above and below on wide screens.
+const lock = document.querySelector('.ask-lock');
+const picks = [...lock.querySelectorAll('.pick')];
+const fitPick = (pick, i) => pick.children[i].offsetWidth;
+picks.forEach(p => { p.style.width = fitPick(p, 0) + 'px'; });
+document.fonts?.ready.then(() => { if (!lock.querySelector('.pick > span[style]')) picks.forEach(p => { p.style.width = fitPick(p, 0) + 'px'; }); }); // re-measure once the web font replaces the fallback
 
 // Spotlight follows the pointer on bento cards (pointer devices only).
 if (matchMedia("(hover: hover)").matches) {
@@ -145,18 +187,30 @@ addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8),
     gsap.from(hubEl, { scale: .4, opacity: 0, duration: 1.2, ease: 'expo.out', delay: .5 });
     gsap.from(fmts.map(f => f.firstElementChild), { x: i => delta(fmts[i])[0], y: i => delta(fmts[i])[1], scale: .2, opacity: 0, duration: 1.5, stagger: .05, ease: 'expo.out', delay: .65 });
     gsap.fromTo(scene.querySelector('.halo'), { scale: 1, opacity: .7 }, { scale: 1.9, opacity: 0, duration: 2.4, ease: 'expo.out', repeat: -1, delay: 2 });
+    // Everything below runs in clockwise order around the hub, so the scene reads as one sweep, not noise.
+    const angle = i => { const [tx, ty] = centre(fmts[i]), [hx, hy] = centre(hubEl); return (Math.atan2(ty - hy, tx - hx) + Math.PI * 2.5) % (Math.PI * 2); };
+    const hubMark = hubEl.querySelector('svg');
     const runWires = (intro) => {
       sparkCtx?.revert();
       sparkCtx = gsap.context(() => {
-        const lines = [...wiresSvg.querySelectorAll('.w')];
-        if (intro) lines.forEach(p => { const len = p.getTotalLength(); gsap.fromTo(p, { strokeDasharray: len, strokeDashoffset: len }, { strokeDashoffset: 0, duration: 1.4, ease: 'expo.inOut', delay: 1 + Math.random() * .5 }); });
-        wiresSvg.querySelectorAll('.spark').forEach(p => {
-          const len = p.getTotalLength(), seg = 34;
-          gsap.timeline({ repeat: -1, repeatDelay: 1 + Math.random() * 2.5, delay: (intro ? 2.2 : 0) + Math.random() * 2, scrollTrigger: live(scene) })
-            .set(p, { strokeDasharray: `${seg} ${len}`, strokeDashoffset: seg, opacity: 1 })
-            .to(p, { strokeDashoffset: -len, duration: 1.3, ease: 'power2.in' })
-            .set(p, { opacity: 0 });
+        const order = i => [...fmts.keys()].filter(j => fmts[j].offsetParent).sort((a, b) => angle(a) - angle(b)).indexOf(i);
+        if (intro) wiresSvg.querySelectorAll('.w').forEach(p => {
+          const len = p.getTotalLength(), k = order(+p.dataset.i);
+          gsap.fromTo(p, { strokeDasharray: len, strokeDashoffset: len }, { strokeDashoffset: 0, duration: 1.4, ease: 'expo.inOut', delay: 1 + Math.max(0, k) * .06 });
         });
+        // One soft comet per format, each leaving its tile a beat after the last; the icon answers every arrival.
+        const sparks = [...wiresSvg.querySelectorAll('.spark')].sort((a, b) => order(+a.dataset.i) - order(+b.dataset.i));
+        const beat = .5, loop = gsap.timeline({ repeat: -1, delay: intro ? 2.4 : 0, scrollTrigger: live(scene) });
+        sparks.forEach((p, k) => {
+          const len = p.getTotalLength(), seg = Math.min(70, len * .2), t = k * beat, tile = fmts[+p.dataset.i].firstElementChild;
+          loop.set(p, { strokeDasharray: `${seg} ${len + seg}`, strokeDashoffset: seg, opacity: 0 }, t)
+            .to(tile, { scale: 1.06, duration: .22, ease: 'power2.out', yoyo: true, repeat: 1 }, t)
+            .to(p, { opacity: 1, duration: .3, ease: 'none' }, t)
+            .to(p, { strokeDashoffset: -len + seg * .3, duration: 1.7, ease: 'power2.inOut' }, t)
+            .to(p, { opacity: 0, duration: .35, ease: 'power1.in' }, t + 1.4)
+            .to(hubMark, { scale: 1.04, duration: .2, ease: 'power2.out', yoyo: true, repeat: 1, transformOrigin: '50% 50%' }, t + 1.55);
+        });
+        loop.to({}, { duration: 1.6 }); // a breath before the next sweep
       });
     };
     runWires(true);
@@ -199,7 +253,15 @@ addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8),
     $('.compare tr').forEach((row, i) => rows.from(row.children, { opacity: 0, y: 18, duration: .8, stagger: .05, ease: 'expo.out' }, i * .07));
     enter('.details article', '.details', { y: 40, filter: 'blur(6px)', stagger: .09 });
     enter('.faq details', '.faq', { x: -28, stagger: .06 });
-    enter('.platforms li', '.platforms', { y: 60, rotateX: -22, transformPerspective: 900, transformOrigin: '50% 100%', stagger: .1 });
+    // Download cards start as one fanned deck in the middle of the row and deal out to their places as you scroll.
+    // Offsets come from layout (offset*), so the transforms never feed back into the measurements.
+    const deck = document.querySelector('.platforms'), cards = $('.platforms li');
+    const toCentre = (el, axis) => axis === 'x' ? deck.clientWidth / 2 - (el.offsetLeft + el.offsetWidth / 2) : deck.clientHeight / 2 - (el.offsetTop + el.offsetHeight / 2);
+    const fan = [-7, 2, 9];
+    gsap.fromTo(cards,
+      { x: (i, el) => toCentre(el, 'x') + (i - 1) * 10, y: (i, el) => toCentre(el, 'y') + i * 6, rotation: i => fan[i] ?? 0, scale: .94 },
+      { x: 0, y: 0, rotation: 0, scale: 1, ease: 'power3.out', stagger: .12, invalidateOnRefresh: true,
+        scrollTrigger: { trigger: deck, start: 'top 92%', end: 'top 38%', scrub: .9 } });
     // The closing picture rises out of the page edge as it scrolls in.
     gsap.fromTo('.outro canvas', { clipPath: 'inset(100% 0% 0% 0%)' }, { clipPath: 'inset(0% 0% 0% 0%)', ease: 'none', scrollTrigger: { trigger: '.outro', start: 'clamp(top 95%)', end: 'clamp(top 40%)', scrub: .6 } });
     enter('.outro p span', '.outro p', { y: 10, stagger: .12, scrollTrigger: { trigger: '.outro p', start: 'top 98%', once: true } });
@@ -217,12 +279,14 @@ addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8),
       .to(pin, { opacity: 1, y: 0, scale: 1, duration: .6, ease: 'expo.out' }, 3.5)
       .to({}, { duration: 2.5 });
 
-    const ai = document.querySelector('[data-cell="ai"]');
-    const provs = $('.prov', ai), ask = ai.querySelector('.ask');
-    const turn = i => () => provs.forEach((p, j) => p.classList.toggle('on', i === j));
-    const aiTl = gsap.timeline({ repeat: -1, scrollTrigger: live(ai) });
-    provs.forEach((_, i) => aiTl.call(turn(i)).fromTo(ask, { scale: 1 }, { scale: 1.08, duration: .35, yoyo: true, repeat: 1, ease: 'power2.inOut' }, '+=.5').to({}, { duration: 1.2 }));
-    gsap.from($('.prov', ai), { y: 18, opacity: 0, duration: 1, stagger: .12, ease: 'expo.out', scrollTrigger: { trigger: ai, start: 'top 80%', once: true } });
+    // Spreadsheet card: the same rows flip between table and source view, like Doko's CSV editor.
+    const table = document.querySelector('[data-cell="table"] .tmini');
+    const asSource = on => () => table.classList.toggle('as-src', on);
+    gsap.timeline({ repeat: -1, scrollTrigger: live(table) })
+      .from($('.grid span', table), { opacity: 0, y: 6, duration: .5, stagger: .04, ease: 'power2.out' })
+      .call(asSource(true), null, '+=1.8')
+      .call(asSource(false), null, '+=2.2')
+      .to({}, { duration: .6 });
 
     const md = document.querySelector('[data-cell="md"]');
     gsap.timeline({ repeat: -1, repeatDelay: 1.5, scrollTrigger: live(md) })
@@ -252,43 +316,29 @@ addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8),
       .to([pg[1], pg[2]], { x: 0, duration: .7, ease: 'power3.inOut' }, '+=.6');
 
     pulse(document.querySelector('.local'));
-    // matchMedia reverts styles, not classes: restore the resting state.
-    return () => { window.removeEventListener('wires', rerun); sparkCtx?.revert(); turn(0)(); sw.forEach(s => s.classList.remove('cur')); };
-  });
 
-  // Flow nodes: hover, focus or tap one and only its wire carries light; the rest dims.
-  // Nodes and wires share one order: inputs 1-3, outputs 1-3.
-  document.querySelectorAll('.flow').forEach(svg => {
-    const nodes = [...svg.querySelectorAll('.node')], wires = [...svg.querySelectorAll('.wire')], dots = [...svg.querySelectorAll('.dot')];
-    const pick = i => {
-      svg.classList.toggle('has-sel', i >= 0);
-      [nodes, wires, dots].forEach(list => list.forEach((el, j) => el.classList.toggle('sel', j === i)));
-    };
-    nodes.forEach((n, i) => {
-      n.setAttribute('tabindex', 0); n.setAttribute('role', 'button'); n.setAttribute('aria-label', n.textContent.trim());
-      n.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') pick(i); });
-      n.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') pick(-1); });
-      n.addEventListener('focus', () => pick(i));
-      n.addEventListener('blur', () => pick(-1));
-      n.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') pick(i); }); // touch has no hover; focus covers keyboard and mouse
+    const narrow = () => matchMedia('(max-width: 720px)').matches;
+    const answers = [...lock.querySelectorAll('.lock-ans span')], ansBox = lock.querySelector('.lock-ans');
+    const lockTl = gsap.timeline({ repeat: -1, scrollTrigger: live(lock) });
+    [1, 2, 0].forEach((i, r) => {
+      const at = r * 4.6;
+      lockTl.to(ansBox, { opacity: 0, y: 6, duration: .3 }, at);
+      picks.forEach((pick, n) => {
+        const rows = [...pick.children], t0 = at + .3 + n * .22;
+        lockTl.to(rows, { y: () => -i * rows[0].offsetHeight, duration: .85, ease: 'expo.inOut' }, t0)
+          .to(pick, { width: () => fitPick(pick, i), duration: .85, ease: 'expo.inOut' }, t0);
+        rows.forEach((row, j) => { const d = Math.abs(j - i);
+          lockTl.to(row, { opacity: () => d === 0 ? 1 : d === 1 && !narrow() ? .16 : 0, filter: d ? 'blur(1.5px)' : 'blur(0px)', duration: .75, ease: 'expo.inOut' }, t0 + .05); });
+      });
+      lockTl.to(picks[2], { scale: 1.14, duration: .2, yoyo: true, repeat: 1, ease: 'power2.out' }, at + 1.6)
+        .call(() => answers.forEach((s, j) => s.classList.toggle('on', j === i)), null, at + 1.7)
+        .to(ansBox, { opacity: 1, y: 0, duration: .5, ease: 'expo.out' }, at + 1.75);
     });
-    document.addEventListener('pointerdown', e => { if (!svg.contains(e.target)) pick(-1); });
+    lockTl.to({}, { duration: .01 }, 3 * 4.6); // hold the last answer before the loop restarts
+    const relock = () => lockTl.invalidate();
+    ScrollTrigger.addEventListener('refreshInit', relock);
+    // matchMedia reverts styles, not classes: restore the resting state.
+    return () => { ScrollTrigger.removeEventListener('refreshInit', relock); window.removeEventListener('wires', rerun); sparkCtx?.revert(); asSource(false)(); sw.forEach(s => s.classList.remove('cur')); };
   });
 
-  // 4. Flow diagram, kept separate so crossing the breakpoint rebuilds only this.
-  mm.add({ motion: '(prefers-reduced-motion: no-preference)', wide: '(min-width: 721px)' }, ctx => {
-    const { motion, wide } = ctx.conditions;
-    if (!motion) return;
-    const svg = document.querySelector(wide ? '.flow-h' : '.flow-v');
-    const inWires = draw($('.wire.a', svg)), outWires = draw($('.wire.b', svg));
-    gsap.timeline({ scrollTrigger: { trigger: svg, start: 'top 70%', once: true }, onComplete: () => ctx.add(() => pulse(svg)) })
-      .from($('.node.in', svg), { opacity: 0, x: wide ? -24 : 0, y: wide ? 0 : -16, duration: .6, stagger: .1, ease: 'expo.out' })
-      .to(inWires, { strokeDashoffset: 0, duration: .9, stagger: .08, ease: 'power2.inOut' }, '-=.2')
-      .from($('.hub', svg), { scale: .5, opacity: 0, transformOrigin: '50% 50%', duration: .8, ease: 'expo.out' }, '-=.35')
-      .to(outWires, { strokeDashoffset: 0, duration: .9, stagger: .08, ease: 'power2.inOut' }, '-=.3')
-      .from($('.node.out', svg), { opacity: 0, x: wide ? 24 : 0, y: wide ? 0 : 16, duration: .6, stagger: .1, ease: 'expo.out' }, '-=.4')
-      .from('.answer .q', { opacity: 0, y: 16, duration: .7, ease: 'expo.out' })
-      .from('.answer .a', { opacity: 0, y: 16, clipPath: 'inset(0 100% 0 0)', duration: 1.1, ease: 'expo.out' }, '+=.3')
-      .from('.answer .cite', { scale: .4, opacity: 0, duration: .6, ease: 'expo.out' }, '-=.3');
-  });
 }

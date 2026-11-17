@@ -30,13 +30,13 @@ no previous screenshot is used as an input.
 4. Save the six full window captures under the names above. Check each image visually for English text,
    readable content, matching file type, and private data before replacing the public assets.
 5. Check all README image links. A GitHub-only refresh does not replace or deploy the website's gallery.
-   When a website refresh is requested, create proportional JPEG derivatives for its three screenshot tabs
+   When a website refresh is requested, create proportional JPEG derivatives for its four screenshot tabs
    and preserve the full native window's aspect ratio in `site/src/components/Landing.astro`.
 
 The English landing page uses proportional `site/public/mockups/practical-en-*` JPEG derivatives
-of the current English PDF, photo and Markdown captures above, at 1334 × 870 and 2668 × 1740.
-The Lithuanian landing page keeps `practical-pdf-*`, `practical-photos-*` and `practical-markdown-*`
-from Doko 1.20.26, using the fictional Pajūrio studija project in Lithuanian.
+of the current English PDF, photo, Markdown and Excel captures above, at 1334 × 870 and 2668 × 1740.
+The Lithuanian landing page keeps `practical-pdf-*`, `practical-photos-*`, `practical-markdown-*` and `practical-excel-*`
+from Doko 1.20.26, using the fictional Pajūrio studija project in Lithuanian (`Biudzetas-ir-darbai.xlsx` for Excel).
 The page language selects both image resolutions at build time; the build check rejects mixed-language assets.
 
 The automated developer capture scripts are fixture generators only. `scripts/screenshots.mjs` writes to

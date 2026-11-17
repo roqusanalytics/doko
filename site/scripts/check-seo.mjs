@@ -16,7 +16,7 @@ for (const { file, lang, url } of pages) {
     assert.ok(existsSync(new URL(`../dist${asset}`, import.meta.url)), at(`screenshot exists: ${asset}`));
   const shots = [...new Set(html.match(/\/mockups\/practical-[\w-]+\.jpg/g))].sort();
   const prefix = lang === 'en' ? '/mockups/practical-en' : '/mockups/practical';
-  assert.deepEqual(shots, ['pdf', 'photos', 'markdown'].flatMap(kind =>
+  assert.deepEqual(shots, ['pdf', 'photos', 'markdown', 'excel'].flatMap(kind =>
     [1334, 2668].map(width => `${prefix}-${kind}-${width}.jpg`)).sort(), at('gallery matches page language at both resolutions'));
   assert.match(html, new RegExp(`<html lang="${lang}"`), at(`html lang=${lang}`));
   assert.ok(html.includes(`<link rel="canonical" href="${url}">`), at(`canonical ${url}`));
