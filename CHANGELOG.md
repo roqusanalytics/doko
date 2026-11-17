@@ -1,10 +1,11 @@
 # Changelog
 
-## 1.20.33
+## 1.20.34
 
 - Recover from stalled AI and OCR work, retry failed local-copy removal, and release inactive readers when they become safe to suspend.
 - Reuse document text, PDF editing sessions, and gallery reads to avoid repeated processing while preserving scanned-document search and AI.
 - Keep the reading sidebar open while moving between photos.
+- Make resource checks handle Windows line endings and retry temporary profile cleanup after native file locks.
 
 ## 1.20.32
 

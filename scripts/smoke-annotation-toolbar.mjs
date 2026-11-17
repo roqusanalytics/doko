@@ -196,4 +196,4 @@ try {
   const window = await app.firstWindow();
   await window.screenshot({path:path.join(tmpdir(), 'doko-toolbar-failure.png')});
   throw error;
-} finally { await closeHidden(app); rmSync(temp, { recursive:true, force:true }); }
+} finally { await closeHidden(app); rmSync(temp, { recursive:true, force:true, maxRetries: 5, retryDelay: 100 }); }

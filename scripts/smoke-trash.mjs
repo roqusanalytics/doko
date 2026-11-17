@@ -95,5 +95,5 @@ try {
       rmSync(file);
     }
   }
-  rmSync(temp, { recursive: true, force: true });
+  rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

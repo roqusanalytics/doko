@@ -81,4 +81,4 @@ try {
   await page.screenshot({ path: path.join(root, "release/smoke/photo-dynamic-fit.png") });
   await assertHidden(app);
   console.log("ok  mouse wheel scrolls thumbnail strip and changes fitted photos; gesture guard and reduced-motion respected");
-} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true }); }
+} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }

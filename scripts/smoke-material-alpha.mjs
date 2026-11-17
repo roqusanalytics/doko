@@ -60,4 +60,4 @@ try {
     assert.deepEqual(solid, {navbar:255,edge:255,sidebar:255,canvas:255}, 'Disabled transparency restores fully opaque surfaces');
   }
   await assertHidden(app);
-} finally { await closeHidden(app); rmSync(temp, { recursive:true, force:true }); }
+} finally { await closeHidden(app); rmSync(temp, { recursive:true, force:true, maxRetries: 5, retryDelay: 100 }); }

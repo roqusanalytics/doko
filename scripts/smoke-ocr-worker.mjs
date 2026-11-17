@@ -177,5 +177,5 @@ try {
 } finally {
   if (app) await closeHidden(app);
   await server.close();
-  rmSync(temp, { recursive: true, force: true });
+  rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

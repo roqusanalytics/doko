@@ -116,5 +116,5 @@ try {
   console.log("ok  menus: non-overlapping anchor, viewport flip/clamp, selection, focus, arrows/Home/End/Escape, one popup, outside dismissal, language empty/long/search states");
 } finally {
   await closeHidden(app);
-  rmSync(temp, { recursive: true, force: true });
+  rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

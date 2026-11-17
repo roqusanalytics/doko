@@ -46,7 +46,9 @@ async function worker(filename) {
   } });
   const replies = [];
   const self = { postMessage: reply => replies.push(reply), close() { self.closed = true; } };
-  const code = readFileSync(filename, 'utf8').replace(/^import .*;\n/gm, '');
+  // Exercise Windows checkout line endings on every platform.
+  const code = readFileSync(filename, 'utf8').replace(/\r?\n/g, '\r\n').replace(/^import .*;\r?\n/gm, '');
+  assert.doesNotMatch(code, /^import\b/m, 'the VM fixture must strip imports with CRLF or LF');
   const js = (await transformWithOxc(code.replace(/^export /gm, ''), filename, { lang: 'ts', target: 'es2022' })).code;
   const context = vm.createContext({ self, Uint8Array, Error, Map, Set, fetch: async () => ({ ok: true, arrayBuffer: async () => wasm }),
     wasmUrl: 'test', init: async () => wrapped,

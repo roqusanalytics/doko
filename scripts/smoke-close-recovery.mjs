@@ -308,5 +308,5 @@ try {
 } finally {
   if (app) await closeHidden(app);
   await server.close();
-  rmSync(directory, { recursive: true, force: true });
+  rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

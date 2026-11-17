@@ -243,4 +243,4 @@ try {
   console.error("File action diagnostics:", await app.evaluate(() => globalThis.fileActionTest));
   console.error("Reader:", await readerPage(await app.firstWindow()).locator("body").innerText().catch(() => "unavailable"));
   throw error;
-} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true }); }
+} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }

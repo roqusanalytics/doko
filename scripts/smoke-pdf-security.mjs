@@ -59,4 +59,4 @@ try {
   assert.deepEqual(new Uint8Array(readFileSync(input)),source,"original file changed");
   assert.deepEqual(errors,[]);await assertHidden(app);
   console.log("PASS PDF security UI: empty/mismatch/long password; save cancel/retry; native protected-copy save; invalid rectangles; pointer/keyboard add/remove/clear; explicit flatten confirmation; native redacted-save cancel preserves dialog/areas/source; saved redacted PDF before new tab; PDF.js no/wrong/correct password reopen; no localStorage password; immutable original");
-}finally{await closeHidden(app);rmSync(temp,{recursive:true,force:true});}
+}finally{await closeHidden(app);rmSync(temp,{recursive:true,force:true, maxRetries: 5, retryDelay: 100});}

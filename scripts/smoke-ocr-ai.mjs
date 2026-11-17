@@ -183,5 +183,5 @@ try {
 } finally {
   await app.evaluate(() => { globalThis.ocrAiTest?.restore(); delete globalThis.ocrAiTest; }).catch(() => {});
   await closeHidden(app);
-  rmSync(temp, { recursive: true, force: true });
+  rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

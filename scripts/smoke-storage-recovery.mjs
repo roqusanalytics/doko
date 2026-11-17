@@ -163,4 +163,4 @@ try {
  assert.deepEqual(errors,[]);
  await assertHidden(app);
  console.log('PASS storage recovery: read rejection preserves old notes; concurrent edits/same-ID reload/clear race protected; quota error visible; close blocked; notes retry persists; failed AI read never overwrites history; AI save failure blocks document close even after panel unmount; AI retry retains messages; save-copy data excludes embedded marks, preserves existing target and clear generations, and atomically rolls back both stores on AI write failure; v8-to-v9 fixture upgrades existing clearGenerations and recentPositions; no unhandled rejection');
-} finally {if(app)await closeHidden(app);await server.close();rmSync(temp,{recursive:true,force:true});}
+} finally {if(app)await closeHidden(app);await server.close();rmSync(temp,{recursive:true,force:true, maxRetries: 5, retryDelay: 100});}

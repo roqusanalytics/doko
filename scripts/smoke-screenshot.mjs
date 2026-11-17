@@ -128,4 +128,4 @@ try {
   const shots = path.join(root, 'release', 'smoke'); mkdirSync(shots, { recursive: true });
   await window.screenshot({ path: path.join(shots, 'screenshot-draw.png') });
   console.log('PASS screenshot: four drag directions, mixed DPI/negative coordinates and PNG pixels, keyboard, cancel, clipboard denial/retry, Save PNG, Draw; desktop and OS clipboard untouched');
-} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true }); }
+} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }

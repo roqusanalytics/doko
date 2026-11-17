@@ -99,4 +99,4 @@ try {
  await page.getByRole('button',{name:'Ask AI',exact:true}).click();await page.getByText('SYNTHETIC SAVED CHAT',{exact:true}).waitFor();
  assert.deepEqual(errors,[]);await assertHidden(app);
  console.log('PASS native PDF save data: cancelled save retains source; changed content hash reopens with local note/bookmarks/chat; reordered bookmark maps to new page; repeated native save retains exactly one embedded highlight; native notes JSON/version/selected-page exports; sourceId underline copy cancels safely then reattaches reading and chat; no provider request');
-}finally{if(app)await closeHidden(app);rmSync(temp,{recursive:true,force:true});}
+}finally{if(app)await closeHidden(app);rmSync(temp,{recursive:true,force:true, maxRetries: 5, retryDelay: 100});}

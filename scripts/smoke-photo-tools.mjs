@@ -273,4 +273,4 @@ try {
 } catch (error) {
   if (page) await page.screenshot({ path: path.join(shots, "photo-tools-failure.png") }).catch(() => {});
   throw error;
-} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true }); }
+} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }

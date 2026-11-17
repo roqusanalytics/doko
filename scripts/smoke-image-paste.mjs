@@ -72,4 +72,4 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.stampAnnotation').length === 2);
   await assertHidden(app); assert.deepEqual(errors, []);
   console.log(`PASS image paste (${process.platform}): Select/Draw PNG, no duplicate, empty/invalid/input guards, saved and reopened PDF; OS clipboard untouched`);
-} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true }); }
+} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }

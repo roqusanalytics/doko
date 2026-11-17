@@ -177,4 +177,4 @@ try {
 } catch (error) {
   if (app) await (await app.firstWindow()).screenshot({ path:path.join(tmpdir(), 'doko-window-appearance-failure.png') }).catch(() => {});
   throw error;
-} finally { if (app) await closeHidden(app); rmSync(temp, { recursive:true, force:true }); }
+} finally { if (app) await closeHidden(app); rmSync(temp, { recursive:true, force:true, maxRetries: 5, retryDelay: 100 }); }

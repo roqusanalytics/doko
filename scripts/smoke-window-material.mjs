@@ -74,5 +74,5 @@ try {
   await assertHidden(app);
 } finally {
   if (app) await closeHidden(app);
-  rmSync(profile, { recursive: true, force: true });
+  rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

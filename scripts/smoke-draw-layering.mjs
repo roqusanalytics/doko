@@ -38,5 +38,5 @@ try {
   await assertHidden(app);
 } finally {
   await app.evaluate(({ dialog }) => { dialog.showMessageBoxSync = () => 0; }).catch(() => {});
-  await closeHidden(app); rmSync(temp, { recursive: true, force: true });
+  await closeHidden(app); rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

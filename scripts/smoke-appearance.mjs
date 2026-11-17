@@ -203,4 +203,4 @@ try {
   await page.screenshot({ path: path.join(shots, "appearance-settings.png") });
   await assertHidden(app);
   console.log("PASS appearance hidden Electron: presets, live parent/frame sync, invalid/long/custom input, Dark theme, PDF/photo/Markdown, reload, reset");
-} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true }); }
+} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }

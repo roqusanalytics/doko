@@ -152,4 +152,4 @@ try {
   await (await app.firstWindow()).screenshot({path:path.join(tmpdir(),'doko-edit-groups-failure.png')}).catch(()=>{});
   throw error;
 } finally {
-  await closeHidden(app); rmSync(temp,{recursive:true,force:true}); }
+  await closeHidden(app); rmSync(temp,{recursive:true,force:true, maxRetries: 5, retryDelay: 100}); }

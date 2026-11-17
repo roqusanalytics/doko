@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mock, test } from "node:test";
 import childProcess from "node:child_process";
+import { readdirSync, readFileSync } from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { assertHidden, closeHidden } from "./hidden-window.mjs";
 
@@ -45,5 +46,17 @@ test("hidden cleanup prevents auto-quit before acknowledgement and refuses a non
     syncBuiltinESMExports();
     if (previous === undefined) delete process.env.FOLIO_TEST_USER_DATA;
     else process.env.FOLIO_TEST_USER_DATA = previous;
+  }
+});
+
+
+test("recursive smoke cleanup uses bounded retries", () => {
+  for (const file of readdirSync(import.meta.dirname).filter(name => /^smoke-.*\.mjs$/.test(name))) {
+    const source = readFileSync(new URL(file, import.meta.url), "utf8");
+    for (const match of source.matchAll(/\brmSync\s*\([^,]+,\s*\{([^}]*)\}/gs)) {
+      if (!/\brecursive\s*:\s*true\b/.test(match[1])) continue;
+      assert.match(match[1], /\bmaxRetries\s*:\s*[1-9]\d*\b/, file);
+      assert.match(match[1], /\bretryDelay\s*:\s*[1-9]\d*\b/, file);
+    }
   }
 });
