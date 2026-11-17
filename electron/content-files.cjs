@@ -331,14 +331,23 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
     if (!await confirmTrash(name)) return null;
     const current = await galleryPath(id, name);
     if (!sameFile(selected.stat, current.stat) || selected.stat.ctimeNs !== current.stat.ctimeNs) throw new Error("The image changed. Refresh the gallery and try again.");
+    // A failed Trash attempt can change bytes without advancing Windows metadata timestamps.
+    let beforeAccess;
+    if (requestTrashAccess) {
+      try { beforeAccess = hash(await readRegular(current.file, MAX_IMAGE_BYTES)); }
+      catch { /* Reading is required for permission recovery, not for an ordinary Trash move. */ }
+      const prepared = await galleryPath(id, name);
+      if (!sameFile(current.stat, prepared.stat) || current.stat.ctimeNs !== prepared.stat.ctimeNs) throw new Error("The image changed. Refresh the gallery and try again.");
+    }
     try { await trashItem(current.file); }
     catch (error) {
       const denied = ["EACCES", "EPERM"].includes(error.code) || /permission|not permitted|access denied/i.test(error.message || "");
       if (!denied) throw error;
       if (!requestTrashAccess) throw new Error("Permission denied. Use Show in folder to check this file's access and lock settings, then retry.");
-      const beforeAccess = hash(await readRegular(current.file, MAX_IMAGE_BYTES));
+      if (!beforeAccess) throw new Error("Couldn't verify that this image is unchanged. Use Show in folder to move it safely.");
       const beforeConsent = await galleryPath(id, name);
-      if (!sameFile(current.stat, beforeConsent.stat) || current.stat.ctimeNs !== beforeConsent.stat.ctimeNs) throw new Error("The image changed. Refresh the gallery and try again.");
+      if (!sameFile(current.stat, beforeConsent.stat) || current.stat.ctimeNs !== beforeConsent.stat.ctimeNs
+        || beforeAccess !== hash(await readRegular(beforeConsent.file, MAX_IMAGE_BYTES))) throw new Error("The image changed. Refresh the gallery and try again.");
       const chosen = await requestTrashAccess(current.file);
       if (!chosen) return null;
       if (await regular(chosen) !== current.file) throw new Error("Select the same image to allow access. No file was moved.");

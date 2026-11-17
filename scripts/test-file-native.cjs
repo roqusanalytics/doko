@@ -131,9 +131,51 @@ test('gallery changes during a failed Trash attempt cannot become the permission
     trashItem: async () => { attempts++; await fs.writeFile(file, 'other'); throw Object.assign(new Error('denied'), { code: 'EACCES' }); },
     requestTrashAccess: async () => { prompts++; return file; } });
   const gallery = await content.open(file);
-  await assert.rejects(content.trash(gallery.id, 'photo.png'), /image changed/);
+  const lstat = fs.lstat;
+  // Exercise unchanged/coarse Windows ctime even on filesystems with fine timestamps.
+  fs.lstat = async (...args) => { const stat = await lstat(...args); if (args[0] === file && args[1]?.bigint) stat.ctimeNs = 0n; return stat; };
+  try { await assert.rejects(content.trash(gallery.id, 'photo.png'), /image changed/); }
+  finally { fs.lstat = lstat; }
   assert.equal(attempts, 1); assert.equal(prompts, 0);
   assert.equal(await fs.readFile(file, 'utf8'), 'other');
+});
+test('ordinary Trash needs no readable snapshot, but recovery cannot proceed without one', async t => {
+  for (const unreadable of [false, true]) for (const denied of [false, true]) {
+    await t.test(`${unreadable ? 'unreadable' : 'oversized'}; ${denied ? 'denied' : 'ordinary move'}`, async t => {
+      const root = await temporary(t), file = path.join(root, 'photo.png');
+      await fs.writeFile(file, 'image');
+      if (!unreadable) await fs.truncate(file, 101 * 1024 * 1024);
+      let attempts = 0, prompts = 0;
+      const content = createContentFiles({ confirmTrash: async () => true,
+        trashItem: async () => { attempts++; if (denied) throw Object.assign(new Error('denied'), { code: 'EACCES' }); },
+        requestTrashAccess: async () => { prompts++; return file; } });
+      const gallery = await content.open(file), open = fs.open;
+      if (unreadable) fs.open = async (...args) => { if (args[0] === file) throw Object.assign(new Error('unreadable'), { code: 'EACCES' }); return open(...args); };
+      try {
+        if (denied) await assert.rejects(content.trash(gallery.id, 'photo.png'), /verify.*unchanged/);
+        else await content.trash(gallery.id, 'photo.png');
+      } finally { fs.open = open; }
+      assert.equal(attempts, 1); assert.equal(prompts, 0);
+    });
+  }
+});
+test('file replacement while reading the permission snapshot cannot be trashed', async t => {
+  const root = await temporary(t), file = path.join(root, 'photo.png'); await fs.writeFile(file, 'image');
+  let attempts = 0;
+  const content = createContentFiles({ confirmTrash: async () => true, trashItem: async () => { attempts++; }, requestTrashAccess: async () => file });
+  const gallery = await content.open(file), open = fs.open;
+  let replaced = false;
+  fs.open = async (...args) => {
+    const handle = await open(...args);
+    if (args[0] === file && !replaced) {
+      const close = handle.close.bind(handle);
+      handle.close = async () => { await close(); if (!replaced) { replaced = true; await fs.rename(file, file + '.old'); await fs.writeFile(file, 'replacement'); } };
+    }
+    return handle;
+  };
+  try { await assert.rejects(content.trash(gallery.id, 'photo.png'), /image changed/); }
+  finally { fs.open = open; }
+  assert.equal(attempts, 0); assert.equal(await fs.readFile(file, 'utf8'), 'replacement');
 });
 test('gallery access recovery recognizes native permission errors without prompting for unrelated failures', async t => {
   for (const error of [Object.assign(new Error('denied'), { code: 'EPERM' }), new Error('You do not have permission'), new Error('Operation not permitted'), new Error('Access denied'), new Error('Trash unavailable')]) {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.20.35
+
+- Keep the original image snapshot across a denied Trash attempt so a changed file cannot be accepted during permission recovery, including on Windows filesystems with coarse timestamps.
+- Keep ordinary Trash available when an image cannot be read; decline unsafe permission retries without an original snapshot.
+
 ## 1.20.34
 
 - Recover from stalled AI and OCR work, retry failed local-copy removal, and release inactive readers when they become safe to suspend.
