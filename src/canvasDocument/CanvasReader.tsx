@@ -2,10 +2,12 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import { Excalidraw, FONT_FAMILY, MainMenu } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { DocumentTabBar } from "../DocumentTabBar";
+import DocumentExportDialog from "../DocumentExportDialog";
 import type { Reader, ReaderContext } from "../documentTabs";
 import { useFileCommands } from "../fileCommands";
 import { Icon } from "../icons";
 import { trackTitlebar } from "../titlebar";
+import { captureCanvasExport, saveCanvasExport, type CanvasExportSnapshot } from "./canvasDocumentExport";
 import "@excalidraw/excalidraw/index.css";
 import "./canvas-reader.css";
 
@@ -26,6 +28,7 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
   const active = useSyncExternalStore(tabs.subscribe, () => tabs.active === tabKey);
   const header = useRef<HTMLElement>(null);
   const editor = useRef<ExcalidrawImperativeAPI>(null);
+  const [exportSnapshot, setExportSnapshot] = useState<CanvasExportSnapshot | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">(() => document.documentElement.dataset.theme === "dark" ? "dark" : "light");
 
   useEffect(() => {
@@ -43,8 +46,9 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
     window.addEventListener("storage", syncTheme);
     return () => window.removeEventListener("storage", syncTheme);
   }, []);
-  useFileCommands(active, "canvas", false, command => {
+  useFileCommands(active, "canvas", !!exportSnapshot, command => {
     if (command === "recent") tabs.library();
+    if (command === "export" && editor.current) setExportSnapshot(captureCanvasExport(editor.current, initial.name));
   });
 
   return <div className="app canvas-document-reader">
@@ -57,7 +61,7 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
       </div>
     </header>
     <DocumentTabBar tabs={tabs} tabKey={tabKey} />
-    <main className="canvas-document-stage" id="reader-panel" role="tabpanel" aria-labelledby="selected-document-tab">
+    <main className="canvas-document-stage" id="reader-panel" role="tabpanel" aria-labelledby="selected-document-tab" inert={!!exportSnapshot}>
       <Excalidraw theme={theme} initialData={initialScene} UIOptions={canvasDocumentUi}
         aiEnabled={false} validateEmbeddable={false} showDeprecatedFonts
         excalidrawAPI={api => { editor.current = api; }}>
@@ -72,5 +76,6 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
         </MainMenu>
       </Excalidraw>
     </main>
+    {exportSnapshot && <DocumentExportDialog snapshot={exportSnapshot} mode="export" onClose={() => setExportSnapshot(null)} onSave={saveCanvasExport} />}
   </div>;
 }

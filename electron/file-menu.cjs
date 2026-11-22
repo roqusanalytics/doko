@@ -18,7 +18,7 @@ function fileMenuTemplate({ platform, send, open, state = { kind: 'none', busy: 
       { type: 'separator' },
       action('Save', 'save', 'CmdOrCtrl+S', writable),
       action('Save As…', 'save-as', 'CmdOrCtrl+Shift+S', writable),
-      action('Export / Convert…', 'export', undefined, writable),
+      action('Export / Convert…', 'export', undefined, writable || (state.kind === 'canvas' && !state.busy)),
       action('Reduce File Size…', 'compress', undefined, active && ['pdf', 'photo'].includes(state.kind)),
       { type: 'separator' },
       action('Print…', 'print', 'CmdOrCtrl+P', active && state.kind !== 'html'),
