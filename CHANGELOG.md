@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.21.0
+
+- New Canvas: File → New Canvas (Ctrl/Cmd+Shift+N) or New canvas on the start screen opens a hand-drawn whiteboard for shapes, arrows, text, frames, images and Mermaid diagrams. It works offline and follows the Doko theme.
+- Save drawings as standard .excalidraw files (up to 50 MB with images), open them from the Open dialog, by drag and drop or by double-clicking, and export them to PNG, SVG or PDF. Unsaved drawings are kept until you save or discard them.
+- Ask AI on a Canvas: describe a diagram and AI draws editable shapes and arrows or a Mermaid flowchart, sequence or class diagram. One Undo removes it, and Insert again adds a copy.
+
 ## 1.20.35
 
 - Keep the original image snapshot across a denied Trash attempt so a changed file cannot be accepted during permission recovery, including on Windows filesystems with coarse timestamps.
