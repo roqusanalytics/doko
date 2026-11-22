@@ -19,6 +19,19 @@ try {
   const window = await app.firstWindow();
   window.setDefaultTimeout(10_000);
   const page = readerPage(window);
+  const rendererRequests = [];
+  window.on("request", request => rendererRequests.push(request.url()));
+  const externalRequests = [];
+  await window.context().route(/^https?:\/\//i, route => {
+    externalRequests.push(route.request().url());
+    return route.abort("internetdisconnected");
+  });
+  await window.addInitScript(() => {
+    globalThis.canvasAiCspViolations = [];
+    addEventListener("securitypolicyviolation", event => {
+      globalThis.canvasAiCspViolations.push(event.effectiveDirective + ": " + event.blockedURI);
+    });
+  });
   await page.getByRole("button", { name: "New canvas", exact: true }).click({ timeout: 30_000 });
   const surface = page.locator("canvas.excalidraw__canvas.interactive");
   await surface.waitFor();
@@ -63,14 +76,22 @@ try {
         { type: "arrow", x: -90, y: 25, points: [[0, 0], [90, 0]], start: { id: existing }, end: { id: "new-box" } },
       ];
       const broken = question === "Draw a broken reply";
-      const text = (broken ? "Drawing a bad reply." : question === "Draw and cancel" ? "Cancelled drawing." : "Added a review step.")
+      const diagrams = {
+        "Draw a flowchart": ["Added a flowchart.", "flowchart LR\nA[Plan] --> B[Ship]"],
+        "Draw a sequence": ["Added a sequence.", "sequenceDiagram\nAlice->>Bob: Request\nBob-->>Alice: Response"],
+        "Draw a class diagram": ["Added a class diagram.", "classDiagram\nAnimal <|-- Duck\nAnimal : +eat()"],
+        "Draw broken Mermaid": ["Added a broken flowchart.", "flowchart LR\nA -->"],
+      };
+      const diagram = diagrams[question];
+      const text = diagram ? diagram[0] + "\n```mermaid\n" + diagram[1] + "\n```"
+        : (broken ? "Drawing a bad reply." : question === "Draw and cancel" ? "Cancelled drawing." : "Added a review step.")
         + "\n```excalidraw\n" + (broken ? "[broken" : JSON.stringify(elements)) + "\n```";
       const sse = value => new TextEncoder().encode("data: " + value + "\n\n");
       return new Response(new ReadableStream({ start(controller) {
         controller.enqueue(sse(JSON.stringify({ choices: [{ delta: { content: text } }] })));
         state.finish = () => { controller.enqueue(sse("[DONE]")); controller.close(); };
         options.signal.addEventListener("abort", () => { state.cancelled = true; controller.error(new Error("Stopped")); }, { once: true });
-        if (broken) state.finish();
+        if (broken || diagram) state.finish();
       } }));
     };
   });
@@ -165,7 +186,8 @@ try {
         read.onsuccess = () => { db.close(); resolve(read.result); };
       };
     });
-    return stored.some(chat => chat.messages.some(message => message.content === "Added a review step."));
+    return stored.some(chat => chat.messages.some(message => message.content === "Added a review step."
+      && message.drawingReply?.includes("```excalidraw")));
   });
   await panel.getByRole("button", { name: "Close Ask AI", exact: true }).click();
   await toggle.click();
@@ -173,8 +195,78 @@ try {
   await panel.getByText("Added a review step.", { exact: true }).waitFor();
   assert.equal(await panel.getByText("Cancelled drawing.", { exact: true }).count(), 0);
   assert.deepEqual((await scene()).elements, before.elements, "Reopening chat applied an old drawing");
+
+  const undo = page.getByRole("button", { name: "Undo", exact: true });
+  await panel.getByRole("button", { name: "Insert again", exact: true }).click();
+  await page.waitForFunction(() => globalThis.readCanvasAiScene().elements.length === 4);
+  const jsonCopy = (await scene()).elements.slice(1);
+  const copiedArrow = jsonCopy.find(element => element.type === "arrow");
+  assert.equal(copiedArrow.startBinding, null);
+  assert.equal(copiedArrow.endBinding.elementId, jsonCopy.find(element => element.type === "rectangle").id);
+  await undo.click();
+  await page.waitForFunction(() => globalThis.readCanvasAiScene().elements.length === 1);
+
+  assert.ok(!rendererRequests.some(url => url.includes("/flowDiagram-")), "Mermaid loaded before a Mermaid reply");
+  await send("Draw a flowchart");
+  await panel.getByRole("button", { name: "Send", exact: true }).waitFor();
+  assert.equal(await panel.locator(".msg.assistant").last().getByRole("alert").count(), 0,
+    await panel.locator(".msg.assistant").last().innerText());
+  const again = panel.locator(".msg.assistant").filter({ hasText: "Added a flowchart." })
+    .getByRole("button", { name: "Insert again", exact: true });
+  await again.waitFor();
+  assert.ok(rendererRequests.some(url => url.includes("/flowDiagram-")), "Mermaid did not load for the flowchart");
+  const flowchart = await scene();
+  const diagram = flowchart.elements.slice(before.elements.length);
+  assert.deepEqual(flowchart.elements[0], before.elements[0]);
+  assert.equal(diagram.filter(element => element.type === "rectangle").length, 2);
+  assert.ok(diagram.some(element => element.type === "arrow" && element.startBinding && element.endBinding));
+  assert.deepEqual(new Set(flowchart.selected), new Set(diagram.map(element => element.id)));
+  assert.equal(await panel.locator("pre").count(), 0);
+
+  await again.click();
+  await page.waitForFunction(length => globalThis.readCanvasAiScene().elements.length === length,
+    flowchart.elements.length + diagram.length);
+  const duplicated = await scene();
+  const copy = duplicated.elements.slice(flowchart.elements.length);
+  assert.equal(new Set([...diagram, ...copy].map(element => element.id)).size, diagram.length * 2);
+  assert.ok(Math.min(...copy.map(element => element.x)) > Math.max(...diagram.map(element => element.x + element.width)));
+  assert.deepEqual(new Set(duplicated.selected), new Set(copy.map(element => element.id)));
+  await undo.click();
+  await page.waitForFunction(length => globalThis.readCanvasAiScene().elements.length === length, flowchart.elements.length);
+  assert.deepEqual((await scene()).elements, flowchart.elements, "One Undo should remove only the copy");
+  await undo.click();
+  await page.waitForFunction(() => globalThis.readCanvasAiScene().elements.length === 1);
+
+  for (const [question, description, label] of [
+    ["Draw a sequence", "Added a sequence.", "Request"],
+    ["Draw a class diagram", "Added a class diagram.", "Duck"],
+  ]) {
+    await send(question);
+    await panel.getByRole("button", { name: "Send", exact: true }).waitFor();
+    assert.equal(await panel.locator(".msg.assistant").last().getByRole("alert").count(), 0,
+      await panel.locator(".msg.assistant").last().innerText());
+    await panel.locator(".msg.assistant").filter({ hasText: description })
+      .getByRole("button", { name: "Insert again", exact: true }).waitFor();
+    assert.ok((await scene()).elements.some(element => element.type === "text" && element.text === label), description);
+    await undo.click();
+    await page.waitForFunction(() => globalThis.readCanvasAiScene().elements.length === 1);
+  }
+  await send("Draw broken Mermaid");
+  await panel.getByRole("alert").filter({ hasText: "invalid syntax" }).waitFor();
+  assert.deepEqual((await scene()).elements, before.elements);
+
+  await panel.getByRole("button", { name: "Close Ask AI", exact: true }).click();
+  await page.getByRole("button", { name: "More tools", exact: true }).click();
+  await page.getByText("Mermaid to Excalidraw", { exact: true }).click();
+  const dialog = page.locator(".ttd-dialog");
+  await dialog.getByText("Mermaid to Excalidraw", { exact: true }).waitFor();
+  await dialog.getByRole("textbox").fill("flowchart LR\nA[Manual] --> B[Offline]");
+  await dialog.getByRole("button", { name: "Insert", exact: true }).click();
+  await page.waitForFunction(() => globalThis.readCanvasAiScene().elements.some(element => element.text === "Offline"));
+  assert.deepEqual(externalRequests, [], "Mermaid attempted an external request");
+  assert.deepEqual(await page.evaluate(() => globalThis.canvasAiCspViolations), [], "Mermaid triggered a CSP violation");
   await assertHidden(app);
-  console.log("PASS Canvas Ask AI streamed, inserted and selected a drawing; Undo, validation, Stop and persisted history worked");
+  console.log("PASS Canvas Ask AI streamed, inserted and selected JSON and Mermaid drawings; Undo, Insert again, validation, Stop, history and offline Mermaid worked");
 } finally {
   await closeHidden(app);
   rmSync(temp, { recursive: true, force: true });

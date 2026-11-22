@@ -337,6 +337,7 @@ export interface StoredAiMessage {
   role: "user" | "assistant";
   content: string;
   context?: { text: string; page: number };
+  drawingReply?: string;
 }
 
 export async function getAiHistory(id: string) {

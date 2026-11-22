@@ -6,7 +6,8 @@ import { Modal } from "../Dialogs";
 import { SettingsDialog } from "../SettingsDialog";
 import { onStoredDataCleared } from "../recent";
 import { summarizeScene } from "./canvasDocumentSceneSummary";
-import { insertCanvasDocumentDrawing } from "./insertCanvasDocumentDrawing";
+import type { PreparedDrawing } from "./canvasDocumentAiReply";
+import { insertCanvasDocumentDrawing, prepareCanvasDocumentDrawing } from "./insertCanvasDocumentDrawing";
 import { DocumentTabBar } from "../DocumentTabBar";
 import type { ReaderContext } from "../documentTabs";
 import { useFileCommands } from "../fileCommands";
@@ -52,9 +53,15 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
     if (!editor.current) throw new Error("The drawing editor is still loading.");
     return summarizeScene(editor.current.getSceneElements(), editor.current.getAppState().selectedElementIds);
   }, []);
-  const insertDrawing = useCallback((reply: string) => {
-    if (!editor.current) throw new Error("The drawing editor is still loading.");
-    return insertCanvasDocumentDrawing(editor.current, reply);
+  const insertDrawing = useCallback(async (reply: string | PreparedDrawing, isCurrent: () => boolean, repeated = false) => {
+    const target = editor.current;
+    if (!target) throw new Error("The drawing editor is still loading.");
+    const prepared = typeof reply === "string"
+      ? await prepareCanvasDocumentDrawing(reply, target.getSceneElements(), repeated)
+      : { description: "", drawing: reply };
+    if (!isCurrent() || target !== editor.current) return null;
+    insertCanvasDocumentDrawing(target, prepared.drawing, repeated);
+    return prepared;
   }, []);
 
   useLayoutEffect(() => {

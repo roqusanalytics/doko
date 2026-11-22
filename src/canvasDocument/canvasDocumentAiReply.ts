@@ -1,3 +1,5 @@
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+
 const SHAPES = ["rectangle", "diamond", "ellipse"] as const;
 type Shape = typeof SHAPES[number];
 type Point = [number, number];
@@ -15,12 +17,18 @@ export type DrawingElement = Base & (
 export const MAX_DRAWING_REPLY = 100_000;
 const MAX_ELEMENTS = 80;
 const BINDABLE_TYPES = new Set<string>([...SHAPES, "text", "frame", "magicframe", "image"]);
+const DRAWING_TYPES = new Set<string>([...SHAPES, "text", "frame", "arrow", "line"]);
 const LIMIT = 100_000;
 const invalid = (reason: string): never => { throw new Error(reason); };
+
+export type PreparedDrawing =
+  | { format: "excalidraw"; elements: DrawingElement[] }
+  | { format: "mermaid"; elements: readonly ExcalidrawElement[] };
 
 export function splitDrawingReply(reply: string, streaming = false) {
   const description: string[] = [];
   let block: string | undefined;
+  let format: PreparedDrawing["format"] | undefined;
   let complete = false;
   let fence = "";
   let drawing = false;
@@ -38,12 +46,13 @@ export function splitDrawingReply(reply: string, streaming = false) {
       } else description.push(line);
     } else if (marker) {
       fence = marker[1];
-      drawing = fence[0] === "`" && marker[2].trim().toLowerCase() === "excalidraw";
-      if (drawing) { block = ""; complete = false; }
+      const tag = marker[2].trim().toLowerCase();
+      drawing = fence[0] === "`" && (tag === "excalidraw" || tag === "mermaid");
+      if (drawing) { format = tag as PreparedDrawing["format"]; block = ""; complete = false; }
       else if (!streaming || index < lines.length - 1) description.push(line);
     } else if (!streaming || index < lines.length - 1 || !/^ {0,3}`{1,2}$/.test(line)) description.push(line);
   });
-  return { description: description.join("\n").trim(), block, complete };
+  return { description: description.join("\n").trim(), block, complete, format };
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -134,16 +143,28 @@ function readElement(input: unknown): DrawingElement {
   }
 }
 
-export function parseDrawingReply(reply: string, existing: readonly { id: string; type: string }[]) {
+export function readDrawingBlock(reply: string) {
   if (reply.length > MAX_DRAWING_REPLY) return invalid("The drawing reply is too large.");
-  const { block, complete, description } = splitDrawingReply(reply);
-  if (!complete || block === undefined) return invalid("The reply needs a complete excalidraw block.");
+  const { block, complete, description, format } = splitDrawingReply(reply);
+  if (!complete || block === undefined || !format) {
+    return invalid(`The reply needs a complete ${format ?? "excalidraw or mermaid"} block.`);
+  }
+  return { block, description, format };
+}
+
+export function parseDrawingReply(reply: string, existing: readonly { id: string; type: string }[], repeated = false) {
+  const { block, description } = readDrawingBlock(reply);
   let data: unknown;
   try { data = JSON.parse(block); } catch { return invalid("The drawing block contains invalid JSON."); }
   if (!Array.isArray(data) || !data.length) return invalid("The drawing block needs a non-empty JSON array.");
   if (data.length > MAX_ELEMENTS) return invalid("The drawing contains too many Elements (maximum 80).");
   const elements = data.map(readElement);
-  const targets = new Map(existing.map(({ id, type }) => [id, type]));
+  validateDrawingReferences(elements, existing, repeated);
+  return { description, elements };
+}
+
+export function validateDrawingReferences(elements: readonly DrawingElement[], existing: readonly { id: string; type: string }[], repeated: boolean) {
+  const targets = new Map(repeated ? [] : existing.map(({ id, type }) => [id, type]));
   const created = new Map<string, DrawingElement>();
   for (const element of elements) {
     if (!element.id) continue;
@@ -157,6 +178,7 @@ export function parseDrawingReply(reply: string, existing: readonly { id: string
       for (const ref of [element.start, element.end]) {
         if (!ref) continue;
         const type = targets.get(ref.id);
+        if (repeated && !type) continue; // A copy keeps its internal connections only.
         if (!type) return invalid("An arrow points to a missing Element.");
         if (!BINDABLE_TYPES.has(type)) return invalid("An arrow needs a shape, text, frame, or image as its target.");
       }
@@ -170,7 +192,63 @@ export function parseDrawingReply(reply: string, existing: readonly { id: string
       }
     }
   }
-  return { description, elements };
+}
+
+// Mermaid renders into the document, so keep configuration and unsupported diagram types out before rendering.
+export async function readMermaidDrawing(source: string,
+  convert: (source: string, limits: { maxEdges: number; maxTextSize: number }) => Promise<readonly ExcalidrawElement[]>) {
+  if (source.length > MAX_DRAWING_REPLY) return invalid("The drawing reply is too large.");
+  const definition = source.replace(/^[\t ]*%%[^\n]*(?:\n|$)/gm, "").trim();
+  if (definition.startsWith("---") || /%%\s*\{/.test(source)) return invalid("Mermaid configuration is not allowed in a drawing.");
+  if (!/^(flowchart|graph|sequenceDiagram|classDiagram)\b/.test(definition)) {
+    return invalid("Use a Mermaid flowchart, sequence diagram, or class diagram.");
+  }
+  const elements = await convert(definition, { maxEdges: MAX_ELEMENTS, maxTextSize: MAX_DRAWING_REPLY });
+  if (!elements.length) return invalid("The Mermaid diagram has no Elements.");
+  if (elements.length > MAX_ELEMENTS) return invalid("The drawing contains too many Elements (maximum 80).");
+  const ids = new Set(elements.map(element => idValue(element.id)));
+  if (ids.size !== elements.length) return invalid("The drawing repeats an Element id.");
+
+  for (const element of elements) {
+    if (!DRAWING_TYPES.has(element.type)) return invalid("The drawing contains an unsupported Element type.");
+    if (element.link) return invalid("Links are not allowed in a drawing.");
+    coordinate(element.x);
+    coordinate(element.y);
+    if (element.type === "arrow" || element.type === "line") {
+      // Excalidraw's converter can move the first point when it binds an arrow.
+      const [firstX, firstY] = element.points[0] ?? [0, 0];
+      linePoints({ points: element.points.map(([x, y]) => [coordinate(x) - firstX, coordinate(y) - firstY]) });
+    } else {
+      size(element.width);
+      size(element.height);
+    }
+    if (element.type === "text") textValue(element.text);
+    if (element.type === "frame" && element.name) textValue(element.name);
+    const refs = [element.frameId, ...(element.boundElements ?? []).map(binding => binding.id)];
+    if (element.type === "text") refs.push(element.containerId);
+    if (element.type === "arrow") refs.push(element.startBinding?.elementId ?? null, element.endBinding?.elementId ?? null);
+    if (refs.some(id => id !== null && !ids.has(id))) return invalid("The drawing points to a missing Element.");
+  }
+  return elements;
+}
+
+export function copyMermaidElements(elements: readonly ExcalidrawElement[]): ExcalidrawElement[] {
+  const ids = new Map(elements.map(element => [element.id, crypto.randomUUID()]));
+  const groupIds = new Map(elements.flatMap(element => element.groupIds).map(id => [id, crypto.randomUUID()]));
+  const remap = (id: string | null) => id === null ? null : ids.get(id)!;
+  return elements.map(element => {
+    const base = { id: ids.get(element.id)!, frameId: remap(element.frameId),
+      groupIds: element.groupIds.map(id => groupIds.get(id)!),
+      boundElements: element.boundElements?.map(binding => ({ ...binding, id: ids.get(binding.id)! })) ?? null };
+    if (element.type === "text") return { ...element, ...base, containerId: remap(element.containerId) };
+    if (element.type === "arrow") {
+      const { startBinding, endBinding } = element;
+      return { ...element, ...base,
+        startBinding: startBinding && { ...startBinding, elementId: ids.get(startBinding.elementId)! },
+        endBinding: endBinding && { ...endBinding, elementId: ids.get(endBinding.elementId)! } };
+    }
+    return { ...element, ...base };
+  });
 }
 
 type Bounds = readonly [number, number, number, number];

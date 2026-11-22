@@ -9,7 +9,7 @@ import { ModelMenu, type ModelGroup } from "./ModelMenu";
 import { CLAUDE_CODE_URL, PROVIDERS, savedProvider, saveAiPreference, signInChatGPT, subscribeAiPreferences, USAGE_URL, type AiProvider } from "./ai";
 import { Modal } from "./Dialogs";
 import { readSetting } from "./preferences";
-import { MAX_DRAWING_REPLY, splitDrawingReply } from "./canvasDocument/canvasDocumentAiReply";
+import { MAX_DRAWING_REPLY, splitDrawingReply, type PreparedDrawing } from "./canvasDocument/canvasDocumentAiReply";
 
 const AiMarkdown = lazy(() => import("./AiMarkdown").then((module) => ({ default: module.AiMarkdown })));
 
@@ -30,7 +30,12 @@ interface Message extends AiMessage {
   createdAt?: number;
   context?: AiContext;
   error?: { message: string; code?: string; link?: string };
+  drawingReply?: string;
+  drawing?: PreparedDrawing;
 }
+
+type ApplyDrawingReply = (reply: string | PreparedDrawing, isCurrent: () => boolean, repeated?: boolean) =>
+  Promise<{ description: string; drawing: PreparedDrawing } | null>;
 
 const CLAUDE_MODELS = [
   { id: "", name: "Default model" },
@@ -81,7 +86,38 @@ function CopyResponse({ text }: { text: string }) {
 
 // Failed and empty answers aren't kept.
 const storedMessages = (messages: Message[]) =>
-  messages.filter((m) => !m.error && m.content).map(({ role, content, context, createdAt }) => ({ role, content, ...(context ? { context } : {}), ...(createdAt ? { createdAt } : {}) }));
+  messages.filter((m) => !m.error && m.content).map(({ role, content, context, createdAt, drawingReply }) =>
+    ({ role, content, ...(context ? { context } : {}), ...(createdAt ? { createdAt } : {}), ...(drawingReply ? { drawingReply } : {}) }));
+
+function InsertAgain({ message, apply }: { message: Message; apply: ApplyDrawingReply }) {
+  const pending = useRef<AbortController | null>(null);
+  const prepared = useRef(message.drawing);
+  const [inserting, setInserting] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => () => pending.current?.abort(), []);
+  const insert = async () => {
+    if (pending.current || !message.drawingReply) return;
+    const controller = new AbortController();
+    pending.current = controller;
+    setInserting(true);
+    setError("");
+    try {
+      const result = await apply(prepared.current ?? message.drawingReply, () => !controller.signal.aborted, true);
+      if (result) prepared.current = result.drawing;
+    } catch (error) {
+      if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "Try again.");
+    } finally {
+      pending.current = null;
+      if (!controller.signal.aborted) setInserting(false);
+    }
+  };
+  return <>
+    <button type="button" className="btn ghost" disabled={inserting} onClick={() => void insert()}>
+      {inserting ? "Inserting…" : "Insert again"}
+    </button>
+    {error && <div className="msg-error" role="alert"><p>Couldn’t add the drawing. {error}</p></div>}
+  </>;
+}
 
 function NewConversationDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
   return <div onMouseDownCapture={event => {
@@ -115,7 +151,7 @@ interface Props {
   persist: boolean;
   onClearContext?: () => void;
   onGoToPage?: (n: number) => void;
-  onDrawingReply?: (reply: string) => string;
+  onDrawingReply?: ApplyDrawingReply;
   onSettings: () => void;
   onClose: () => void;
   onSaveError?: (failed: boolean) => void;
@@ -232,15 +268,24 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
           return;
         }
         if (event.type === "done") {
-          let result: Pick<Message, "content" | "error">;
-          try {
-            if (stream.oversized) throw new Error("The drawing reply is too large.");
-            result = { content: onDrawingReply(stream.raw) };
-          } catch (error) {
-            const reason = error instanceof Error ? error.message : "Try asking again.";
-            result = { content: "", error: { message: `Couldn’t add the drawing. ${reason}` } };
-          }
-          setMessages(list => [...list.slice(0, -1), { ...list[list.length - 1], ...result }]);
+          const isCurrent = () => busyRef.current === event.id;
+          void (async () => {
+            let result: Pick<Message, "content" | "error" | "drawing" | "drawingReply">;
+            try {
+              if (stream.oversized) throw new Error("The drawing reply is too large.");
+              const inserted = await onDrawingReply(stream.raw, isCurrent);
+              if (!inserted) return;
+              result = { content: inserted.description, drawing: inserted.drawing, drawingReply: stream.raw };
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "Try asking again.";
+              result = { content: "", error: { message: `Couldn’t add the drawing. ${reason}` } };
+            }
+            if (!isCurrent()) return;
+            busyRef.current = null;
+            setMessages(list => [...list.slice(0, -1), { ...list[list.length - 1], ...result }]);
+            setBusy(null);
+          })();
+          return;
         }
       }
       setMessages((list) => {
@@ -485,6 +530,7 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
                     <Suspense fallback={<p style={{ whiteSpace: "pre-wrap" }}>{m.content}</p>}>
                       <AiMarkdown text={m.content} onPage={onGoToPage} />
                     </Suspense>
+                    {onDrawingReply && m.drawingReply && <InsertAgain message={m} apply={onDrawingReply} />}
                     {(!busy || i < messages.length - 1) && <div className="msg-meta">
                       <CopyResponse text={m.content} />
                       {m.createdAt ? <time dateTime={new Date(m.createdAt).toISOString()}>

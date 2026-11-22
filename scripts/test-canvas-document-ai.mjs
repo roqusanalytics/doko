@@ -1,12 +1,56 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { drawingLayout, parseDrawingReply, splitDrawingReply } from "../src/canvasDocument/canvasDocumentAiReply.ts";
+import { copyMermaidElements, drawingLayout, parseDrawingReply, readMermaidDrawing, splitDrawingReply } from "../src/canvasDocument/canvasDocumentAiReply.ts";
 import { SCENE_SUMMARY_LIMIT, summarizeScene } from "../src/canvasDocument/canvasDocumentSceneSummary.ts";
 
 const block = content => "```excalidraw\n" + content + "\n```";
 const reply = (...elements) => block(JSON.stringify(elements));
 const rectangle = { type: "rectangle", x: 0, y: 0, width: 100, height: 60 };
 const arrow = { type: "arrow", x: 80, y: 30, points: [[0, 0], [90, 0]] };
+const mermaid = (source = "flowchart LR\nA --> B") => "```mermaid\n" + source + "\n```";
+
+test("the last drawing fence wins across formats and Mermaid stays hidden in the chat", () => {
+  const lastMermaid = splitDrawingReply(reply(rectangle) + "\n" + mermaid() + "\nDiagram added.");
+  assert.equal(lastMermaid.format, "mermaid");
+  assert.equal(lastMermaid.block.trim(), "flowchart LR\nA --> B");
+  assert.equal(lastMermaid.description, "Diagram added.");
+  assert.equal(splitDrawingReply(mermaid() + "\n" + reply(rectangle)).format, "excalidraw");
+  assert.equal(splitDrawingReply("Drawing…\n" + mermaid().slice(0, -2), true).description, "Drawing…");
+});
+
+test("accepts editable Elements from Mermaid and rejects invalid syntax or results", async () => {
+  const node = { ...rectangle, id: "step", frameId: null, boundElements: null };
+  const definition = splitDrawingReply(mermaid()).block;
+  assert.deepEqual(await readMermaidDrawing(definition, async (source, limits) => {
+    assert.equal(source, "flowchart LR\nA --> B");
+    assert.equal(limits.maxEdges, 80);
+    return [node];
+  }), [node]);
+  await assert.rejects(readMermaidDrawing("flowchart LR\nA -->", async () => {
+    throw new Error("Invalid Mermaid syntax");
+  }), /Invalid Mermaid syntax/);
+  await assert.rejects(readMermaidDrawing("", async () => []), /flowchart, sequence diagram, or class diagram/);
+  await assert.rejects(readMermaidDrawing("flowchart LR\n" + " ".repeat(100_000), async () => []), /too large/);
+  await assert.rejects(readMermaidDrawing(definition, async () => Array(81).fill(node)), /too many Elements/);
+  await assert.rejects(readMermaidDrawing(definition, async () => [{ ...node, link: "https://example.test" }]), /Links are not allowed/);
+  await assert.rejects(readMermaidDrawing("---\nconfig: {}\n---\n" + definition, async () => []), /configuration is not allowed/);
+});
+
+test("Insert again gives a fresh set of IDs and lays out the copy in free space", () => {
+  const node = { ...rectangle, id: "step", frameId: null, groupIds: ["group"], boundElements: [{ id: "connector", type: "arrow" }] };
+  const connector = { ...arrow, id: "connector", frameId: null, groupIds: ["group"], boundElements: null,
+    startBinding: { elementId: "step" }, endBinding: null };
+  const first = copyMermaidElements([node, connector]);
+  const second = copyMermaidElements([node, connector]);
+  assert.equal(new Set([...first, ...second].map(element => element.id)).size, 4);
+  assert.notEqual(first[0].groupIds[0], second[0].groupIds[0]);
+  assert.equal(second[0].groupIds[0], second[1].groupIds[0]);
+  assert.equal(second[0].boundElements[0].id, second[1].id);
+  assert.equal(second[1].startBinding.elementId, second[0].id);
+  const bounds = [0, 0, 170, 60];
+  const position = drawingLayout(bounds, bounds, [85, 30], null);
+  assert.ok(position.x > bounds[2]);
+});
 
 test("reads the last drawing block and returns only the surrounding text", () => {
   const first = reply(rectangle);
