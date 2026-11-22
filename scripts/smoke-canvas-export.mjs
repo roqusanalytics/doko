@@ -146,5 +146,5 @@ try {
   console.log("PASS Canvas export: native menu, PNG/SVG/PDF, true bounds and padding, selection with bound text, embedded font, transparent background and dark export with unchanged Scene");
 } finally {
   await closeHidden(app);
-  rmSync(temp, { recursive: true, force: true });
+  rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

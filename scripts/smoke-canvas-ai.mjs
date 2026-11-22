@@ -309,5 +309,5 @@ try {
   console.log("PASS Canvas Ask AI streamed, inserted and selected JSON and Mermaid drawings; Undo, Insert again, validation, Stop, history and offline Mermaid worked");
 } finally {
   await closeHidden(app);
-  rmSync(temp, { recursive: true, force: true });
+  rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

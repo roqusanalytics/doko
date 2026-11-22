@@ -110,5 +110,5 @@ try {
   console.log("PASS native File menu and Welcome open separate drawable Canvas tabs with offline fonts and live Doko theme");
 } finally {
   await closeHidden(app);
-  rmSync(temp, { recursive: true, force: true });
+  rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
