@@ -1,6 +1,6 @@
 # Doko
 
-> Doko is a free, open-source, local-first PDF reader, Markdown editor and photo viewer for Windows, macOS and Linux. No account, no analytics, no telemetry. Files stay on the user's computer.
+> Doko is a free, open-source, local-first PDF reader, Markdown editor, photo viewer and drawing Canvas for Windows, macOS and Linux. No account, no analytics, no telemetry. Files stay on the user's computer.
 
 ## What Doko does
 
@@ -16,6 +16,9 @@
 - Read-only viewers for Excel workbooks (.xlsx, one tab per sheet, formulas show calculated values) and HTML files (.html, .htm).
 - SVG files open as a picture; their XML source can be edited.
 - Photo viewer for folders of JPG, PNG, WebP, GIF, BMP and AVIF, with crop, resize, rotate and color adjustments.
+- Canvas: File → New Canvas (Ctrl/Cmd+Shift+N) opens a hand-drawn whiteboard (based on Excalidraw) for shapes, arrows, text, frames, images and Mermaid diagrams. Works offline and follows the Doko theme.
+- Canvas files: saves standard .excalidraw files (up to 50 MB with images), opens them from the Open dialog, by drag and drop or double-click, and exports to PNG, SVG or PDF.
+- Ask AI on a Canvas: describe a diagram and AI draws editable shapes and arrows, or a Mermaid flowchart, sequence or class diagram. One Undo removes it.
 
 ## Facts
 
@@ -23,7 +26,7 @@
 - Platforms: Windows 10 and 11 (64-bit); macOS 12 or later (Apple silicon and Intel); 64-bit Linux (.deb and AppImage).
 - Network use: only update checks, scan-language downloads the user picks, links the user opens, and Ask AI questions (sent to the provider the user chose).
 - Compared with Adobe Acrobat (adobe.com, US pricing, checked November 2026): Acrobat Reader is free for viewing, printing, sharing and commenting; editing text, organizing pages, redacting and password protection need Acrobat Pro at US$19.99/month, and AI Assistant is a US$4.99/month add-on. Doko includes all of these for free and uses the ChatGPT or Claude plan the user already has for Ask AI.
-- Good fit for people looking for a free Adobe Acrobat Reader or macOS Preview alternative that also handles Markdown and photos.
+- Good fit for people looking for a free Adobe Acrobat Reader or macOS Preview alternative that also handles Markdown, photos and simple diagrams.
 
 ## Links
 

@@ -31,8 +31,8 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
   live only in `src/data/logos.ts`; keep their shapes unmodified and the footer trademark note in place.
   Public screenshots come from the installed Doko app using freshly created, meaningful fictional project files;
   follow `docs/screenshots/README.md`. Capture real native UI and a real provider response for Ask AI. Never reuse
-  historical screenshot images or inject UI/AI state. The landing page uses proportional JPEG derivatives of those captures
-  in `public/mockups/practical-*`. `scripts/screenshots.mjs` and `site/scripts/capture-mockups.mjs` generate only
+  historical screenshot images or inject UI/AI state. The landing hero tour plays real screen recordings of Doko in
+  `public/tour/{en,lt}/{pdf,canvas,photos,markdown,excel}.{mp4,jpg}` (see `docs/screenshots/README.md`). `scripts/screenshots.mjs` and `site/scripts/capture-mockups.mjs` generate only
   test fixtures under `release/capture-fixtures/`; they must never overwrite the public gallery.
 - `scripts/` contains Node regression tests and Playwright-driven Electron smoke tests; `build/` contains packaging
   resources. Read [CONTRIBUTING.md](CONTRIBUTING.md) before contribution or release work and

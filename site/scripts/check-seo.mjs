@@ -11,13 +11,14 @@ const pages = [
 for (const { file, lang, url } of pages) {
   const html = readFileSync(new URL(`../dist/${file}`, import.meta.url), 'utf8');
   const at = msg => `${file}: ${msg}`;
-  assert.ok(!/\/mockups\/(?!practical-)/.test(html), at('public gallery must use practical app captures'));
-  for (const [asset] of html.matchAll(/\/mockups\/practical-[\w-]+\.jpg/g))
-    assert.ok(existsSync(new URL(`../dist${asset}`, import.meta.url)), at(`screenshot exists: ${asset}`));
-  const shots = [...new Set(html.match(/\/mockups\/practical-[\w-]+\.jpg/g))].sort();
-  const prefix = lang === 'en' ? '/mockups/practical-en' : '/mockups/practical';
-  assert.deepEqual(shots, ['pdf', 'photos', 'markdown', 'excel'].flatMap(kind =>
-    [1334, 2668].map(width => `${prefix}-${kind}-${width}.jpg`)).sort(), at('gallery matches page language at both resolutions'));
+  // Hero tour: five real recordings with posters, all in the page language; the other language's assets never appear.
+  const other = lang === 'en' ? 'lt' : 'en';
+  assert.ok(!html.includes(`/tour/${other}/`), at(`no /tour/${other}/ assets on the ${lang} page`));
+  assert.ok(!/\/mockups\//.test(html), at('old screenshot gallery is not referenced'));
+  const tour = [...new Set(html.match(/\/tour\/[a-z]{2}\/[\w-]+\.(?:mp4|jpg)/g))].sort();
+  assert.deepEqual(tour, ['pdf', 'canvas', 'photos', 'markdown', 'excel'].flatMap(kind =>
+    ['mp4', 'jpg'].map(ext => `/tour/${lang}/${kind}.${ext}`)).sort(), at('tour has all five videos and posters in the page language'));
+  for (const asset of tour) assert.ok(existsSync(new URL(`../dist${asset}`, import.meta.url)), at(`tour asset exists: ${asset}`));
   assert.match(html, new RegExp(`<html lang="${lang}"`), at(`html lang=${lang}`));
   assert.ok(html.includes(`<link rel="canonical" href="${url}">`), at(`canonical ${url}`));
   for (const [hl, href] of [['en', 'https://doko.lt/'], ['lt', 'https://doko.lt/lt/'], ['x-default', 'https://doko.lt/']])

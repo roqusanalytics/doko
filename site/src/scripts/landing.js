@@ -5,46 +5,79 @@ import "./texture.js";
 import { isDark, onTheme } from "./theme.js";
 import { bentoDemos } from "./bento-demos.js";
 
-// Hero tabs: the demo moves to the next file every few seconds, in a loop. Hovering the screenshot or switcher,
-// or focusing inside it, pauses it (WCAG 2.2.2); leaving resumes. Arrow keys move between files.
+// Hero tour: each file plays a real recording of Doko once, then cross-fades to the next file, in a loop. It plays only
+// while the stage is on screen and the browser tab is visible. The button pauses it (WCAG 2.2.2); with reduced motion
+// it starts paused on the posters. Choosing a file jumps there and the tour goes on from it. Arrow keys, Home and End move.
 const tabs = [...document.querySelectorAll('[role="tab"]')];
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const tablist = document.querySelector('.tabs'), stage = document.querySelector('.stage');
-const DELAY = 4800; // keep in sync with the progress line animation in landing.css
-let timer = null, hovered = false, focused = false, chosen = false;
-function show(i, focus) {
-  tabs.forEach((t, j) => {
-    const on = i === j;
-    t.setAttribute('aria-selected', on);
-    t.tabIndex = on ? 0 : -1;
-    document.getElementById(t.getAttribute('aria-controls')).classList.toggle('on', on);
-  });
-  if (focus) tabs[i].focus();
-}
-const current = () => tabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
-const pause = () => { clearTimeout(timer); timer = null; tablist.classList.remove('playing'); }; // .playing draws the progress line
-const play = () => {
-  pause();
-  if (calm || hovered || focused || chosen) return;
-  void tablist.offsetWidth; // restart the line animation from empty
-  tablist.classList.add('playing');
-  timer = setTimeout(() => { if (!document.hidden) show((current() + 1) % tabs.length); play(); }, DELAY);
+const pill = tablist.querySelector('.pill'), toggle = stage.querySelector('[data-tour-toggle]');
+const panels = tabs.map(t => document.getElementById(t.getAttribute('aria-controls')));
+const videos = panels.map(p => p.querySelector('video'));
+let active = 0, paused = calm, inView = false, frame = 0, fadeOut = 0;
+const running = () => !paused && inView && !document.hidden;
+// Only the first video loads metadata up front; the next one starts loading shortly before its turn.
+const warm = v => { if (v.preload !== 'auto') { v.preload = 'auto'; v.load(); } };
+const progress = () => {
+  const v = videos[active];
+  pill.style.setProperty('--p', v.duration ? v.currentTime / v.duration : 0);
+  if (v.duration - v.currentTime < 2.5) warm(videos[(active + 1) % videos.length]);
 };
+const tick = () => { progress(); frame = requestAnimationFrame(tick); };
+function movePill(instant) {
+  const t = tabs[active];
+  if (instant) pill.style.transition = 'none';
+  pill.style.width = t.offsetWidth + 'px';
+  pill.style.transform = `translateX(${t.offsetLeft}px)`;
+  if (instant) { void pill.offsetWidth; pill.style.transition = ''; }
+}
+function sync() {
+  const v = videos[active];
+  toggle.toggleAttribute('data-paused', paused);
+  toggle.setAttribute('aria-label', toggle.dataset[paused ? 'play' : 'pause']);
+  cancelAnimationFrame(frame);
+  if (!running()) { v.pause(); progress(); return; }
+  frame = requestAnimationFrame(tick);
+  v.play().catch(e => { if (e.name === 'NotAllowedError') { paused = true; sync(); } }); // autoplay blocked (e.g. power saving): wait for the play button
+}
+function show(i, focus) {
+  const prev = active;
+  active = i;
+  tabs.forEach((t, j) => { t.setAttribute('aria-selected', i === j); t.tabIndex = i === j ? 0 : -1; });
+  if (prev !== i) {
+    const next = panels[i], old = videos[prev];
+    next.classList.add('on', 'enter');
+    void next.offsetWidth; // commit the start state, then let it settle
+    next.classList.remove('enter');
+    panels[prev].classList.remove('on');
+    old.pause(); // the outgoing view fades on its last frame
+    clearTimeout(fadeOut);
+    fadeOut = setTimeout(() => { if (active !== prev) old.currentTime = 0; }, 700);
+    videos[i].currentTime = 0;
+  }
+  movePill();
+  if (focus) tabs[i].focus();
+  sync();
+}
 tabs.forEach((t, i) => {
-  t.addEventListener('click', () => { chosen = true; pause(); show(i); }); // a chosen file stays: the only way to stop the loop on touch screens (WCAG 2.2.2)
+  t.addEventListener('click', () => show(i));
   t.addEventListener('keydown', e => {
     const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
     if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); show(e.key === 'Home' ? 0 : tabs.length - 1, true); }
     if (step) { e.preventDefault(); show((i + step + tabs.length) % tabs.length, true); }
   });
 });
-for (const el of [document.querySelector('.window'), tablist]) {
-  el.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') { hovered = true; pause(); } });
-  el.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { hovered = false; play(); } });
-}
-stage.addEventListener('focusin', e => { if (e.target.matches(':focus-visible')) { focused = true; pause(); } }); // keyboard focus only; a mouse click must not freeze the loop
-stage.addEventListener('focusout', e => { if (!stage.contains(e.relatedTarget)) { focused = false; play(); } });
-play();
+videos.forEach((v, i) => v.addEventListener('ended', () => { if (i === active) show((i + 1) % videos.length); }));
+toggle.addEventListener('click', () => { paused = !paused; sync(); });
+document.addEventListener('visibilitychange', sync);
+// Posters load once the stage is near; the tour runs while at least a third of it is visible.
+new IntersectionObserver(([e], io) => { if (e.isIntersecting) { videos.forEach(v => { v.poster ||= v.dataset.poster; }); io.disconnect(); } }, { rootMargin: '600px 0px' }).observe(stage);
+new IntersectionObserver(([e]) => { inView = e.isIntersecting; sync(); }, { threshold: .35 }).observe(stage.querySelector('.window'));
+movePill(true);
+tablist.classList.add('ready');
+document.fonts?.ready.then(() => movePill(true));
+addEventListener('resize', () => movePill(true)); // not a ResizeObserver: the list resizes on every switch on phones, which would cut the glide
+sync();
 
 // Hero scene: thin curves from every format to the Doko icon. Positions come from layout (offset*), so
 // transforms from the animations below never skew them.

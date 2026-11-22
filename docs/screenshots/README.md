@@ -33,11 +33,17 @@ no previous screenshot is used as an input.
    When a website refresh is requested, create proportional JPEG derivatives for its four screenshot tabs
    and preserve the full native window's aspect ratio in `site/src/components/Landing.astro`.
 
-The English landing page uses proportional `site/public/mockups/practical-en-*` JPEG derivatives
-of the current English PDF, photo, Markdown and Excel captures above, at 1334 × 870 and 2668 × 1740.
-The Lithuanian landing page keeps `practical-pdf-*`, `practical-photos-*`, `practical-markdown-*` and `practical-excel-*`
-from Doko 1.20.26, using the fictional Pajūrio studija project in Lithuanian (`Biudzetas-ir-darbai.xlsx` for Excel).
-The page language selects both image resolutions at build time; the build check rejects mixed-language assets.
+## Landing page tour
+
+The doko.lt hero plays five real screen recordings of Doko 1.22.1 per language:
+`site/public/tour/{en,lt}/{pdf,canvas,photos,markdown,excel}.mp4`, each with a `.jpg` poster that is its first frame.
+English uses the fictional North Coast Studio project; Lithuanian uses Pajūrio studija.
+Each flow was recorded as real screen video (ffmpeg avfoundation, 1334 × 870 pt window with native traffic lights,
+2668 × 1740 px) while Playwright sent input to the app: highlight a PDF sentence, draw and link a Canvas step,
+move through photos, scroll a Markdown plan, select Excel totals and switch sheets. The app ran from the v1.22.1
+source build with a throwaway profile, because the installed app's Electron fuses block automation.
+Videos are H.264, 1600 × 1044, 30 fps, no audio. No UI state was injected and no cursor is shown.
+The page language selects the tour folder at build time; the build check rejects mixed-language assets.
 
 The automated developer capture scripts are fixture generators only. `scripts/screenshots.mjs` writes to
 `release/capture-fixtures/readme/` and uses a simulated local AI response; `site/scripts/capture-mockups.mjs`

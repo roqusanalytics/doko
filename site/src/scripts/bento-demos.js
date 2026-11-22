@@ -186,6 +186,44 @@ export function bentoDemos(live) {
     tl.call(() => thumbs.forEach((t, i) => t.classList.toggle('on', i === 1)), null, 5.6).to(next, { opacity: 1, duration: .5 }, 5.6).to({}, { duration: 1.8 });
   });
 
+  // Canvas: draw a box, type its label, draw an arrow, then ask AI to finish the diagram.
+  scene('canvas', ({ tl, q, qa, at, move, click, type, cam }) => {
+    const [rectTool, arrowTool] = qa('.cv-tool'), aiBtn = q('.cv-ai'), ask = q('.cv-ask'), field = q('.cv-field'), prompt = field.textContent;
+    const [box, arrow] = qa('.cv-you .cv-draw'), label = q('.cv-you .cv-label'), word = label.textContent;
+    const made = qa('.cv-ai-made > *');
+    const tool = el => () => [rectTool, arrowTool, aiBtn].forEach(b => b.classList.toggle('on', b === el));
+    // round line caps show as dots at offset 1, so each stroke stays hidden until it starts drawing; fills follow the stroke
+    const draw = (el, t, d) => tl.set(el, { opacity: 1 }, t).to(el, { strokeDashoffset: 0, duration: d, ease: 'power2.inOut' }, t)
+      .to(el, { fillOpacity: 1, duration: .4 }, t + d * .7);
+    tl.set([box, arrow, ...made], { strokeDashoffset: 1, opacity: 0, fillOpacity: 0 }, 0)
+      .set(ask, { opacity: 0, y: 8 }, 0).call(() => { label.textContent = ''; field.textContent = ''; tool(null)(); }, null, 0);
+    move(at(rectTool), .3, .6);
+    click(.95, rectTool);
+    tl.call(tool(rectTool), null, 1);
+    cam(at(box, .5, .5), 1.25, 1.1, 1.2);
+    move(at(box, 0, 0), 1.2, .6);
+    draw(box, 1.9, .9);
+    move(at(box, 1, 1), 1.9, .9);
+    const typed = type(label, word, 3, .07);
+    cam(() => ({ x: 0, y: 0 }), 1, typed + .1, .8);
+    move(at(arrowTool), typed + .1, .6);
+    click(typed + .75, arrowTool);
+    tl.call(tool(arrowTool), null, typed + .8);
+    move(at(arrow, 0, .5), typed + 1, .5);
+    draw(arrow, typed + 1.55, .6);
+    move(at(arrow, 1, .5), typed + 1.55, .6);
+    const t = typed + 2.4;
+    move(at(aiBtn), t, .6);
+    click(t + .65, aiBtn);
+    tl.call(tool(aiBtn), null, t + .7).to(ask, { opacity: 1, y: 0, duration: .35, ease: 'power3.out' }, t + .7);
+    move(at(field, .1), t + .9, .5);
+    const asked = type(field, prompt, t + 1.5, .045);
+    click(asked + .3, q('.cv-ask b'));
+    tl.to(ask, { opacity: 0, y: 8, duration: .3 }, asked + .5).call(tool(null), null, asked + .5);
+    made.forEach((el, k) => el.matches('text') ? tl.to(el, { opacity: 1, fillOpacity: 1, duration: .4 }, asked + .7 + k * .22) : draw(el, asked + .7 + k * .22, .7));
+    tl.to({}, { duration: 2.2 });
+  });
+
   // Positions are measured when tweens first run; after a resize they must be measured again.
   let pending = 0;
   const remeasure = () => { cancelAnimationFrame(pending); pending = requestAnimationFrame(() => timelines.forEach(t => t.invalidate())); };

@@ -145,12 +145,17 @@ h1 b { font-weight: 750; }
 .fmt-in img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .badge { position: absolute; left: 5px; bottom: 5px; padding: 2px 5px; border-radius: 6px; background: rgb(254 253 251 / .92); color: #1A1A1A; font: 800 .56rem/1.25 var(--font); letter-spacing: .02em; }
 .f-pdf { left: 15%; top: 24%; } .f-docx { left: 5%; top: 60%; } .f-url { left: 25%; top: 86%; } .f-avif { left: 33%; top: 8%; }
-.f-md { left: 85%; top: 22%; } .f-webp { left: 67%; top: 8%; } .f-jpg { left: 95%; top: 58%; } .f-png { left: 75%; top: 86%; } .f-gif { left: 92%; top: 98%; } .f-csv { left: 40%; top: 104%; } .f-txt { left: 60%; top: 104%; }
+.f-canvas { left: 27%; top: 50%; } .f-md { left: 85%; top: 22%; } .f-webp { left: 67%; top: 8%; } .f-jpg { left: 95%; top: 58%; } .f-png { left: 75%; top: 86%; } .f-gif { left: 92%; top: 98%; } .f-csv { left: 40%; top: 104%; } .f-txt { left: 60%; top: 104%; }
 .hubx { position: absolute; left: 50%; top: 56%; width: 108px; height: 108px; margin: -54px 0 0 -54px; z-index: 2; }
 .hubx svg { position: relative; width: 100%; height: 100%; filter: drop-shadow(0 22px 40px rgb(48 93 64 / .35)); }
 .halo { position: absolute; inset: 10px; border-radius: 30px; background: var(--mint); opacity: 0; }
 
-.window { border-radius: 18px; overflow: hidden; background: var(--canvas); box-shadow: var(--shadow), 0 0 0 1px var(--stone); transform-origin: 50% 0; }
+/* The window floats: a tight contact shadow, a long soft one, a hairline ring and a faint top highlight */
+.window {
+  position: relative; border-radius: 18px; overflow: hidden; background: var(--canvas); transform-origin: 50% 0;
+  box-shadow: 0 0 0 1px var(--stone), 0 2px 4px rgb(26 26 26 / .06), 0 18px 40px -18px rgb(26 26 26 / .25), 0 60px 120px -40px rgb(26 26 26 / .35);
+}
+.window::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 1px 0 rgb(255 255 255 / .35); }
 .tabs { display: flex; gap: 4px; min-width: 0; }
 .tab {
   display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px;
@@ -161,14 +166,17 @@ h1 b { font-weight: 750; }
 .tab:hover { color: var(--ink); background: color-mix(in srgb, var(--mint) 30%, transparent); }
 .tab[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
 .tab svg { width: 16px; height: 16px; flex: none; }
-.views { position: relative; aspect-ratio: 1334 / 870; background: var(--canvas); }
+/* Full native window capture (2668 × 1740) at its own aspect, so nothing shifts or crops */
+.views { position: relative; aspect-ratio: 2668 / 1740; background: var(--canvas); }
+/* Handoff: the old view softens and recedes while the new one settles in from slightly larger and blurred */
 .view {
   position: absolute; inset: 0; overflow: hidden;
-  opacity: 0; visibility: hidden; transform: translateY(8px) scale(.995); filter: blur(6px);
-  transition: opacity .55s var(--ease), transform .7s var(--ease), filter .55s var(--ease), visibility 0s .55s;
+  opacity: 0; visibility: hidden; transform: scale(.985); filter: blur(8px);
+  transition: opacity .6s var(--ease), transform .7s var(--ease), filter .6s var(--ease), visibility 0s .6s;
 }
-.view img, .view picture { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; }
-.view.on { opacity: 1; visibility: visible; transform: none; filter: none; transition-delay: 0s; }
+.view.on { z-index: 1; opacity: 1; visibility: visible; transform: none; filter: none; transition-delay: 0s; }
+.view.on.enter { transform: scale(1.02); filter: blur(10px); opacity: 0; transition: none; }
+.view video { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; background: var(--canvas); }
 
 /* Sections */
 .sec { padding-block: clamp(96px, 14vw, 180px) 0; }
@@ -201,7 +209,8 @@ h2 b { font-weight: 750; }
 }
 .cell.c-hl { grid-column: span 4; min-height: 480px; }
 .cell.c-2 { grid-column: span 2; }
-.cell.c-wide, .cell.c-photo { grid-column: span 6; }
+.cell.c-wide { grid-column: span 6; }
+.cell.c-3 { grid-column: span 3; min-height: 440px; }
 .cell::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .4s var(--ease); background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--mint) 38%, transparent), transparent 60%); }
 .cell:hover::after { opacity: 1; }
 .c-wide::after { display: none; }
@@ -348,7 +357,7 @@ footer nav { display: flex; gap: 4px; flex-wrap: wrap; }
   .top nav > .link { display: none; }
   .tab { padding: 0 10px; font-size: .88rem; }
   .tab .ext { display: none; }
-  .cell.c-2 { grid-column: span 6; }
+  .cell.c-2, .cell.c-3 { grid-column: span 6; }
   .c-wide { flex-direction: column; align-items: stretch; }
   .c-wide svg, .c-wide .say { flex: none; }
   .cell.c-hl { min-height: 0; }
@@ -359,6 +368,7 @@ footer nav { display: flex; gap: 4px; flex-wrap: wrap; }
   .fmt-in > svg { width: 24px; } .f-md .fmt-in > svg { width: 32px; }
   .f-url, .f-avif, .f-gif, .f-csv, .f-txt { display: none; }
   .f-pdf { left: 11%; top: 18%; } .f-docx { left: 14%; top: 82%; } .f-webp { left: 34%; top: 100%; }
+  .f-canvas { left: 50%; top: 8%; }
   .f-md { left: 89%; top: 18%; } .f-jpg { left: 86%; top: 82%; } .f-png { left: 66%; top: 100%; }
   .hubx { top: 50%; width: 88px; height: 88px; margin: -44px 0 0 -44px; }
   .compare th, .compare td { padding: 14px 10px; font-size: .9rem; }
@@ -417,14 +427,21 @@ footer nav { display: flex; gap: 4px; flex-wrap: wrap; }
 .theme[aria-pressed="true"] .moon, .theme[aria-pressed="false"] .sun { display: none; }
 @keyframes spin-in { from { rotate: -60deg; opacity: 0; } }
 
-/* File switcher under the hero screenshot: one quiet segmented control; a thin line fills while the demo auto-advances */
-.switch { display: flex; justify-content: center; margin-top: 20px; }
-.switch .tabs { padding: 4px; border-radius: 14px; background: var(--surface); box-shadow: 0 0 0 1px var(--stone), 0 12px 30px -20px rgb(26 26 26 / .35); }
-.switch .tab { position: relative; overflow: hidden; }
-.switch .tab[aria-selected="true"] { background: var(--ink); color: var(--paper); box-shadow: none; }
-.switch .tab[aria-selected="true"]::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 4px; height: 2px; border-radius: 2px; background: currentColor; opacity: .6; transform: scaleX(0); transform-origin: left; }
-.tabs.playing .tab[aria-selected="true"]::after { animation: fill 4.8s linear forwards; }
-@keyframes fill { to { transform: scaleX(1); } }
+/* File switcher under the hero tour: one quiet segmented control. A dark pill glides to the active file and a thin
+   line inside it fills with the video's progress (--p, set by landing.js). */
+.switch { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 22px; }
+.switch .tabs { position: relative; padding: 4px; border-radius: 14px; background: var(--surface); box-shadow: 0 0 0 1px var(--stone), 0 12px 30px -20px rgb(26 26 26 / .35); }
+.switch .tab { position: relative; z-index: 1; transition: color .35s var(--ease), background-color .25s var(--ease); }
+.switch .tab[aria-selected="true"], .switch .tab[aria-selected="true"]:hover { color: var(--paper); background: transparent; box-shadow: none; }
+.tabs:not(.ready) .tab[aria-selected="true"] { background: var(--ink); } /* no script: the tab itself is the pill */
+.pill { position: absolute; left: 0; top: 4px; bottom: 4px; width: 0; border-radius: 10px; background: var(--ink); overflow: hidden; opacity: 0; transition: transform .55s var(--ease), width .55s var(--ease); }
+.tabs.ready .pill { opacity: 1; }
+.pill::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 4px; height: 2px; border-radius: 2px; background: var(--paper); opacity: .55; transform: scaleX(var(--p, 0)); transform-origin: left; }
+.tour-toggle { display: inline-grid; place-items: center; flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 14px; background: var(--surface); color: var(--graphite); cursor: pointer; box-shadow: 0 0 0 1px var(--stone), 0 12px 30px -20px rgb(26 26 26 / .35); transition: color .2s, background-color .2s; }
+.tour-toggle:hover { color: var(--ink); background: color-mix(in srgb, var(--mint) 35%, var(--surface)); }
+.tour-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tour-toggle .i-play { fill: currentColor; stroke-width: 1.4; }
+.tour-toggle[data-paused] .i-pause, .tour-toggle:not([data-paused]) .i-play { display: none; }
 
 /* Hero tiles drift slowly on their own; translate/rotate compose with GSAP transforms, so the entrance is untouched */
 .converge .fmt-in { animation: drift-tile 7s ease-in-out infinite alternate; }
@@ -453,7 +470,6 @@ footer nav { display: flex; gap: 4px; flex-wrap: wrap; }
 /* Bento cards as live Doko demos (bento-demos.js). The app window keeps Doko's dark look in both page themes. */
 .demo-viz { place-items: stretch; padding: 22px 0 0 22px; overflow: hidden; } /* the camera zoom stays inside the picture area */
 .cell.c-hl .viz.demo-viz { padding-top: 22px; }
-.cell.c-photo { min-height: 440px; }
 .demo { position: relative; min-height: 236px; font: 11.5px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #C9C5BF; }
 .app { position: absolute; inset: 0 0 0 0; overflow: hidden; border-radius: 14px 0 0 0; background: #26282B; box-shadow: 0 0 0 1px #34373B, 0 30px 60px -36px rgb(0 0 0 / .8); }
 .app-bar { display: flex; align-items: center; gap: 4px; height: 34px; padding: 0 12px; white-space: nowrap; }
@@ -538,5 +554,22 @@ footer nav { display: flex; gap: 4px; flex-wrap: wrap; }
 .ph-crop-tab.on { background: #3A3D42; color: #F2F0ED; } .ph-apply { margin-left: 4px; background: #C5E1CB; color: #1A1A1A; font-weight: 600; opacity: 0; }
 @media (max-width: 720px) {
   .hl-body { grid-template-columns: 1fr; } .hl-side { display: none; }
-  .cell.c-photo { min-height: 0; } .d-ph { min-height: 280px; }
+  .cell.c-3 { min-height: 0; } .d-ph, .d-cv { min-height: 280px; }
+  .switch { gap: 6px; }
 }
+/* canvas: a hand-drawn diagram on Doko's dark board; Ask AI adds the last two steps */
+.cv-tool { display: grid; place-items: center; width: 26px; height: 22px; padding: 0 !important; }
+.cv-tool svg, .cv-ai svg, .cv-ask svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.cv-tool.on, .cv-ai.on { background: #3A3D42; color: #F2F0ED; }
+.cv-ai { display: inline-flex; align-items: center; gap: 5px; margin-left: 4px; background: #2C2F33; }
+.cv-body { padding: 0 8px 8px; }
+.cv-board { width: 100%; height: 100%; border-radius: 6px; background: radial-gradient(rgb(242 240 237 / .1) 1px, transparent 1.3px) 0 0 / 14px 14px, #1D1F22; }
+.cv-draw { fill: none; stroke: #E8E5E0; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 0; }
+.cv-box.ai { stroke: #C5E1CB; fill: rgb(197 225 203 / .1); }
+.cv-label { fill: #F2F0ED; font: 600 14px/1 var(--font); }
+.cv-ask { position: absolute; left: 50%; bottom: 16px; z-index: 4; display: flex; align-items: center; gap: 8px; width: min(300px, 86%); padding: 7px 8px 7px 10px; border-radius: 12px; translate: -50% 0; background: #1D1F22; color: #C5E1CB; box-shadow: 0 0 0 1px #34373B, 0 14px 30px -12px rgb(0 0 0 / .6); opacity: 0; }
+.cv-field { flex: 1; min-width: 0; overflow: hidden; color: #E8E5E0; white-space: nowrap; }
+.cv-ask b { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; background: #C5E1CB; color: #1A1A1A; font-weight: 700; }
+/* Five-plus-one lists: the lone last detail sits in the middle column instead of hanging on the left */
+@media (min-width: 1001px) { .details > :last-child:nth-child(3n+1) { grid-column: 2; } }
+@media (min-width: 721px) and (max-width: 1000px) { .details > :last-child:nth-child(odd) { grid-column: 1 / -1; } }
