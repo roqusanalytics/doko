@@ -58,15 +58,36 @@ const saveFiles = createSaveFiles({ chooseSavePath: async (name, format) => {
     filters: [{ name: format.toUpperCase(), extensions: [format] }], properties: ["showOverwriteConfirmation", "createDirectory"] });
   return result.canceled ? null : result.filePath;
 } });
+const openFileExtensions = ["pdf", "doc", "docx", "xlsx", "xls", "md", "markdown", "txt", "csv", "svg", "html", "htm", "excalidraw", "jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"];
+const openFileTypes = new Map([
+  ["pdf", ["PDF", /\.pdf$/i]],
+  ["markdown", ["Markdown", MARKDOWN_FILE]],
+  ["photos", ["Photos", IMAGE_FILE]],
+  ["excel", ["Excel", XLSX_FILE]],
+  ["word", ["Word", WORD_FILE]],
+]);
+let fileDialogOpen = false;
+async function openFileDialog(type) {
+  if (!win || fileDialogOpen) return;
+  const format = openFileTypes.get(type);
+  const filters = format
+    ? [{ name: format[0], extensions: openFileExtensions.filter(ext => format[1].test(`.${ext}`)) },
+      { name: "All supported files", extensions: openFileExtensions }]
+    : [{ name: "Documents and Photos", extensions: openFileExtensions }];
+  fileDialogOpen = true;
+  let result;
+  try {
+    result = await dialog.showOpenDialog(win, { title: "Open", properties: ["openFile", "multiSelections"], filters });
+  } finally {
+    fileDialogOpen = false;
+  }
+  if (!result.canceled) await sendFiles(result.filePaths);
+}
+
 let fileMenuState = { kind: "none", busy: false };
 function updateFileMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(fileMenuTemplate({ platform: process.platform, state: fileMenuState,
-    send: (channel, command) => win?.webContents.send(channel, command), open: async () => {
-      if (!win) return;
-      const result = await dialog.showOpenDialog(win, { title: "Open", properties: ["openFile", "multiSelections"],
-        filters: [{ name: "Documents and Photos", extensions: ["pdf", "doc", "docx", "xlsx", "xls", "md", "markdown", "txt", "csv", "svg", "html", "htm", "excalidraw", "jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"] }] });
-      if (!result.canceled) await sendFiles(result.filePaths);
-    } })));
+    send: (channel, command) => win?.webContents.send(channel, command), open: () => openFileDialog() })));
 }
 
 if (!app.isPackaged && process.env.FOLIO_TEST_USER_DATA) app.setPath("userData", process.env.FOLIO_TEST_USER_DATA);
@@ -749,6 +770,10 @@ if (!app.requestSingleInstanceLock()) {
       closeRequest.finish(result);
     });
     updateFileMenu();
+    handle("folio:open-files", (_event, type) => {
+      if (!openFileTypes.has(type)) throw new Error("Unsupported file type");
+      return openFileDialog(type);
+    });
     handle("folio:save-file", (_event, request) => saveFiles.save(request));
     registerScreenshots(handle, () => win, { hidden: TEST_HIDDEN, devUrl: DEV_URL,
       fixture: TEST_HIDDEN && process.env.FOLIO_TEST_SCREENSHOT === "1" });

@@ -16,6 +16,21 @@ try {
   const page = readerPage(tab);
   await tab.route("**/sample.pdf", route => route.fulfill({ contentType: "application/pdf", body: Buffer.from(linkHistoryPdf()) }));
   await tab.goto(server.resolvedUrls.local[0]);
+  const cards = page.getByRole("group", { name: "Document types" });
+  await cards.waitFor();
+  assert.equal(await cards.getByRole("button").count(), 4);
+  for (const [name, accept] of [
+    ["PDF", "application/pdf,.pdf"], ["Markdown", ".md,.markdown"],
+    ["Photos", ".jpg,.jpeg,.png,.webp,.gif,.bmp,.avif"], ["CSV", ".csv"],
+  ]) {
+    const [chooser] = await Promise.all([
+      tab.waitForEvent("filechooser"),
+      cards.getByRole("button", { name, exact: true }).click(),
+    ]);
+    assert.equal(await chooser.element().getAttribute("accept"), accept);
+    assert.equal(chooser.isMultiple(), true);
+    await chooser.setFiles([]);
+  }
   await page.getByRole("button", { name: /Try a sample/ }).click();
   assert.equal(await page.evaluate(() => !!window.folioDesktop), false);
   const link = page.locator('.page[data-page-number="1"] .annotationLayer a');

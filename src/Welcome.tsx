@@ -1,10 +1,19 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { clearRecent, getRecent, listRecent, removeRecent, type RecentFile, type RecentSummary } from "./recent";
 import { useAnchoredPopover } from "./anchored-popover";
-import { Icon } from "./icons";
+import { Icon, type IconName } from "./icons";
 import { keys } from "./platform";
 import { formatBytes } from "./Dialogs";
 import { updateSummary } from "./updates";
+
+const documentCards: { type: OpenFileType | "canvasDocument"; name: string; hint: string; icon: IconName }[] = [
+  { type: "canvasDocument", name: "Canvas", hint: "Draw, ask AI", icon: "canvasDocument" },
+  { type: "pdf", name: "PDF", hint: "Read, annotate", icon: "file" },
+  { type: "markdown", name: "Markdown", hint: "Read and edit", icon: "markdown" },
+  { type: "photos", name: "Photos", hint: "Gallery & edit", icon: "photo" },
+  { type: "excel", name: "Excel", hint: "Read tables", icon: "spreadsheet" },
+  { type: "word", name: "Word", hint: "Open as PDF", icon: "wordDocument" },
+];
 
 function timeAgo(t: number) {
   const s = (Date.now() - t) / 1000;
@@ -58,7 +67,7 @@ function UpdateLine({ status }: { status: UpdateStatus }) {
 
 interface Props {
   active: boolean;
-  onPick: () => void;
+  onPick: (type?: OpenFileType) => void;
   onOpenUrl: () => void;
   onNewCanvas: () => void;
   onOpenRecent: (file: RecentFile) => void;
@@ -89,6 +98,8 @@ function RemoveRecentButton({ files, busy, all = false, onRemove }: {
 }
 
 export function Welcome({ active, onPick, onOpenUrl, onNewCanvas, onOpenRecent, onSample, loading }: Props) {
+  const cardId = useId();
+  const desktop = !!window.folioDesktop;
   const [recent, setRecent] = useState<RecentSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<{ message: string; retry(): void } | null>(null);
@@ -140,26 +151,41 @@ export function Welcome({ active, onPick, onOpenUrl, onNewCanvas, onOpenRecent, 
           <p>A calm place for PDFs, Markdown, and photos.</p>
         </div>
 
-        <button className="dropzone" onClick={onPick} disabled={loading}>
+        <button className="dropzone" onClick={() => onPick()} disabled={loading}>
           <div className="dropzone-icon">
             <Icon name={loading ? "file" : "upload"} size={26} />
           </div>
           <div className="dropzone-text">
             <strong>{loading ? "Opening…" : "Open a file"}</strong>
-            <span>{window.folioDesktop ? "Choose a PDF, Word document, Markdown file, photo, or link"
-              : "Choose a PDF, Markdown file, photo, or link"}</span>
+            <span>Choose files from your device</span>
           </div>
           <kbd>{keys("Ctrl O")}</kbd>
         </button>
+
+        <div className="welcome-cards" role="group" aria-label="Document types">
+          {documentCards.map(({ type, name, hint, icon }) => {
+            const isNew = type === "canvasDocument";
+            if (!desktop && (isNew || type === "word")) return null;
+            const label = !desktop && type === "excel" ? "CSV" : name;
+            const hintId = `${cardId}-${type}`;
+            return (
+              <button key={type} type="button" className={isNew ? "welcome-card welcome-card-new" : "welcome-card"}
+                aria-label={isNew ? "New canvas" : label} aria-describedby={hintId} disabled={loading}
+                onClick={isNew ? onNewCanvas : () => onPick(type)}>
+                <Icon name={icon} size={20} />
+                <span className="welcome-card-copy">
+                  <strong>{label}{isNew && <span className="welcome-card-badge" aria-hidden="true">New</span>}</strong>
+                  <span id={hintId} className="welcome-card-hint">{hint}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
         <div className="welcome-links">
           <button className="link" onClick={onOpenUrl} disabled={loading}>
             <Icon name="link" size={15} /> Open from URL
           </button>
-          {/* A Canvas saves through the desktop file API, so the browser edition has no New canvas. */}
-          {window.folioDesktop && <button className="link" onClick={onNewCanvas} disabled={loading}>
-            <Icon name="canvasDocument" size={15} /> New canvas
-          </button>}
           <button className="link" onClick={onSample}>
             <Icon name="book" size={15} /> Try a sample document
           </button>

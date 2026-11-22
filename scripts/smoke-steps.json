@@ -36,6 +36,9 @@
     "scripts/smoke-test.mjs"
   ],
   [
+    "scripts/smoke-welcome-cards.mjs"
+  ],
+  [
     "scripts/test-print.mjs"
   ],
   [

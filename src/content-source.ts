@@ -14,6 +14,14 @@ const HTML = /\.html?$/i;
 const SVG = /\.svg$/i;
 const IMAGE = /\.(jpe?g|png|webp|gif|bmp|avif)$/i;
 
+const browserAcceptTypes = BROWSER_ACCEPT.split(",");
+export const BROWSER_FILE_ACCEPT: Partial<Record<OpenFileType, string>> = {
+  pdf: browserAcceptTypes.filter(ext => ext === "application/pdf" || ext === ".pdf").join(","),
+  markdown: browserAcceptTypes.filter(ext => MARKDOWN.test(ext)).join(","),
+  photos: browserAcceptTypes.filter(ext => IMAGE.test(ext)).join(","),
+  excel: browserAcceptTypes.filter(ext => CSV.test(ext)).join(","),
+};
+
 /**
  * CSV line endings: rows end with `eol`, line breaks inside quoted cells use `cellEol`, each the dominant one of its kind.
  * A cell break defaults to "\n" (what Excel writes); rows default to the cell ending. Mixed row endings normalize to the

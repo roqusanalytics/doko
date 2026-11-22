@@ -1064,6 +1064,85 @@ kbd {
   font-size: 13.5px;
 }
 
+.welcome-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  max-width: 560px;
+  margin: 16px auto 0;
+}
+.welcome-cards:has(.welcome-card-new) {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  max-width: none;
+}
+.welcome-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 100px;
+  padding: 14px 6px;
+  background: var(--surface);
+}
+.welcome-card:not(:disabled):hover {
+  background: color-mix(in srgb, var(--surface) 88%, var(--accent));
+}
+.welcome-card > .app-icon {
+  color: var(--accent-text);
+}
+.welcome-card-new {
+  background: var(--active);
+}
+.welcome-card-new:not(:disabled):hover {
+  background: color-mix(in srgb, var(--surface) 76%, var(--accent));
+}
+.welcome-card-copy {
+  display: grid;
+  gap: 3px;
+  transition: transform 320ms var(--ease);
+}
+.welcome-card-copy strong {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.welcome-card-hint {
+  color: var(--text-2);
+  font-size: 13px;
+}
+.welcome-card-new .welcome-card-hint {
+  color: inherit;
+}
+.welcome-card-badge {
+  padding: 2px 5px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-foreground);
+  font-size: 11px;
+  line-height: 1.1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .welcome-card:not(:disabled):hover .welcome-card-copy {
+    transform: translateY(-1px);
+    transition-duration: 240ms;
+  }
+}
+@media (max-width: 740px) {
+  .welcome-cards:has(.welcome-card-new) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: 560px;
+  }
+}
+@media (max-width: 480px) {
+  .welcome-cards, .welcome-cards:has(.welcome-card-new) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .welcome-links {
   display: flex;
   justify-content: center;

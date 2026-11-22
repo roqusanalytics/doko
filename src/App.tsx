@@ -16,7 +16,7 @@ import { DocumentTabBar } from "./DocumentTabBar";
 import { trackTitlebar } from "./titlebar";
 import type { DocumentTabs, OpenSource } from "./documentTabs";
 import { readGalleryImage } from "./galleryImage";
-import { BROWSER_ACCEPT, CONTENT_ACCEPT, IPC_PREFIX, localSources } from "./content-source";
+import { BROWSER_ACCEPT, BROWSER_FILE_ACCEPT, CONTENT_ACCEPT, IPC_PREFIX, localSources } from "./content-source";
 import { SearchResults } from "./SearchResults";
 import { Icon, type IconName } from "./icons";
 import { Welcome } from "./Welcome";
@@ -621,11 +621,16 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     void localSources(Array.from(files)).then(sources => tabs.open(sources));
   }, [tabs]);
 
-  const pickFile = useCallback(() => {
+  const pickFile = useCallback((type?: OpenFileType) => {
+    const desktop = window.folioDesktop;
+    if (type && desktop) {
+      void desktop.openFiles(type).catch(() => setError("Couldn't open the file dialog. Try again."));
+      return;
+    }
     const input = document.createElement("input");
     input.type = "file";
     input.multiple = true;
-    input.accept = window.folioDesktop ? CONTENT_ACCEPT : BROWSER_ACCEPT;
+    input.accept = desktop ? CONTENT_ACCEPT : (type && BROWSER_FILE_ACCEPT[type]) || BROWSER_ACCEPT;
     input.onchange = () => { if (input.files?.length) openFiles(input.files); };
     input.click();
   }, [openFiles]);

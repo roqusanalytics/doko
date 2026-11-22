@@ -1,3 +1,4 @@
+type OpenFileType = "pdf" | "markdown" | "photos" | "excel" | "word";
 type ContentDocument = MarkdownDocument | GalleryDocument | WorkbookDocument | CanvasDocument;
 interface CanvasDocument { kind: "canvasDocument"; id?: string; draftId?: string; name: string; text?: string }
 // `format` marks a content document that is not Markdown ("text" is a .txt file, "csv" a .csv file, "svg" an .svg file shown as an image with its XML as the source; "html" is a read-only HTML preview; absent means Markdown).
@@ -55,6 +56,7 @@ interface FolioDesktop {
   onConverting(callback: (name: string, token: string) => void): () => void;
   onOpenFailed(callback: (message: string, token: string) => void): () => void;
   onTabCommand(callback: (command: "new" | "new-canvas-document" | "close" | "next" | "previous") => void): () => void;
+  openFiles(type: OpenFileType): Promise<void>;
   openDocument(file: File): Promise<{ name: string; data: Uint8Array; note?: string }>;
   ready(): Promise<boolean>;
   /** Null when the user declines to open an address on their computer or local network, or the request is stopped. */
