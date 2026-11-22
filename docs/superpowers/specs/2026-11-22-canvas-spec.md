@@ -151,6 +151,7 @@ frame, juos pažymi ir parodo ekrane. Visą AI pakeitimą galima atšaukti vienu
 
 ## Out of Scope
 
+- Lasso įrankis (nėra Excalidraw 0.18.1; laukiame stabilaus leidimo).
 - AI keičia ar trina esamus Elementus (v2).
 - Ekrano vaizdo siuntimas AI modeliui (v2).
 - PNG / SVG su įdėta scena atidarymas kaip Canvas (v2); v1 jie atsidaro kaip paveikslėliai.

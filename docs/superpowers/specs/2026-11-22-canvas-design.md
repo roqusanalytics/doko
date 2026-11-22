@@ -15,7 +15,7 @@ nupiešia figūras, diagramas ar schemas tiesiai ant Canvas.
 | Q1, Q8 | UI ir glossary terminas: **Canvas**. Kode visada pilna forma: `kind: "canvas"`, `CanvasDocument`, `CanvasReader`, `src/canvasDocument/…`; nauji kintamieji nevadinami vien `canvas` (konfliktas su HTML `<canvas>`). |
 | Q2 | Pagrindas: `@excalidraw/excalidraw` (MIT, 0.18.x). Savo variklio nerašome. tldraw atmestas dėl licencijos. |
 | Q3 | Canvas – naujas dokumento tipas savo skirtuke (iframe reader), kaip Markdown. Piešimo ant PDF nedarome. |
-| Q4 | v1 įrankiai: lock, hand, select, rectangle, diamond, ellipse, arrow, line, pen, text, eraser, image, frame, laser, lasso, Mermaid → diagrama. Eksportas: PNG, SVG, PDF. Nedarome: Sign in, Share / collaboration, Web Embed, Wireframe to code, Draw to shape. |
+| Q4 | v1 įrankiai: lock, hand, select, rectangle, diamond, ellipse, arrow, line, pen, text, eraser, image, frame, laser, Mermaid → diagrama (lasso atidėtas: nėra Excalidraw 0.18.1). Eksportas: PNG, SVG, PDF. Nedarome: Sign in, Share / collaboration, Web Embed, Wireframe to code, Draw to shape. |
 | Q5 | AI grąžina arba elementų skeleton JSON (pagrindinis kelias), arba Mermaid (flowchart, sequence, class). AI pasirenka pats. |
 | Q6 | v1 AI skaito Sceną ir **tik prideda** Elementus. Keitimas ir trynimas – v2. Kiekvienas AI pakeitimas = vienas Undo žingsnis. |
 | Q7 | Numatytasis stilius – Excalidraw ranka pieštas (roughness, Virgil šriftas). |
@@ -42,5 +42,5 @@ nupiešia figūras, diagramas ar schemas tiesiai ant Canvas.
 
 ## v2 (ne šio darbo apimtis)
 
-AI keičia ir trina Elementus; ekrano vaizdas AI modeliui; PNG / SVG su scena atidaromi kaip Canvas;
+Lasso įrankis (kai bus stabiliame Excalidraw leidime); AI keičia ir trina Elementus; ekrano vaizdas AI modeliui; PNG / SVG su scena atidaromi kaip Canvas;
 PDF eksportas A4 puslapiais; Canvas „Recent“ sąraše; Ask AI Markdown dokumentuose.
