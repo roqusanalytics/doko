@@ -359,5 +359,5 @@ if (process.argv.includes("--ui")) {
     assert.deepEqual(errors, []);
     await assertHidden(app);
     console.log("PASS PDF pages UI: sample insert/blank/multiselect delete/rotate/Undo, prevent zero pages, invalid import recovery, Cancel unchanged, Apply and parent Undo with newer notes/bookmarks, tagged sample import and visible text, 390px layout, real in-flight worker abort/recovery, offscreen bitmap release/reentry, hidden Electron");
-  } finally { await app.evaluate(({ dialog }) => { dialog.showMessageBoxSync = () => 0; }); await closeHidden(app); rmSync(temp, { recursive: true, force: true }); }
+  } finally { await app.evaluate(({ dialog }) => { dialog.showMessageBoxSync = () => 0; }); await closeHidden(app); rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
 }

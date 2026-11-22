@@ -259,4 +259,4 @@ try {
   console.log("PASS photo editor UI: annotated snapshot, square crop/cancel/errors/Undo, persistent rotation/flips/resize, live colors/reset/Undo, invalid/empty/long dimensions, narrow layout and saved 300×300 PNG copy without modifying original");
   await assertHidden(app);
   console.log("PASS photo edit: exact crop/rotate/flips/composition, resize/preview geometry, colors/alpha, PNG-PDF roundtrip, immutable originals, invalid/corrupt/oversize/multiple-page input and abort");
-} catch (error) { console.error(error); throw error; } finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true }); }
+} catch (error) { console.error(error); throw error; } finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }

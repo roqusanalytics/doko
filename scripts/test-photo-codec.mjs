@@ -89,5 +89,5 @@ try {
   await assertHidden(app);
   console.log("PASS photo codec: corrupt/empty/oversized input, abort, original pixels, transparency, rotation, pixel budget and single-page limit");
 } finally {
-  await closeHidden(app); rmSync(temp, { recursive: true, force: true });
+  await closeHidden(app); rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
