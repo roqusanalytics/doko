@@ -54,6 +54,9 @@
     "scripts/smoke-canvas-export.mjs"
   ],
   [
+    "scripts/smoke-canvas-save.mjs"
+  ],
+  [
     "scripts/smoke-workbook.mjs"
   ],
   [

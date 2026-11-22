@@ -1,5 +1,5 @@
 type ContentDocument = MarkdownDocument | GalleryDocument | WorkbookDocument | CanvasDocument;
-interface CanvasDocument { kind: "canvas"; id?: string; name: string }
+interface CanvasDocument { kind: "canvas"; id?: string; name: string; text?: string }
 // `format` marks a content document that is not Markdown ("text" is a .txt file, "csv" a .csv file, "svg" an .svg file shown as an image with its XML as the source; "html" is a read-only HTML preview; absent means Markdown).
 // `encoding` is the label of the file's encoding on desktop (for example "UTF-8" or "Windows-1257").
 interface MarkdownDocument { kind: "markdown"; id?: string; name: string; text: string; format?: "text" | "csv" | "svg" | "html"; encoding?: string;
@@ -10,7 +10,7 @@ interface MarkdownDocument { kind: "markdown"; id?: string; name: string; text: 
 // value and an empty row is []. `truncated` marks a sheet, or the workbook, that was too large to read completely.
 interface WorkbookDocument { kind: "workbook"; id?: string; name: string; sheets: { name: string; rows: string[][]; truncated: boolean }[]; truncated: boolean }
 interface GalleryDocument { kind: "gallery"; id?: string; name: string; files: string[]; selected: string; blobs?: Record<string, Blob> }
-type ContentSaveResult = { ok?: boolean; document?: MarkdownDocument; cancelled?: boolean; conflict?: boolean; unencodable?: boolean; error?: string };
+type ContentSaveResult<T = MarkdownDocument> = { ok?: boolean; document?: T; cancelled?: boolean; conflict?: boolean; unencodable?: boolean; error?: string };
 
 interface UpdateStatus {
   state: "idle" | "unsupported" | "checking" | "latest" | "available" | "downloading" | "ready" | "error";
@@ -38,6 +38,7 @@ interface FolioDesktop {
     /** `token` is set when the tab was already open as "Opening…" (see onConverting). */
     onOpen(callback: (document: ContentDocument, token?: string) => void): () => void;
     save(id: string, text: string, copy?: boolean, utf8?: boolean): Promise<ContentSaveResult>;
+    saveCanvasDocument(id: string | undefined, text: string, copy?: boolean): Promise<ContentSaveResult<CanvasDocument>>;
     reload(id: string): Promise<MarkdownDocument>;
     refresh(id: string, selected: string): Promise<GalleryDocument>;
     image(id: string, name: string): Promise<{ data: Uint8Array; mime: string }>;

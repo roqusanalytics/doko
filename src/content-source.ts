@@ -1,10 +1,11 @@
 import type { OpenSource } from "./documentTabs";
 
-export const CONTENT_ACCEPT = "application/pdf,.pdf,.doc,.docx,.xlsx,.md,.markdown,.txt,.csv,.svg,.html,.htm,.jpg,.jpeg,.png,.webp,.gif,.bmp,.avif";
-/** The browser edition's picker filter: Word and Excel files open in the desktop app only. */
+export const CONTENT_ACCEPT = "application/pdf,.pdf,.doc,.docx,.xlsx,.md,.markdown,.txt,.csv,.svg,.html,.htm,.jpg,.jpeg,.png,.webp,.gif,.bmp,.avif,.excalidraw";
 /** Electron adds this to the message of an error thrown in the main process. */
 export const IPC_PREFIX = /^Error invoking remote method '[^']*': (?:Error: )?/;
-export const BROWSER_ACCEPT = CONTENT_ACCEPT.replace(",.doc,.docx,.xlsx", "");
+/** Word, Excel and Excalidraw files open in the desktop app. */
+export const BROWSER_ACCEPT = CONTENT_ACCEPT.replace(",.doc,.docx,.xlsx", "").replace(",.excalidraw", "");
+export const isCanvasDocumentFile = (file: File) => /\.excalidraw$/i.test(file.name);
 const XLSX = /\.xlsx?$/i;
 const MARKDOWN = /\.(md|markdown)$/i;
 const TEXT = /\.txt$/i;
@@ -57,11 +58,12 @@ export async function localSources(files: File[]): Promise<OpenSource[]> {
   const browserImages = !window.folioDesktop ? files.filter(file => IMAGE.test(file.name)) : [];
   const sources = await Promise.all(files.map(async (file): Promise<OpenSource | null> => {
     try {
-      if (MARKDOWN.test(file.name) || TEXT.test(file.name) || CSV.test(file.name) || SVG.test(file.name) || HTML.test(file.name) || IMAGE.test(file.name)) {
+      if (isCanvasDocumentFile(file) || MARKDOWN.test(file.name) || TEXT.test(file.name) || CSV.test(file.name) || SVG.test(file.name) || HTML.test(file.name) || IMAGE.test(file.name)) {
         if (window.folioDesktop) {
           const document = await window.folioDesktop.content.open(file);
           return { kind: "content", name: document.name, document };
         }
+        if (isCanvasDocumentFile(file)) throw new Error("Excalidraw files open in the Doko desktop app.");
         if (MARKDOWN.test(file.name)) {
           if (file.size > 5 * 1024 * 1024) throw new Error("Markdown files must be smaller than 5 MB.");
           const text = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());

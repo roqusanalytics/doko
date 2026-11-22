@@ -1,13 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Excalidraw, FONT_FAMILY, MainMenu } from "@excalidraw/excalidraw";
+import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { Modal } from "../Dialogs";
 import { DocumentTabBar } from "../DocumentTabBar";
-import DocumentExportDialog from "../DocumentExportDialog";
-import type { Reader, ReaderContext } from "../documentTabs";
+import type { ReaderContext } from "../documentTabs";
 import { useFileCommands } from "../fileCommands";
 import { Icon } from "../icons";
 import { trackTitlebar } from "../titlebar";
+import DocumentExportDialog from "../DocumentExportDialog";
 import { captureCanvasExport, saveCanvasExport, type CanvasExportSnapshot } from "./canvasDocumentExport";
+import { useCanvasDocumentFile } from "./useCanvasDocumentFile";
 import "@excalidraw/excalidraw/index.css";
 import "./canvas-reader.css";
 
@@ -20,22 +22,17 @@ const canvasDocumentUi = {
     toggleTheme: false,
   },
 } as const;
-const initialScene = { appState: { currentItemFontFamily: FONT_FAMILY.Virgil } };
-
 export default function CanvasReader({ tabs, tabKey, initial }: {
   tabs: ReaderContext["tabs"]; tabKey: number; initial: CanvasDocument;
 }) {
   const active = useSyncExternalStore(tabs.subscribe, () => tabs.active === tabKey);
   const header = useRef<HTMLElement>(null);
   const editor = useRef<ExcalidrawImperativeAPI>(null);
+  const file = useCanvasDocumentFile(tabs, tabKey, initial, editor);
+  const [properties, setProperties] = useState(false);
   const [exportSnapshot, setExportSnapshot] = useState<CanvasExportSnapshot | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">(() => document.documentElement.dataset.theme === "dark" ? "dark" : "light");
 
-  useEffect(() => {
-    // This scene lives in the reader until its tab closes. Keep the frame mounted when switching tabs.
-    const reader: Reader = { open() {}, flush: async () => {} };
-    tabs.bind(tabKey, reader);
-  }, [tabs, tabKey]);
   useLayoutEffect(() => {
     if (active && window.folioDesktop && header.current) return trackTitlebar(header.current);
   }, [active]);
@@ -46,23 +43,45 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
     window.addEventListener("storage", syncTheme);
     return () => window.removeEventListener("storage", syncTheme);
   }, []);
-  useFileCommands(active, "canvas", !!exportSnapshot, command => {
+  useEffect(() => {
+    if (!active || properties || exportSnapshot || !window.folioDesktop) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "s") return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!event.repeat) void file.save(event.shiftKey);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [active, properties, exportSnapshot, file.save]);
+  useFileCommands(active, "canvas", file.saving || properties || !!exportSnapshot, command => {
     if (command === "recent") tabs.library();
-    if (command === "export" && editor.current) setExportSnapshot(captureCanvasExport(editor.current, initial.name));
+    else if (command === "save" || command === "save-as") void file.save(command === "save-as");
+    else if (command === "properties") setProperties(true);
+    else if (command === "export" && editor.current) setExportSnapshot(captureCanvasExport(editor.current, file.document.name));
   });
 
-  return <div className="app canvas-document-reader">
+  return <div className="app canvas-document-reader" onDropCapture={file.onDrop}
+    onDragOver={event => { if (event.dataTransfer.types.includes("Files")) event.preventDefault(); }}>
     <header ref={header} className="topbar">
       <div className="topbar-left">
         <button className="brand" title="Back to library" onClick={() => tabs.library()}>
           <span className="brand-mark" /><span className="brand-name">Doko</span>
         </button>
-        <div className="doc-title"><span>{initial.name}</span></div>
+        <div className="doc-title"><span>{file.document.name}</span></div>
       </div>
     </header>
     <DocumentTabBar tabs={tabs} tabKey={tabKey} />
+    {file.error && <div className="content-notice" role="alert">{file.error}</div>}
+    {properties && <Modal title="Properties" onClose={() => setProperties(false)}>
+      <dl className="info-list">
+        <div><dt>File</dt><dd>{file.document.name}</dd></div>
+        <div><dt>Type</dt><dd>Excalidraw (UTF-8)</dd></div>
+        <div><dt>Elements</dt><dd>{editor.current?.getSceneElements().length.toLocaleString() ?? "0"}</dd></div>
+      </dl>
+    </Modal>}
     <main className="canvas-document-stage" id="reader-panel" role="tabpanel" aria-labelledby="selected-document-tab" inert={!!exportSnapshot}>
-      <Excalidraw theme={theme} initialData={initialScene} UIOptions={canvasDocumentUi}
+      {file.initialScene && <Excalidraw theme={theme} initialData={file.initialScene} onChange={file.onChange} UIOptions={canvasDocumentUi}
         aiEnabled={false} validateEmbeddable={false} showDeprecatedFonts
         excalidrawAPI={api => { editor.current = api; }}>
         <MainMenu>
@@ -74,7 +93,7 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
             editor.current?.toggleSidebar({ name: "default", tab: "library" });
           }}>Library</MainMenu.Item>
         </MainMenu>
-      </Excalidraw>
+      </Excalidraw>}
     </main>
     {exportSnapshot && <DocumentExportDialog snapshot={exportSnapshot} mode="export" onClose={() => setExportSnapshot(null)} onSave={saveCanvasExport} />}
   </div>;

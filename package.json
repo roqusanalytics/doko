@@ -129,6 +129,14 @@
         "rank": "Alternate"
       },
       {
+        "ext": "excalidraw",
+        "name": "Excalidraw Drawing",
+        "description": "Excalidraw Drawing",
+        "role": "Editor",
+        "rank": "Alternate",
+        "mimeType": "application/vnd.excalidraw+json"
+      },
+      {
         "ext": [
           "html",
           "htm"
@@ -252,6 +260,7 @@
       "maintainer": "roqusanalytics <roquscode@gmail.com>",
       "mimeTypes": [
         "application/pdf",
+        "application/vnd.excalidraw+json",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/msword",
         "text/markdown",
