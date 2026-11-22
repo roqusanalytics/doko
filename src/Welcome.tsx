@@ -156,9 +156,10 @@ export function Welcome({ active, onPick, onOpenUrl, onNewCanvas, onOpenRecent, 
           <button className="link" onClick={onOpenUrl} disabled={loading}>
             <Icon name="link" size={15} /> Open from URL
           </button>
-          <button className="link" onClick={onNewCanvas} disabled={loading}>
+          {/* A Canvas saves through the desktop file API, so the browser edition has no New canvas. */}
+          {window.folioDesktop && <button className="link" onClick={onNewCanvas} disabled={loading}>
             <Icon name="canvasDocument" size={15} /> New canvas
-          </button>
+          </button>}
           <button className="link" onClick={onSample}>
             <Icon name="book" size={15} /> Try a sample document
           </button>

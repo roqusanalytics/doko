@@ -1,10 +1,15 @@
-import { CaptureUpdateAction, convertToExcalidrawElements, getCommonBounds } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, convertToExcalidrawElements, FONT_FAMILY, getCommonBounds } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement, ExcalidrawLinearElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { copyMermaidElements, drawingLayout, parseDrawingReply, readDrawingBlock, readMermaidDrawing,
   validateDrawingReferences, type DrawingElement, type PreparedDrawing } from "./canvasDocumentAiReply";
 
 type Skeleton = NonNullable<Parameters<typeof convertToExcalidrawElements>[0]>[number];
+
+// AI and Mermaid text uses the same hand-drawn font as text the user writes on a Canvas.
+const handwritten = (skeleton: Skeleton): Skeleton => skeleton.type === "text"
+  ? { ...skeleton, fontFamily: FONT_FAMILY.Virgil }
+  : "label" in skeleton && skeleton.label ? { ...skeleton, label: { ...skeleton.label, fontFamily: FONT_FAMILY.Virgil } } : skeleton;
 type Point = [number, number];
 type LocalPoint = ExcalidrawLinearElement["points"][number];
 const toLocalPoint = (x: number, y: number) => [x, y] as LocalPoint;
@@ -52,7 +57,7 @@ export async function prepareCanvasDocumentDrawing(reply: string, existing: read
       }
       if (result.files && Object.keys(result.files).length) throw new Error("The Mermaid diagram must convert to editable Elements.");
       if (result.elements.some(element => element.link)) throw new Error("Links are not allowed in a drawing.");
-      return convertToExcalidrawElements(result.elements);
+      return convertToExcalidrawElements(result.elements.map(handwritten));
     }) };
   return { description: description || "Drawing added.", drawing };
 }
@@ -83,7 +88,7 @@ function convertDrawingElements(elements: DrawingElement[], existing: readonly E
     }
     return { ...element, id };
   });
-  const converted = convertToExcalidrawElements(skeletons, { regenerateIds: false }).map(element => ({
+  const converted = convertToExcalidrawElements(skeletons.map(handwritten), { regenerateIds: false }).map(element => ({
     ...element, frameId: frameById.get(element.type === "text" ? element.containerId ?? element.id : element.id) ?? null,
   }));
   return { converted, arrows, remapped };

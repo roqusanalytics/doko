@@ -84,7 +84,7 @@ test("keeps safe style fields and rejects unsafe style values", () => {
   const [element] = parseDrawingReply(reply({ ...rectangle, ...style }), []).elements;
   assert.deepEqual({ ...element }, { ...rectangle, ...style });
   assert.equal(parseDrawingReply(reply({ ...arrow, strokeColor: "#e03131" }), []).elements[0].strokeColor, "#e03131");
-  for (const bad of [{ strokeColor: "red" }, { backgroundColor: "url(x)" }, { fillStyle: "image" }, { strokeStyle: "wavy" }, { strokeWidth: 0 }, { strokeWidth: 99 }]) {
+  for (const bad of [{ strokeColor: "red" }, { backgroundColor: "url(x)" }, { fillStyle: "image" }, { strokeStyle: "wavy" }, { strokeWidth: 0 }, { strokeWidth: 5 }]) {
     assert.throws(() => parseDrawingReply(reply({ ...rectangle, ...bad }), []), /invalid style/);
   }
 });

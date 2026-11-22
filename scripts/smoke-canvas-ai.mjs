@@ -160,6 +160,7 @@ try {
   assert.ok(review.x > before.elements[0].x + before.elements[0].width);
   assert.equal(label.text, "Review");
   assert.equal(label.containerId, review.id);
+  assert.equal(label.fontFamily, 1, "AI label text is not hand-drawn");
   assert.equal(arrow.startBinding.elementId, before.selected[0]);
   assert.equal(arrow.endBinding.elementId, review.id);
   assert.deepEqual(new Set(after.selected), new Set(added.map(element => element.id)));
@@ -231,6 +232,8 @@ try {
   assert.deepEqual(flowchart.elements[0], before.elements[0]);
   assert.equal(diagram.filter(element => element.type === "rectangle").length, 2);
   assert.ok(diagram.some(element => element.type === "arrow" && element.startBinding && element.endBinding));
+  // FONT_FAMILY.Virgil is 1: AI text matches the hand-drawn font of user text.
+  assert.ok(diagram.filter(element => element.type === "text").every(element => element.fontFamily === 1), "Mermaid text is not hand-drawn");
   assert.deepEqual(new Set(flowchart.selected), new Set(diagram.map(element => element.id)));
   assert.equal(await panel.locator("pre").count(), 0);
 

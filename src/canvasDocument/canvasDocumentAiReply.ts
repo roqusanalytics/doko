@@ -75,7 +75,7 @@ const STYLE_CHECKS: Record<string, (value: unknown) => boolean> = {
   backgroundColor: value => typeof value === "string" && COLOR.test(value),
   fillStyle: value => ["hachure", "cross-hatch", "solid", "zigzag"].includes(value as string),
   strokeStyle: value => ["solid", "dashed", "dotted"].includes(value as string),
-  strokeWidth: value => typeof value === "number" && value >= 0.5 && value <= 16,
+  strokeWidth: value => typeof value === "number" && value >= 1 && value <= 4,
 };
 
 function styleValues(value: Record<string, unknown>): Style {
