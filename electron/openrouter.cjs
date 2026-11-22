@@ -119,7 +119,7 @@ function createOpenRouter({ net, safeStorage, file, writeAtomic }) {
       if (!validModel(model)) throw new Error("Choose an OpenRouter model in Settings.");
       const passage = messages.at(-1)?.context;
       if (document.kind !== "canvasDocument" && document.truncated && !passage) throw new Error("This document exceeds Doko’s whole-document limit. Select a passage and ask again.");
-      const { instructions, input } = chatRequest(model, passage
+      const { instructions, input } = chatRequest(model, passage && document.kind !== "markdown"
         ? { name: document.name, text: `[Page ${passage.page}]\n${passage.text}`, truncated: true } : document, messages);
       // Small-context endpoints can otherwise silently drop the middle of the document.
       const body = JSON.stringify({ model, messages: [{ role: "system", content: instructions }, ...input], stream: true,

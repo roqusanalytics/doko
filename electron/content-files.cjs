@@ -234,6 +234,8 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
   const document = record => record.kind === "canvasDocument"
     ? { kind: "canvasDocument", id: record.id, name: path.basename(record.file), text: record.text }
     : ({ kind: "markdown", id: record.id, name: path.basename(record.file), text: record.text,
+    ...(!record.format && { aiHistoryKey: hash(Buffer.from(record.key)),
+      readOnly: !(record.source.stat.mode & 0o222n) || !(record.directory.mode & 0o222n) }),
     ...(record.format && { format: record.format, encoding: ENCODING_LABELS[record.encoding],
       ...(record.bom && { bom: true }), ...(record.eol !== "\n" && { eol: record.eol }), ...(record.cellEol && record.cellEol !== "\n" && { cellEol: record.cellEol }) }) });
   const decode = (record, data) => record.kind === "canvasDocument" ? decodeCanvasDocument(data)

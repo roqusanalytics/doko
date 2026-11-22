@@ -6,7 +6,7 @@ interface CanvasDocument { kind: "canvasDocument"; id?: string; draftId?: string
 interface MarkdownDocument { kind: "markdown"; id?: string; name: string; text: string; format?: "text" | "csv" | "svg" | "html"; encoding?: string;
   // A .txt, .csv or .svg file's original BOM and line endings (rows, and for CSV also breaks inside quoted cells); each is absent when
   // it is the default (no BOM, "\n"). The editor text always uses "\n"; saving or exporting a copy restores them.
-  bom?: boolean; eol?: string; cellEol?: string }
+  bom?: boolean; eol?: string; cellEol?: string; aiHistoryKey?: string; readOnly?: boolean }
 // A read-only Excel workbook (desktop only): each worksheet as plain display text. Rows are ragged: a row ends at its last
 // value and an empty row is []. `truncated` marks a sheet, or the workbook, that was too large to read completely.
 interface WorkbookDocument { kind: "workbook"; id?: string; name: string; sheets: { name: string; rows: string[][]; truncated: boolean }[]; truncated: boolean }
@@ -93,7 +93,7 @@ interface AiStatus {
 }
 
 interface AiDocument {
-  kind: "pdf" | "canvasDocument";
+  kind: "pdf" | "canvasDocument" | "markdown";
   name: string;
   text: string;
   truncated: boolean;
@@ -102,7 +102,7 @@ interface AiDocument {
 interface AiMessage {
   role: "user" | "assistant";
   content: string;
-  context?: { text: string; page: number };
+  context?: { text: string; page?: number };
 }
 
 interface AiEvent {

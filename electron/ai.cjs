@@ -556,11 +556,14 @@ const MAX_CHARS = 1_500_000;
 function validRequest(req) {
   return req && typeof req.id === "string" && req.id.length < 100 && ["chatgpt", "claude", "openrouter"].includes(req.provider)
     && typeof req.model === "string" && req.model.length <= (req.provider === "openrouter" ? 256 : 99)
-    && ["pdf", "canvasDocument"].includes(req.document?.kind) && typeof req.document.name === "string" && typeof req.document.text === "string" && typeof req.document.truncated === "boolean"
+    && ["pdf", "canvasDocument", "markdown"].includes(req.document?.kind) && typeof req.document.name === "string" && typeof req.document.text === "string" && typeof req.document.truncated === "boolean"
     && (req.document.kind !== "canvasDocument" || req.document.text.length <= 12_000)
+    && (req.document.kind !== "markdown" || req.document.text.length <= 400_000)
     && Array.isArray(req.messages) && req.messages.length > 0 && req.messages.length < 200
     && req.messages.every((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string"
-      && (m.context === undefined || (req.document.kind === "pdf" && m.role === "user" && typeof m.context?.text === "string" && Number.isSafeInteger(m.context.page) && m.context.page >= 1)))
+      && (m.context === undefined || (m.role === "user" && typeof m.context?.text === "string"
+        && (req.document.kind === "markdown" ? m.context.page === undefined && m.context.text.length <= 12_000
+          : req.document.kind === "pdf" && Number.isSafeInteger(m.context.page) && m.context.page >= 1))))
     && req.document.name.length + req.document.text.length + req.messages.reduce((n, m) => n + m.content.length + (m.context?.text.length ?? 0), 0) < MAX_CHARS;
 }
 
@@ -606,8 +609,8 @@ function register(handle, send) {
     const ask = { chatgpt: askChatGPT, claude: askClaude, openrouter: openRouter.ask }[req.provider];
     const { kind, name, text, truncated } = req.document;
     const messages = req.messages.map(({ role, content, context }) => context
-      ? { role, content, context: { text: context.text, page: context.page } } : { role, content });
-    Promise.resolve(ask({ model: req.model, document: { ...(kind === "canvasDocument" ? { kind } : {}), name, text, truncated }, messages }, emit, controller.signal))
+      ? { role, content, context: { text: context.text, ...(kind === "pdf" ? { page: context.page } : {}) } } : { role, content });
+    Promise.resolve(ask({ model: req.model, document: { ...(kind !== "pdf" ? { kind } : {}), name, text, truncated }, messages }, emit, controller.signal))
       .then(() => send("folio:ai-event", { id: req.id, type: "done" }))
       .catch((e) => send("folio:ai-event", controller.signal.aborted ? { id: req.id, type: "done" }
         : { id: req.id, type: "error", message: e.message || "Something went wrong.", code: e.code ?? "", link: e.link ?? "" }))

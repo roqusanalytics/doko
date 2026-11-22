@@ -1,8 +1,14 @@
 import { nativeAppearanceTheme } from "./appearance";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import type { Element, Root } from "hast";
+import { AiPanel, flushAiHistory, forgetClearedChats, stopAiForClose, type AiContext } from "./AiPanel";
+import { MAX_DOC_CHARS } from "./aiDocumentText";
+import { locateMarkdownEdits, STALE_MARKDOWN_EDIT, type MarkdownEdit } from "./markdownAiEdits";
+import { onStoredDataCleared } from "./recent";
+import { IconButton } from "./IconButton";
 import { useFileCommands } from "./fileCommands";
 import { MoreMenu } from "./MoreMenu";
 import { DocumentTabBar } from "./DocumentTabBar";
@@ -14,7 +20,7 @@ import { trackTitlebar } from "./titlebar";
 import { readSetting, writeSetting } from "./preferences";
 import { BROWSER_ACCEPT, CONTENT_ACCEPT, IPC_PREFIX, localSources, restoreText, xmlUtf8 } from "./content-source";
 import { normalizeMathDelimiters } from "./chatMath";
-import { UpdateSettings } from "./SettingsDialog";
+import { SettingsDialog, UpdateSettings } from "./SettingsDialog";
 import { updateSummary } from "./updates";
 import { UpdateButton } from "./UpdateButton";
 import MarkdownPane, { type MarkdownEditorHandle } from "./MarkdownPane";
@@ -93,19 +99,45 @@ function headingAnchors(ids: readonly string[]) {
   };
 }
 
-function MarkdownPreview({ doc, text, headingIds }: { doc: MarkdownDocument; text: string; headingIds: readonly string[] }) {
+const PREVIEW_BLOCK = /^(?:h[1-6]|p|li|pre|hr|blockquote|ul|ol)$/;
+
+function highlightMarkdownBlock(offset: number | undefined) {
+  return () => (tree: Root) => {
+    if (offset === undefined) return;
+    let target: Element | undefined;
+    let previous: Element | undefined;
+    const visit = (node: Root | Element) => {
+      const start = node.position?.start.offset;
+      const end = node.position?.end.offset;
+      if (node.type === "element" && PREVIEW_BLOCK.test(node.tagName) && start !== undefined) {
+        if (start <= offset && end !== undefined && end > offset) target = node;
+        if (!previous || start <= offset) previous = node;
+      }
+      node.children.forEach(child => { if (child.type === "element") visit(child); });
+    };
+    visit(tree);
+    const block = target ?? previous;
+    if (block) block.properties.className = [...(Array.isArray(block.properties.className) ? block.properties.className : []), "markdown-edit-highlight"];
+  };
+}
+
+function MarkdownPreview({ doc, text, headingIds, reveal }: { doc: MarkdownDocument; text: string; headingIds: readonly string[]; reveal?: number }) {
   const anchors = useMemo(() => headingAnchors(headingIds), [headingIds]);
   const components = useMemo(() => ({
     a: ({ href, children }: { href?: string; children?: import("react").ReactNode }) => href && webLink(href)
       ? <a href={href} target={href.startsWith("#") ? undefined : "_blank"} rel="noreferrer noopener">{children}</a> : <span>{children}</span>,
     img: ({ src, alt }: { src?: string | Blob; alt?: string }) => <LocalImage id={doc.id} src={typeof src === "string" ? src : ""} alt={alt ?? ""} />,
   }), [doc.id]);
+  let offset: number | undefined;
+  const normalized = normalizeMathDelimiters(text, reveal === undefined ? undefined : (source, rendered) => {
+    if (source <= reveal) offset = rendered;
+  });
   return <section className="markdown-preview" aria-label="Markdown preview" tabIndex={0}>
-    {!text ? <p className="content-empty">Your preview appears here.</p> : <ReactMarkdown skipHtml
+    {!text ? <p className={reveal === undefined ? "content-empty" : "content-empty markdown-edit-highlight"}>Your preview appears here.</p> : <ReactMarkdown skipHtml
       remarkPlugins={[[remarkMath, { singleDollarTextMath: false }], anchors]}
-      rehypePlugins={[[rehypeKatex, { trust: false, strict: "ignore", maxExpand: 1000, maxSize: 20 }]]}
+      rehypePlugins={[[rehypeKatex, { trust: false, strict: "ignore", maxExpand: 1000, maxSize: 20 }], highlightMarkdownBlock(offset)]}
       urlTransform={url => url}
-      components={components}>{normalizeMathDelimiters(text)}</ReactMarkdown>}
+      components={components}>{normalized}</ReactMarkdown>}
   </section>;
 }
 
@@ -137,8 +169,41 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
     if (tabs.active === tabKey && window.folioDesktop && !dialog && header.current) return trackTitlebar(header.current);
   }, [tabs.active, tabKey, dialog]);
   const editor = useRef<MarkdownEditorHandle>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiSettings, setAiSettings] = useState(false);
+  const [aiSelection, setAiSelection] = useState<AiContext | null>(null);
+  const [chatGeneration, setChatGeneration] = useState(0);
+  const chatId = doc.aiHistoryKey ? `markdown:${doc.aiHistoryKey}` : undefined;
+  const active = tabs.active === tabKey;
+  useEffect(() => {
+    if (!chatId) return;
+    return onStoredDataCleared((category, generation) => {
+      if (category !== "ai") return;
+      forgetClearedChats(generation);
+      setChatGeneration(current => Math.max(current, generation));
+    });
+  }, [chatId]);
   const state = useRef({ doc, text, saved });
   state.current = { doc, text, saved };
+  const markdownText = useCallback(() => state.current.text, []);
+  const readAiText = useCallback(async (signal: AbortSignal) => {
+    signal.throwIfAborted();
+    const current = markdownText();
+    const truncated = current.length > MAX_DOC_CHARS;
+    // Keep source offsets intact and avoid sending half a surrogate pair at the limit.
+    const end = truncated && /[\uD800-\uDBFF]/.test(current[MAX_DOC_CHARS - 1]) ? MAX_DOC_CHARS - 1 : MAX_DOC_CHARS;
+    return { text: truncated ? current.slice(0, end) : current, truncated };
+  }, [markdownText]);
+  const applyAiEdits = (edits: readonly MarkdownEdit[]) => {
+    if (state.current.doc.readOnly) throw new Error("This document is read-only.");
+    const current = markdownText();
+    let changes;
+    try { changes = locateMarkdownEdits(current, edits); }
+    catch { throw new Error(STALE_MARKDOWN_EDIT); }
+    if (!editor.current) throw new Error("The Markdown document is still loading.");
+    editor.current.applyMarkdownEdits(current, changes);
+    setAiSelection(null);
+  };
   const pendingSave = useRef<Promise<boolean> | null>(null);
   const closeAnswer = useRef<((answer: boolean) => void) | null>(null);
   const actions = useRef({ save: (_copy = false): Promise<boolean> => Promise.resolve(false), canClose: (): Promise<boolean> => Promise.resolve(true) });
@@ -231,11 +296,15 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
   useEffect(() => {
     tabs.bind(tabKey, {
       open() {},
-      flush: async () => {},
+      flush: async () => {
+        if (!chatId) return;
+        stopAiForClose(chatId);
+        await flushAiHistory(chatId);
+      },
       canClose: () => actions.current.canClose(),
     });
     return () => { closeAnswer.current?.(false); };
-  }, [tabs, tabKey]);
+  }, [tabs, tabKey, chatId]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -256,6 +325,7 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
     try {
       const next = await window.folioDesktop.content.reload(doc.id);
       delimiter.current = undefined; lastTable.current = null;
+      setAiSelection(null);
       setDoc(next); setText(next.text); setSaved(next.text); setError(""); setConflict(false); setUnencodable(null);
       state.current = { doc: next, text: next.text, saved: next.text }; tabs.markDirty(tabKey, false);
     } catch (error) { setError(failure(error)); }
@@ -365,6 +435,13 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
           ...(window.folioDesktop ? [{ kind: "divider" as const }, { kind: "action" as const, icon: "settings" as const, label: "Update settings…", onSelect: () => setDialog("updates") }] : []),
         ]} />
         <UpdateButton />
+        {chatId && window.folioDesktop?.ai && <IconButton icon="sparkle" label="Ask AI" active={aiOpen} onClick={() => {
+          if (!aiOpen) {
+            const selection = editor.current?.selectedText();
+            if (selection) setAiSelection({ text: selection });
+          }
+          setAiOpen(!aiOpen);
+        }} />}
         <button className="icon-btn" aria-label="Open file" title="Open file" onClick={() => input.current?.click()}><Icon name="upload" /></button>
         <button className="icon-btn" aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"} title="Toggle theme" onClick={() => {
           const next = theme === "dark" ? "light" : "dark"; setTheme(next); writeSetting("folio:theme", next);
@@ -372,7 +449,8 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
       </div>
     </header>
     <DocumentTabBar tabs={tabs} tabKey={tabKey} />
-    <main className="content-body" id="reader-panel" role="tabpanel" aria-labelledby="selected-document-tab">
+    <main className="content-workspace" id="reader-panel" role="tabpanel" aria-labelledby="selected-document-tab">
+      <div className="content-body">
       {["available", "ready", "downloading", "error"].includes(updateStatus.state) && <div className="content-notice content-update" role="status">
         <span>{updateSummary(updateStatus)}</span>
         <button className="btn ghost" disabled={updateStatus.state === "downloading"} onClick={() => {
@@ -396,11 +474,19 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
           </div>
         </div>
         {error && <div className="content-notice" role="alert"><span>{error}</span>{conflict && <button className="btn ghost" disabled={saving} onClick={() => setDialog("reload")}>Reload from disk</button>}{unencodable && <button className="btn ghost" disabled={saving} onClick={() => void save(unencodable.copy, true)}>Save as UTF-8</button>}</div>}
-        <MarkdownPane text={text} editorRef={editor} format={doc.format === "html" ? undefined : doc.format} csv={csvTable} onTableVisible={setTableVisible} onChange={value => {
+        <MarkdownPane text={text} editorRef={editor} format={doc.format === "html" ? undefined : doc.format} csv={csvTable} onTableVisible={setTableVisible}
+          onSelection={chatId ? selection => setAiSelection(selection ? { text: selection } : null) : undefined} onChange={value => {
           state.current.text = value; setText(value); tabs.markDirty(tabKey, value !== state.current.saved);
-        }} renderPreview={plain || sheet ? undefined : svg ? () => <SvgView image={svgImage} name={doc.name} /> : headingIds => <MarkdownPreview doc={doc} text={text} headingIds={headingIds} />} />
+        }} renderPreview={plain || sheet ? undefined : svg ? () => <SvgView image={svgImage} name={doc.name} /> : (headingIds, reveal) => <MarkdownPreview doc={doc} text={text} headingIds={headingIds} reveal={reveal} />} />
       </>}
+      </div>
+      {chatId && active && aiOpen && <AiPanel key={`${chatId}:${chatGeneration}`}
+        documentContext={{ kind: "markdown", name: doc.name, displayName: doc.name, readText: readAiText, selection: aiSelection }}
+        docId={chatId} persist onClearContext={() => setAiSelection(null)}
+        markdownEditing={{ readText: markdownText, apply: applyAiEdits, readOnly: !!doc.readOnly }}
+        onClose={() => setAiOpen(false)} onSettings={() => setAiSettings(true)} />}
     </main>
+    {active && aiSettings && <SettingsDialog initialSection="Ask AI" onClose={() => setAiSettings(false)} />}
     <input type="file" ref={input} hidden multiple accept={window.folioDesktop ? CONTENT_ACCEPT : BROWSER_ACCEPT} onChange={event => {
       void openFiles(Array.from(event.target.files ?? [])); event.target.value = "";
     }} />

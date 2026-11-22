@@ -24,3 +24,22 @@ export const highlighting = HighlightStyle.define([
 ]);
 // The CSV table edits this editor's text, so its undo history serves the table too.
 export { undo, redo, isolateHistory } from "@codemirror/commands";
+
+import { StateEffect, StateField } from "@codemirror/state";
+import { Decoration, EditorView } from "@codemirror/view";
+
+export const revealMarkdownLine = StateEffect.define<number | null>();
+export const markdownEditHighlight = StateField.define({
+  create: () => Decoration.none,
+  update(lines, transaction) {
+    for (const effect of transaction.effects) {
+      if (effect.is(revealMarkdownLine)) {
+        return effect.value === null ? Decoration.none : Decoration.set([Decoration.line({
+          class: "markdown-edit-highlight",
+        }).range(transaction.state.doc.lineAt(effect.value).from)]);
+      }
+    }
+    return lines.map(transaction.changes);
+  },
+  provide: field => EditorView.decorations.from(field),
+});

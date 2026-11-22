@@ -88,6 +88,13 @@
     "scripts/smoke-markdown-modes.mjs"
   ],
   [
+    "--test",
+    "scripts/test-markdown-ai-edits.mjs"
+  ],
+  [
+    "scripts/smoke-markdown-ai.mjs"
+  ],
+  [
     "scripts/test-photo-codec.mjs"
   ],
   [
