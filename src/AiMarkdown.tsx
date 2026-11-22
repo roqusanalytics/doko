@@ -37,7 +37,7 @@ function remarkPageReferences() {
   };
 }
 
-export const AiMarkdown = memo(function AiMarkdown({ text, onPage }: { text: string; onPage: (n: number) => void }) {
+export const AiMarkdown = memo(function AiMarkdown({ text, onPage }: { text: string; onPage?: (n: number) => void }) {
   return (
     <ReactMarkdown
       skipHtml
@@ -47,7 +47,7 @@ export const AiMarkdown = memo(function AiMarkdown({ text, onPage }: { text: str
       components={{
         a: ({ node, children }) => {
           const page = Number(node?.properties["data-folio-page"]);
-          return Number.isSafeInteger(page) && page > 0
+          return onPage && Number.isSafeInteger(page) && page > 0
             ? <button className="page-ref" onClick={() => onPage(page)} title={`Go to page ${page}`}>{children}</button>
             : <>{children}</>;
         },

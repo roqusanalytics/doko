@@ -83,6 +83,23 @@ async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBReq
   });
 }
 
+// The v8 snapshot store uses string keys for PDF versions. Tuple keys keep Canvas drafts
+// outside PDF version lookups and deletion, and outside Recent's eviction and clear operations.
+const draftKey = (id: string) => ["canvas-document-draft", id];
+export function getCanvasDocumentDraft(id: string) {
+  return tx<string | undefined>("readonly", store => store.get(draftKey(id)), "versionPdfs");
+}
+export async function writeCanvasDocumentDraft(id: string, text?: string) {
+  const key = draftKey(id);
+  if (text === undefined) await tx("readwrite", store => store.delete(key), "versionPdfs");
+  else await tx("readwrite", store => store.put(text, key), "versionPdfs");
+}
+export async function listCanvasDocumentDrafts() {
+  const range = IDBKeyRange.bound(draftKey(""), draftKey("\uffff"));
+  const keys = await tx("readonly", store => store.getAllKeys(range), "versionPdfs");
+  return keys.map(key => (key as [string, string])[1]);
+}
+
 export async function contentKey(data: Uint8Array) {
   // Up to 2 MiB the old key already hashed every byte. Larger sampled keys cannot prove
   // which file owns old notes or chat, even if a file with the same sample is still in Recent.
@@ -320,6 +337,7 @@ export interface StoredAiMessage {
   role: "user" | "assistant";
   content: string;
   context?: { text: string; page: number };
+  drawingReply?: string;
 }
 
 export async function getAiHistory(id: string) {

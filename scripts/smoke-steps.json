@@ -48,6 +48,25 @@
     "scripts/smoke-content.mjs"
   ],
   [
+    "scripts/smoke-canvas.mjs"
+  ],
+  [
+    "scripts/smoke-canvas-export.mjs"
+  ],
+  [
+    "scripts/smoke-canvas-save.mjs"
+  ],
+  [
+    "--test",
+    "scripts/test-canvas-document-ai.mjs"
+  ],
+  [
+    "scripts/smoke-canvas-ai.mjs"
+  ],
+  [
+    "scripts/smoke-canvas-draft.mjs"
+  ],
+  [
     "scripts/smoke-workbook.mjs"
   ],
   [

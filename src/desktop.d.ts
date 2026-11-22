@@ -1,4 +1,5 @@
-type ContentDocument = MarkdownDocument | GalleryDocument | WorkbookDocument;
+type ContentDocument = MarkdownDocument | GalleryDocument | WorkbookDocument | CanvasDocument;
+interface CanvasDocument { kind: "canvasDocument"; id?: string; draftId?: string; name: string; text?: string }
 // `format` marks a content document that is not Markdown ("text" is a .txt file, "csv" a .csv file, "svg" an .svg file shown as an image with its XML as the source; "html" is a read-only HTML preview; absent means Markdown).
 // `encoding` is the label of the file's encoding on desktop (for example "UTF-8" or "Windows-1257").
 interface MarkdownDocument { kind: "markdown"; id?: string; name: string; text: string; format?: "text" | "csv" | "svg" | "html"; encoding?: string;
@@ -9,7 +10,7 @@ interface MarkdownDocument { kind: "markdown"; id?: string; name: string; text: 
 // value and an empty row is []. `truncated` marks a sheet, or the workbook, that was too large to read completely.
 interface WorkbookDocument { kind: "workbook"; id?: string; name: string; sheets: { name: string; rows: string[][]; truncated: boolean }[]; truncated: boolean }
 interface GalleryDocument { kind: "gallery"; id?: string; name: string; files: string[]; selected: string; blobs?: Record<string, Blob> }
-type ContentSaveResult = { ok?: boolean; document?: MarkdownDocument; cancelled?: boolean; conflict?: boolean; unencodable?: boolean; error?: string };
+type ContentSaveResult<T = MarkdownDocument> = { ok?: boolean; document?: T; cancelled?: boolean; conflict?: boolean; unencodable?: boolean; error?: string };
 
 interface UpdateStatus {
   state: "idle" | "unsupported" | "checking" | "latest" | "available" | "downloading" | "ready" | "error";
@@ -30,13 +31,14 @@ interface FolioDesktop {
   /** Opens desktop area selection; returns only the selected PNG, or null on cancellation. */
   captureDesktop(): Promise<Uint8Array<ArrayBuffer> | null>;
   cancelScreenshot(): Promise<void>;
-  setFileMenu(state: { kind: "none" | "pdf" | "photo" | "markdown" | "workbook" | "html"; busy: boolean }): void;
+  setFileMenu(state: { kind: "none" | "pdf" | "photo" | "markdown" | "workbook" | "html" | "canvasDocument"; busy: boolean }): void;
   onFileCommand(callback: (command: FileCommand) => void): () => void;
   content: {
     open(file: File): Promise<ContentDocument>;
     /** `token` is set when the tab was already open as "Opening…" (see onConverting). */
     onOpen(callback: (document: ContentDocument, token?: string) => void): () => void;
     save(id: string, text: string, copy?: boolean, utf8?: boolean): Promise<ContentSaveResult>;
+    saveCanvasDocument(id: string | undefined, text: string, copy?: boolean): Promise<ContentSaveResult<CanvasDocument>>;
     reload(id: string): Promise<MarkdownDocument>;
     refresh(id: string, selected: string): Promise<GalleryDocument>;
     image(id: string, name: string): Promise<{ data: Uint8Array; mime: string }>;
@@ -52,7 +54,7 @@ interface FolioDesktop {
   onOpenFile(callback: (name: string, data: Uint8Array, note?: string, token?: string) => void): () => void;
   onConverting(callback: (name: string, token: string) => void): () => void;
   onOpenFailed(callback: (message: string, token: string) => void): () => void;
-  onTabCommand(callback: (command: "new" | "close" | "next" | "previous") => void): () => void;
+  onTabCommand(callback: (command: "new" | "new-canvas-document" | "close" | "next" | "previous") => void): () => void;
   openDocument(file: File): Promise<{ name: string; data: Uint8Array; note?: string }>;
   ready(): Promise<boolean>;
   /** Null when the user declines to open an address on their computer or local network, or the request is stopped. */
@@ -88,6 +90,13 @@ interface AiStatus {
   claude: { installed: boolean; loggedIn: boolean; version?: string; subscription?: boolean; authMethod?: string };
 }
 
+interface AiDocument {
+  kind: "pdf" | "canvasDocument";
+  name: string;
+  text: string;
+  truncated: boolean;
+}
+
 interface AiMessage {
   role: "user" | "assistant";
   content: string;
@@ -112,7 +121,7 @@ interface FolioAi {
   recheckClaude(): Promise<AiStatus["claude"]>;
   openRouterKey(action: "save" | "check" | "remove", key?: string): Promise<{ ok: boolean; configured?: boolean; error?: string }>;
   openRouterModels(): Promise<{ ok: boolean; models?: OpenRouterModel[]; error?: string }>;
-  ask(request: { id: string; provider: "chatgpt" | "claude" | "openrouter"; model: string; document: { name: string; text: string; truncated: boolean };
+  ask(request: { id: string; provider: "chatgpt" | "claude" | "openrouter"; model: string; document: AiDocument;
     messages: AiMessage[] }): Promise<boolean>;
   cancel(id: string): Promise<boolean>;
   onEvent(callback: (event: AiEvent) => void): () => void;
@@ -122,4 +131,5 @@ interface OpenRouterModel { id: string; name: string; contextLength: number | nu
 
 interface Window {
   folioDesktop?: FolioDesktop;
+  EXCALIDRAW_ASSET_PATH?: string;
 }

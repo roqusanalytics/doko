@@ -8,7 +8,7 @@
   },
   "scripts": {
     "postinstall": "install-electron",
-    "assets": "node scripts/copy-pdfjs-assets.mjs && node scripts/copy-ocr-assets.mjs",
+    "assets": "node scripts/copy-pdfjs-assets.mjs && node scripts/copy-ocr-assets.mjs && node scripts/copy-excalidraw-assets.mjs",
     "predev": "npm run assets",
     "prebuild": "npm run assets",
     "dev": "vite",
@@ -25,7 +25,7 @@
     "test:thumbnails": "node scripts/test-thumbnails.mjs",
     "test:content": "node --test scripts/test-content-files.cjs scripts/test-content-source.mjs scripts/test-html-preview.mjs scripts/test-csv.mjs scripts/test-xlsx-files.cjs scripts/test-markdown-sections.mjs && node scripts/smoke-content.mjs && node scripts/smoke-markdown-modes.mjs && node scripts/test-photo-codec.mjs && node scripts/smoke-photo-tools.mjs && node scripts/smoke-photo-view.mjs && node scripts/smoke-pen-width.mjs && node scripts/smoke-draw-layering.mjs",
     "build:local": "npm run build && electron-builder --config electron-builder.local.cjs --mac zip --arm64 --publish never",
-    "test:document-tools": "node scripts/test-text-markup.mjs && node scripts/test-pdf-pages.mjs && node scripts/test-pdf-security.mjs"
+    "test:document-tools": "node scripts/test-text-markup.mjs && node scripts/test-pdf-pages.mjs && node scripts/test-pdf-security.mjs && node --test scripts/test-canvas-document-ai.mjs"
   },
   "dependencies": {
     "electron-updater": "^6.8.11",
@@ -36,6 +36,8 @@
     "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/lang-python": "^6.2.1",
     "@embedpdf/pdfium": "2.15.1",
+    "@excalidraw/excalidraw": "~0.18.1",
+    "@excalidraw/mermaid-to-excalidraw": "2.2.2",
     "@tesseract.js-data/deu": "^1.0.0",
     "@tesseract.js-data/eng": "^1.0.0",
     "@tesseract.js-data/spa": "^1.0.0",
@@ -126,6 +128,14 @@
         "name": "Markdown Document",
         "role": "Editor",
         "rank": "Alternate"
+      },
+      {
+        "ext": "excalidraw",
+        "name": "Excalidraw Drawing",
+        "description": "Excalidraw Drawing",
+        "role": "Editor",
+        "rank": "Alternate",
+        "mimeType": "application/vnd.excalidraw+json"
       },
       {
         "ext": [
@@ -251,6 +261,7 @@
       "maintainer": "roqusanalytics <roquscode@gmail.com>",
       "mimeTypes": [
         "application/pdf",
+        "application/vnd.excalidraw+json",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/msword",
         "text/markdown",
@@ -293,7 +304,13 @@
   "desktopName": "folio-local.desktop",
   "overrides": {
     "katex": "$katex",
-    "minimatch@>=7 <11.0.1": "11.0.6"
+    "minimatch@>=7 <11.0.1": "11.0.6",
+    "lodash-es": "4.18.1",
+    "nanoid@3.3.3": "3.3.20",
+    "nanoid@4.0.2": "5.1.16",
+    "@excalidraw/excalidraw": {
+      "@radix-ui/react-tabs": "1.1.22"
+    }
   },
   "folioLocal": true
 }

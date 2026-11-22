@@ -81,4 +81,4 @@ try {
   for(const bytes of [result.protectedBytes,result.encryptedRedacted]) { const ptr=m.pdfium.wasmExports.malloc(bytes.length);m.pdfium.HEAPU8.set(bytes,ptr);try { for(const pass of ["","incorrect"]) assert.equal(m.FPDF_LoadMemDocument(ptr,bytes.length,pass),0,"opened without correct password"); const doc=m.FPDF_LoadMemDocument(ptr,bytes.length,"doko-test-password");assert.ok(doc);assert.equal(m.EPDF_IsEncrypted(doc),true);assert.equal(m.FPDF_GetSecurityHandlerRevision(doc),6,"must use AES-256 revision 6");m.FPDF_CloseDocument(doc); } finally {m.pdfium.wasmExports.free(ptr);} }
   await assertHidden(app);
   console.log("PASS PDF security: real AES-256 no/wrong/correct password; immutable original; image pixels destroyed; no text/fonts/annotations/attachments/source metadata; crop+rotation preserved; signed/encrypted/invalid/empty/oversized/abort inputs");
-} finally { await closeHidden(app); rmSync(temp,{recursive:true,force:true}); }
+} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }

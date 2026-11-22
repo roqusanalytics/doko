@@ -9,13 +9,16 @@ Use Node.js 22.12 or newer and npm with the existing `package-lock.json`; CI use
 Install dependencies with `npm ci`. `npm run dev` starts the browser edition; desktop-only features require Electron.
 The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use the npm scripts to run these hooks.
 
-- `src/main.tsx` starts `src/documentTabs.ts`; document frames render PDF `src/App.tsx` or `src/ContentReader.tsx`.
+- `src/main.tsx` starts `src/documentTabs.ts`; document frames render PDF `src/App.tsx`, `src/ContentReader.tsx`, or a Canvas
+  `src/canvasDocument/CanvasReader.tsx` (Excalidraw, lazy-loaded; fonts copied by `scripts/copy-excalidraw-assets.mjs`).
   Keep the imperative PDF.js lifecycle in mind: `main.tsx` deliberately omits React StrictMode.
 - `src/content-source.ts` routes local formats. `electron/content-files.cjs` owns Markdown file and gallery
   capabilities; keep their file/folder identity separate from PDF content hashes and PDF session persistence.
 - `src/pdf.ts` and `src/viewer.ts` handle PDF loading and viewing. `src/markup.ts` restores and saves annotations;
   `src/recent.ts` owns IndexedDB document data, and `src/session.ts` handles reading-position persistence.
 - `src/AiPanel.tsx` and `src/ai.ts` implement the Ask AI UI; `electron/ai.cjs` handles desktop providers.
+  On a Canvas, `src/canvasDocument/canvasDocumentAiReply.ts` validates AI drawings before insertion; `.excalidraw`
+  files are validated by `electron/canvas-document-file.cjs`. Canvas is the domain term (`GLOSSARY.md`); never name code just `canvas`.
   Keep stored credentials in the main process. Preserve the existing privacy rules for password-protected PDFs
   (see [README.md](README.md#privacy)).
 - Desktop APIs cross `electron/main.cjs` → `electron/preload.cjs` → `src/desktop.d.ts` → renderer callers.

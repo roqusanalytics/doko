@@ -3,15 +3,13 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExtern
 import { createPortal } from "react-dom";
 import { Icon } from "./icons";
 import { copyText } from "./clipboard";
-import type { PDFDocumentProxy } from "./pdf";
 import { getAiHistory, saveAiHistory } from "./recent";
 import { ProviderLogo } from "./ProviderLogo";
 import { ModelMenu, type ModelGroup } from "./ModelMenu";
 import { CLAUDE_CODE_URL, PROVIDERS, savedProvider, saveAiPreference, signInChatGPT, subscribeAiPreferences, USAGE_URL, type AiProvider } from "./ai";
 import { Modal } from "./Dialogs";
 import { readSetting } from "./preferences";
-import { readAiDocumentText } from "./aiDocumentText";
-import type { PageText } from "./OcrFindController";
+import { MAX_DRAWING_REPLY, splitDrawingReply, type PreparedDrawing } from "./canvasDocument/canvasDocumentAiReply";
 
 const AiMarkdown = lazy(() => import("./AiMarkdown").then((module) => ({ default: module.AiMarkdown })));
 
@@ -20,11 +18,24 @@ export interface AiContext {
   page: number;
 }
 
+interface AiDocumentContext {
+  kind: AiDocument["kind"];
+  name: string;
+  displayName: string;
+  readText: (signal: AbortSignal) => Promise<Pick<AiDocument, "text" | "truncated">>;
+  selection: AiContext | null;
+}
+
 interface Message extends AiMessage {
   createdAt?: number;
   context?: AiContext;
   error?: { message: string; code?: string; link?: string };
+  drawingReply?: string;
+  drawing?: PreparedDrawing;
 }
+
+type ApplyDrawingReply = (reply: string | PreparedDrawing, isCurrent: () => boolean, repeated?: boolean) =>
+  Promise<{ description: string; drawing: PreparedDrawing } | null>;
 
 const CLAUDE_MODELS = [
   { id: "", name: "Default model" },
@@ -75,7 +86,38 @@ function CopyResponse({ text }: { text: string }) {
 
 // Failed and empty answers aren't kept.
 const storedMessages = (messages: Message[]) =>
-  messages.filter((m) => !m.error && m.content).map(({ role, content, context, createdAt }) => ({ role, content, ...(context ? { context } : {}), ...(createdAt ? { createdAt } : {}) }));
+  messages.filter((m) => !m.error && m.content).map(({ role, content, context, createdAt, drawingReply }) =>
+    ({ role, content, ...(context ? { context } : {}), ...(createdAt ? { createdAt } : {}), ...(drawingReply ? { drawingReply } : {}) }));
+
+function InsertAgain({ message, apply }: { message: Message; apply: ApplyDrawingReply }) {
+  const pending = useRef<AbortController | null>(null);
+  const prepared = useRef(message.drawing);
+  const [inserting, setInserting] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => () => pending.current?.abort(), []);
+  const insert = async () => {
+    if (pending.current || !message.drawingReply) return;
+    const controller = new AbortController();
+    pending.current = controller;
+    setInserting(true);
+    setError("");
+    try {
+      const result = await apply(prepared.current ?? message.drawingReply, () => !controller.signal.aborted, true);
+      if (result) prepared.current = result.drawing;
+    } catch (error) {
+      if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "Try again.");
+    } finally {
+      pending.current = null;
+      if (!controller.signal.aborted) setInserting(false);
+    }
+  };
+  return <>
+    <button type="button" className="btn ghost" disabled={inserting} onClick={() => void insert()}>
+      {inserting ? "Inserting…" : "Insert again"}
+    </button>
+    {error && <div className="msg-error" role="alert"><p>Couldn’t add the drawing. {error}</p></div>}
+  </>;
+}
 
 function NewConversationDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
   return <div onMouseDownCapture={event => {
@@ -103,22 +145,22 @@ function NewConversationDialog({ onCancel, onConfirm }: { onCancel: () => void; 
 }
 
 interface Props {
-  pdf: PDFDocumentProxy;
-  getPageText: (n: number) => Promise<PageText>;
+  documentContext: AiDocumentContext;
   docId: string;
   /** Save the conversation with the document (off for password-protected documents). */
   persist: boolean;
-  docName: string;
-  context: AiContext | null;
-  onClearContext: () => void;
-  onGoToPage: (n: number) => void;
+  onClearContext?: () => void;
+  onGoToPage?: (n: number) => void;
+  onDrawingReply?: ApplyDrawingReply;
   onSettings: () => void;
   onClose: () => void;
   onSaveError?: (failed: boolean) => void;
 }
 
-export function AiPanel({ pdf, getPageText, docId, persist, docName, context, onClearContext, onGoToPage, onSettings, onClose, onSaveError }: Props) {
+export function AiPanel({ documentContext, docId, persist, onClearContext, onGoToPage, onDrawingReply, onSettings, onClose, onSaveError }: Props) {
+  const { kind, name, displayName, readText, selection: context } = documentContext;
   const ai = window.folioDesktop?.ai;
+  const drawing = useRef({ raw: "", oversized: false });
   const [status, setStatus] = useState<AiStatus | null>(null);
   const provider = useSyncExternalStore(subscribeAiPreferences, savedProvider);
   const keyRevision = useSyncExternalStore(subscribeAiPreferences, () => readSetting("folio:ai-key-revision"));
@@ -215,6 +257,37 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
     if (!ai) return;
     return ai.onEvent((event) => {
       if (event.id !== busyRef.current) return;
+      if (onDrawingReply) {
+        const stream = drawing.current;
+        if (event.type === "delta") {
+          if (stream.raw.length + (event.text?.length ?? 0) > MAX_DRAWING_REPLY) stream.oversized = true;
+          if (stream.oversized) return;
+          stream.raw += event.text ?? "";
+          const { description } = splitDrawingReply(stream.raw, true);
+          setMessages(list => [...list.slice(0, -1), { ...list[list.length - 1], content: description }]);
+          return;
+        }
+        if (event.type === "done") {
+          const isCurrent = () => busyRef.current === event.id;
+          void (async () => {
+            let result: Pick<Message, "content" | "error" | "drawing" | "drawingReply">;
+            try {
+              if (stream.oversized) throw new Error("The drawing reply is too large.");
+              const inserted = await onDrawingReply(stream.raw, isCurrent);
+              if (!inserted) return;
+              result = { content: inserted.description, drawing: inserted.drawing, drawingReply: stream.raw };
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "Try asking again.";
+              result = { content: "", error: { message: `Couldn’t add the drawing. ${reason}` } };
+            }
+            if (!isCurrent()) return;
+            busyRef.current = null;
+            setMessages(list => [...list.slice(0, -1), { ...list[list.length - 1], ...result }]);
+            setBusy(null);
+          })();
+          return;
+        }
+      }
       setMessages((list) => {
         const next = list.slice();
         const last = next[next.length - 1];
@@ -229,7 +302,7 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
         if (event.code === "signed_out") void ai.status().then(setStatus);
       }
     });
-  }, [ai]);
+  }, [ai, onDrawingReply]);
 
   useEffect(() => {
     const el = listRef.current;
@@ -265,10 +338,13 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
       preparing.current = null; busyRef.current = null;
       if (request) void ai?.cancel(request).catch(() => {});
       setBusy(null);
-      if (generation !== null) rememberChat(docId, persist, messagesRef.current, generation);
+      const list = messagesRef.current;
+      const kept = request && onDrawingReply && list.at(-1)?.role === "assistant" ? list.slice(0, -1) : list;
+      if (kept !== list) setMessages(kept);
+      if (generation !== null) rememberChat(docId, persist, kept, generation);
     });
     return () => { closingChats.delete(docId); };
-  }, [ai, docId, persist, generation]);
+  }, [ai, docId, persist, generation, onDrawingReply]);
   useEffect(() => () => {
     preparing.current?.controller.abort();
     preparing.current = null;
@@ -279,17 +355,25 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
     void ai?.cancel(id);
     const list = messagesRef.current;
     const last = list[list.length - 1];
-    const kept = last?.role === "assistant" && !last.content && !last.error ? list.slice(0, -1) : list;
+    const kept = last?.role === "assistant" && (onDrawingReply || (!last.content && !last.error)) ? list.slice(0, -1) : list;
     setMessages(kept);
     if (generation !== null) {
       rememberChat(docId, persist, kept, generation);
       // The cached conversation survives a failed save and is retried when the panel reopens.
       if (persist) void saveAiHistory(docId, storedMessages(kept), generation).catch(() => {});
     }
-  }, [ai, pdf, docId, persist, generation]);
+  }, [ai, readText, docId, persist, generation, onDrawingReply]);
   const stop = () => {
     if (!busy) return;
-    if (preparing.current?.id !== busy) { void ai?.cancel(busy); return; }
+    if (preparing.current?.id !== busy) {
+      if (onDrawingReply) {
+        busyRef.current = null;
+        setBusy(null);
+        setMessages(list => list.slice(0, -1));
+      }
+      void ai?.cancel(busy);
+      return;
+    }
     preparing.current?.controller.abort();
     preparing.current = null;
     busyRef.current = null;
@@ -304,16 +388,17 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
     const id = crypto.randomUUID();
     const controller = new AbortController();
     preparing.current = { id, controller };
+    if (onDrawingReply) drawing.current = { raw: "", oversized: false };
     busyRef.current = id;
     setBusy(id);
     setMessages([...messages, turn, { role: "assistant", content: "", createdAt: Date.now() }]);
     setInput("");
-    onClearContext();
+    onClearContext?.();
     try {
-      const doc = provider === "openrouter" && context ? { text: "", truncated: true } : await readAiDocumentText(pdf.numPages, getPageText, controller.signal);
+      const doc = provider === "openrouter" && context ? { text: "", truncated: true } : await readText(controller.signal);
       if (preparing.current?.id !== id) return;
       preparing.current = null;
-      await ai.ask({ id, provider, model, document: { name: docName, ...doc },
+      await ai.ask({ id, provider, model, document: { kind, name, ...doc },
         messages: history.map(({ role, content, context }) => ({ role, content, ...(context ? { context } : {}) })) });
     } catch {
       if (busyRef.current !== id) return;
@@ -330,7 +415,7 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
         return next;
       });
     }
-  }, [ai, pdf, getPageText, context, messages, provider, model, docName, onClearContext, ready]);
+  }, [ai, kind, name, readText, context, messages, provider, model, onClearContext, onDrawingReply, ready]);
 
   const signIn = async () => {
     if (!ai) return;
@@ -343,7 +428,8 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
   };
 
   const placeholder = !ready ? "Connect an AI provider to ask questions"
-    : context ? "Ask about the selected passage…" : "Ask about this document…";
+    : kind === "canvasDocument" ? "Describe what to draw…" : context ? "Ask about the selected passage…" : "Ask about this document…";
+  const documentText = kind === "canvasDocument" ? "a text summary of the Scene" : "the document's text";
 
   return (
     <aside className="ai-panel" aria-label="Ask AI">
@@ -376,7 +462,7 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
               {signingIn ? "Open the sign-in page again" : "Continue with ChatGPT"}
             </button>
             {signingIn && <p className="fine">Finish signing in in your browser, then come back here.</p>}
-            <p className="fine">When you ask, Doko sends your question and the document's text to OpenAI. Nothing is sent otherwise.</p>
+            <p className="fine">When you ask, Doko sends your question and {documentText} to OpenAI. Nothing is sent otherwise.</p>
           </div>
         ) : provider === "claude" && !(status.claude.installed && status.claude.loggedIn) ? (
           <div className="ai-card">
@@ -390,7 +476,7 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
               {!status.claude.installed && <a className="btn ghost" href={CLAUDE_CODE_URL} target="_blank" rel="noreferrer">Get Claude Code</a>}
               <button className="btn primary" onClick={async () => setStatus({ ...status, claude: await ai.recheckClaude() })}>Check again</button>
             </div>
-            <p className="fine">Doko never sees your Claude password or tokens. When you ask, it sends your question and the document's text to Anthropic through Claude Code.</p>
+            <p className="fine">Doko never sees your Claude password or tokens. When you ask, it sends your question and {documentText} to Anthropic through Claude Code.</p>
           </div>
         ) : provider === "openrouter" && !connected.openrouter ? (
           <div className="ai-card">
@@ -411,13 +497,15 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
             )}
             {loaded && messages.length === 0 && (
               <div className="ai-empty">
-                <p>Ask anything about <strong>{docName.replace(/\.pdf$/i, "")}</strong>, or select text in the document and choose <em>Ask AI</em>.</p>
+                {kind === "canvasDocument" ? <p>Describe what you want to draw. You can select Elements to give AI context.</p> : <>
+                <p>Ask anything about <strong>{displayName}</strong>, or select text in the document and choose <em>Ask AI</em>.</p>
                 <div className="suggestions">
                   {(context ? ["Explain this in simple terms", "Why does this matter?", "Summarize this passage"]
                     : ["Summarize this document", "What are the key takeaways?", "What questions does this leave open?"]).map((q) => (
                     <button key={q} className="suggestion" onClick={() => void send(q)}>{q}</button>
                   ))}
                 </div>
+                </>}
               </div>
             )}
             {messages.map((m, i) => (
@@ -428,7 +516,7 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
                     <p>{m.content}</p>
                   </>
                 ) : m.error ? (
-                  <div className="msg-error">
+                  <div className="msg-error" role={kind === "canvasDocument" ? "alert" : undefined}>
                     <p>{m.error.message}</p>
                     {m.error.code === "usage_limit" && provider === "chatgpt" && (
                       <a className="btn primary" href={m.error.link || USAGE_URL} target="_blank" rel="noreferrer">Manage usage</a>
@@ -442,6 +530,7 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
                     <Suspense fallback={<p style={{ whiteSpace: "pre-wrap" }}>{m.content}</p>}>
                       <AiMarkdown text={m.content} onPage={onGoToPage} />
                     </Suspense>
+                    {onDrawingReply && m.drawingReply && <InsertAgain message={m} apply={onDrawingReply} />}
                     {(!busy || i < messages.length - 1) && <div className="msg-meta">
                       <CopyResponse text={m.content} />
                       {m.createdAt ? <time dateTime={new Date(m.createdAt).toISOString()}>

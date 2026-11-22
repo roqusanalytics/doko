@@ -2,6 +2,7 @@ node_modules
 dist
 public/pdfjs
 public/ocr
+public/excalidraw
 release
 release-test
 release-*/

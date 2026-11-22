@@ -1,6 +1,8 @@
 import { keys } from "./platform";
 import { activeDocument, setActiveDocument } from "./session";
-import { getRecent } from "./recent";
+import { getRecent, listCanvasDocumentDrafts } from "./recent";
+
+const untitledCanvasDocument = (draftId?: string): CanvasDocument => ({ kind: "canvasDocument", name: "Untitled Canvas", draftId });
 
 export type OpenSource =
   | { kind: "content"; name: string; document: ContentDocument }
@@ -12,10 +14,11 @@ export type OpenSource =
   | { kind: "sample" | "converting"; name: string }
   | { kind: "error"; name: string; message: string };
 
-interface Reader {
+export interface Reader {
   open(source: OpenSource): void;
   flush(): Promise<void>;
   suspend?(): Promise<OpenSource | undefined>;
+  canSuspendDirty?: boolean;
   canClose?(): Promise<boolean>;
 }
 
@@ -30,6 +33,7 @@ interface Tab {
   dirty: boolean;
   frame?: ReaderFrame;
   reader?: Reader;
+  waking?: { promise: Promise<Reader>; resolve: (reader: Reader) => void };
   source?: OpenSource;
   closing?: boolean;
   suspending?: boolean;
@@ -110,12 +114,14 @@ export class DocumentTabs {
     this.changed();
   }
   private async suspend(tab: Tab) {
-    if (tab.key === this.active || tab.dirty || tab.closing || tab.suspending || !tab.reader?.suspend) return;
+    if (tab.key === this.active || tab.closing || tab.suspending || !tab.reader?.suspend) return;
     const reader = tab.reader;
+    if (tab.dirty && !reader.canSuspendDirty) return;
     tab.suspending = true;
     try {
       const source = await reader.suspend!();
-      if (!source || tab.key === this.active || tab.dirty || tab.closing || tab.reader !== reader || !this.entries.includes(tab)) return;
+      if (!source || tab.key === this.active || (tab.dirty && !reader.canSuspendDirty) ||
+        tab.closing || tab.reader !== reader || !this.entries.includes(tab)) return;
       tab.source = source;
       tab.reader = undefined;
       tab.frame?.disposeReader?.();
@@ -130,6 +136,10 @@ export class DocumentTabs {
   library() {
     const blank = this.entries.find(tab => !tab.name && !tab.closing) ?? this.create();
     this.select(blank.key);
+  }
+  newCanvasDocument() {
+    const document = untitledCanvasDocument(window.folioDesktop ? crypto.randomUUID() : undefined);
+    this.open([{ kind: "content", name: document.name, document }]);
   }
   open(sources: OpenSource[]): number {
     if (!sources.length) return this.active;
@@ -148,7 +158,8 @@ export class DocumentTabs {
         }
       }
       const current = this.entry(this.active);
-      const tab = !first && current && !current.name && !current.closing ? current : this.create();
+      const newCanvasDocument = source.kind === "content" && source.document.kind === "canvasDocument" && !source.document.id;
+      const tab = !newCanvasDocument && !first && current && !current.name && !current.closing ? current : this.create();
       if (source.kind === "content") this.resetFrame(tab);
       tab.name = source.name;
       if (source.kind === "content") tab.content = source.document;
@@ -180,7 +191,12 @@ export class DocumentTabs {
   }
   bind(key: number, reader: Reader) {
     const tab = this.entry(key);
-    if (tab) { tab.reader = reader; this.deliver(tab); this.retrySuspension(tab); }
+    if (!tab) return;
+    tab.reader = reader;
+    tab.waking?.resolve(reader);
+    tab.waking = undefined;
+    this.deliver(tab);
+    this.retrySuspension(tab);
   }
   contentFor(key: number) { return this.entry(key)?.content; }
   rename(key: number, name: string) {
@@ -234,6 +250,17 @@ export class DocumentTabs {
     if (tab && !tab.contentId) { tab.name = ""; if (tab.frame) tab.frame.title = "Library"; this.changed(); }
   }
   private async canClose(tab: Tab) {
+    if (tab.dirty && !tab.reader && tab.content?.kind === "canvasDocument" && tab.content.draftId) {
+      if (!tab.waking) {
+        let resolve!: (reader: Reader) => void;
+        const promise = new Promise<Reader>(ready => { resolve = ready; });
+        tab.waking = { promise, resolve };
+      }
+      const ready = tab.waking.promise;
+      this.select(tab.key);
+      const reader = await ready;
+      return reader.canClose?.() ?? false;
+    }
     if (tab.dirty && tab.reader?.canClose) this.select(tab.key);
     return tab.reader?.canClose ? tab.reader.canClose()
       : !tab.dirty || window.confirm(`Close “${tab.name}” and discard its unsaved changes? ${keys("Press Ctrl S to save a copy first.")}`);
@@ -270,8 +297,8 @@ export class DocumentTabs {
   }
   readerFailed(key: number) {
     const tab = this.entry(key);
-    if (tab) tab.reader = { open(source) { tab.source = source; }, flush: async () => {}, canClose: async () =>
-      window.confirm("This reader stopped. Unsaved changes may have been lost. Close this tab without reopening the saved document?") };
+    if (tab) this.bind(key, { open(source) { tab.source = source; }, flush: async () => {}, canClose: async () =>
+      window.confirm("This reader stopped. Unsaved changes may have been lost. Close this tab without reopening the saved document?") });
   }
   async recover(key: number) {
     const tab = this.entry(key);
@@ -325,6 +352,7 @@ export class DocumentTabs {
     desktop?.onTabCommand(command => {
       if (this.root.inert) return;
       if (command === "new") this.library();
+      else if (command === "new-canvas-document") this.newCanvasDocument();
       else if (command === "close") void this.close(this.active);
       else this.cycle(command === "next" ? 1 : -1);
     });
@@ -349,7 +377,27 @@ export class DocumentTabs {
     window.addEventListener("beforeunload", event => {
       if (this.entries.some(tab => tab.dirty)) event.preventDefault();
     });
-    if (await desktop?.ready() || !last || this.revision !== initial) return;
+    const openingFiles = await desktop?.ready();
+    if (desktop) {
+      const drafts = await listCanvasDocumentDrafts().catch(error => {
+        console.warn("Couldn't recover Canvas drafts.", error);
+        return [];
+      });
+      const unchanged = this.revision === initial;
+      const recovered = drafts.map(id => {
+        const tab = this.create();
+        tab.content = untitledCanvasDocument(id);
+        tab.name = tab.content.name;
+        tab.dirty = true;
+        return tab;
+      });
+      if (recovered.length) {
+        if (unchanged && !openingFiles) this.select(recovered[0].key);
+        else this.changed();
+        return;
+      }
+    }
+    if (openingFiles || !last || this.revision !== initial) return;
     const recent = await getRecent(last);
     if (recent && this.revision === initial) this.open([{ kind: "blob", name: recent.name, blob: recent.data, recentId: recent.id }]);
   }

@@ -51,7 +51,9 @@ Doko opens untrusted PDFs, so it's built to keep a malicious document contained:
   Code CLI with all tools, MCP servers, settings, and slash commands disabled, in a private temporary folder under
   Doko's user data. Doko never handles Claude credentials. An OpenRouter API key is verified and stored with OS credential protection by the main
   process; the key is never returned to the reader. Key checks and model lookups send no document content.
-  Document text goes to the chosen provider only when the user asks a question. OpenRouter forwards the request to the model's serving provider.
+  Document text goes to the chosen provider only when the user asks a question. On a Canvas, that text is a summary of the
+  drawing (Element types, positions and labels), never images. OpenRouter forwards the request to the model's serving provider.
+  Drawings the AI returns are validated in the reader before they are added; links, embeds and images are rejected.
 
 Known limitations:
 
@@ -67,7 +69,7 @@ Known limitations:
   `/usr/share/keyrings/folio-local-archive-keyring.gpg`, scoped with `signed-by` to
   `/etc/apt/sources.list.d/folio-local.list`. It does not replace upstream Folio's trust.
   Release checks verify both metadata signatures, the package digest and the embedded public keyring.
-- Local data (recent files, reading positions, an optionally remembered signature) is stored unencrypted in your user
+- Local data (recent files, reading positions, unsaved Canvas drafts, an optionally remembered signature) is stored unencrypted in your user
   profile. See [Privacy](README.md#privacy).
 - Word and LibreOffice convert documents with your own permissions and aren't sandboxed further by Doko. Word is
   driven through automation, which doesn't use its Protected View. Neither is cut off from the network.

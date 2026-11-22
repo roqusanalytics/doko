@@ -33,6 +33,7 @@ import { ImageMenu, ImageViewer, type ImageTarget } from "./ImageViewer";
 import { MoreMenu, type MoreItem } from "./MoreMenu";
 import { IS_MAC, keys } from "./platform";
 import { AiPanel, forgetClearedChats, flushAiHistory, stopAiForClose, type AiContext } from "./AiPanel";
+import { readAiDocumentText } from "./aiDocumentText";
 import { ZoomMenu } from "./ZoomMenu";
 import { SearchBar, type FindResult } from "./SearchBar";
 import { AboutDialog, InfoDialog, OpenUrlDialog, PasswordDialog, ShortcutsDialog } from "./Dialogs";
@@ -307,6 +308,11 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const [aiOpen, setAiOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [aiContext, setAiContext] = useState<AiContext | null>(null);
+  const aiPdf = doc?.pdf;
+  const readAiText = useCallback(async (signal: AbortSignal) => {
+    if (!aiPdf) throw new Error("No document is open.");
+    return readAiDocumentText(aiPdf.numPages, n => findRef.current!.getPageText(n, aiPdf), signal);
+  }, [aiPdf]);
 
   useLayoutEffect(() => {
     if (active && window.folioDesktop && !focus && !dialog && !workDialog && !signing && !pending && !imageView) {
@@ -1951,12 +1957,10 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         {doc && aiOpen && !focus && (
           <AiPanel
             key={`${doc.sourceId ?? doc.id}:${doc.password ? 0 : chatGeneration}`}
-            pdf={doc.pdf}
-            getPageText={n => findRef.current!.getPageText(n, doc.pdf)}
+            documentContext={{ kind: "pdf", name: doc.name, displayName: doc.name.replace(/\.pdf$/i, ""),
+              readText: readAiText, selection: aiContext }}
             docId={doc.sourceId ?? doc.id}
             persist={!doc.password}
-            docName={doc.name}
-            context={aiContext}
             onClearContext={() => setAiContext(null)}
             onGoToPage={goTo}
             onSettings={() => setDialog("ai-settings")}
@@ -1969,7 +1973,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       {gallery && !focus && <PhotoCarousel doc={gallery} selected={gallery.selected} busy={fileBusy || photoBusy || refreshingPhotos} onAction={(name, action) => void photoAction(name, action)} onSelect={name => void openPhoto(gallery, name)}
         onRefresh={gallery.id ? () => void refreshPhotos() : undefined} refreshing={refreshingPhotos} />}
 
-      {!doc && !gallery && <Welcome active={active} onPick={pickFile} onOpenUrl={() => openUrlDialog()} onOpenRecent={file => tabs.open([{ kind: "blob", name: file.name, blob: file.data, recentId: file.id }])}
+      {!doc && !gallery && <Welcome active={active} onPick={pickFile} onOpenUrl={() => openUrlDialog()} onNewCanvas={() => tabs.newCanvasDocument()} onOpenRecent={file => tabs.open([{ kind: "blob", name: file.name, blob: file.data, recentId: file.id }])}
         onSample={() => tabs.open([{ kind: "sample", name: "Doko sample.pdf" }])} loading={loading} />}
 
       {loading && doc && <div className="loading-bar" />}

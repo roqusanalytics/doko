@@ -5,25 +5,31 @@ const crypto = require("node:crypto");
 const { checkDiskPath, readRegular, sameFile } = require("./document-files.cjs");
 
 const { createSaveTemp, copySaveTemp } = require("./save-metadata.cjs");
+const { decodeCanvasDocument, validateCanvasDocument } = require("./canvas-document-file.cjs");
 
 const MARKDOWN_FILE = /\.(md|markdown)$/i;
 const TEXT_FILE = /\.txt$/i;
 const CSV_FILE = /\.csv$/i;
 const SVG_FILE = /\.svg$/i;
 const HTML_FILE = /\.html?$/i;
+const CANVAS_DOCUMENT_FILE = /\.excalidraw$/i;
 // .xls is routed here too, so the reader can tell the user to save it as .xlsx.
 const XLSX_FILE = /\.xlsx?$/i;
 const IMAGE_FILE = /\.(jpe?g|png|webp|gif|bmp|avif)$/i;
 const MAX_MARKDOWN_BYTES = 5 * 1024 * 1024;
+// Excalidraw caps each embedded image at 4 MB but not the drawing, whose images are stored as base64.
+const MAX_CANVAS_DOCUMENT_BYTES = 50 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 100 * 1024 * 1024;
 const MAX_IMAGE_PIXELS = 80_000_000;
 const ENCODING_LABELS = { "utf-8": "UTF-8", "utf-16le": "UTF-16 LE", "utf-16be": "UTF-16 BE", "windows-1252": "Windows-1252", "windows-1257": "Windows-1257" };
 const NOT_TEXT = "This file isn't plain text or uses an encoding Doko can't read.";
 // `txt`, `csv`, `svg` and `html` records are plain text for I/O (same encodings); a CSV table or an SVG image is only a view of that text.
-const kindName = format => format === "text" ? "Text" : format === "csv" ? "CSV" : format === "svg" ? "SVG" : format === "html" ? "HTML" : "Markdown";
-const fileFormat = file => TEXT_FILE.test(file) ? "text" : CSV_FILE.test(file) ? "csv" : SVG_FILE.test(file) ? "svg" : HTML_FILE.test(file) ? "html" : undefined;
+const sizeLimit = name => name === "Excalidraw" ? MAX_CANVAS_DOCUMENT_BYTES : MAX_MARKDOWN_BYTES;
+const tooLarge = name => new Error(`${name} is limited to ${sizeLimit(name) / 1024 / 1024} MB.`);
+const kindName = format => format === "text" ? "Text" : format === "csv" ? "CSV" : format === "svg" ? "SVG" : format === "html" ? "HTML" : format === "excalidraw" ? "Excalidraw" : "Markdown";
+const fileFormat = file => TEXT_FILE.test(file) ? "text" : CSV_FILE.test(file) ? "csv" : SVG_FILE.test(file) ? "svg" : HTML_FILE.test(file) ? "html" : CANVAS_DOCUMENT_FILE.test(file) ? "excalidraw" : undefined;
 // What a copy of each text-based format must be named: the pattern it must match and the words for the error.
-const COPY_NAME = { text: [TEXT_FILE, "a .txt"], csv: [CSV_FILE, "a .csv"], svg: [SVG_FILE, "a .svg"] };
+const COPY_NAME = { text: [TEXT_FILE, "a .txt"], csv: [CSV_FILE, "a .csv"], svg: [SVG_FILE, "a .svg"], excalidraw: [CANVAS_DOCUMENT_FILE, "an .excalidraw"] };
 const hash = data => crypto.createHash("sha256").update(data).digest("hex");
 const conflict = () => Object.assign(new Error("The file changed on disk. Reload it or save a copy."), { conflict: true });
 const compareNames = (a, b) => a.localeCompare(b, "en", { numeric: true, sensitivity: "base" }) || (a < b ? -1 : a > b ? 1 : 0);
@@ -40,8 +46,8 @@ async function regular(file) {
 
 async function snapshot(file, name = "Markdown") {
   const before = await fsp.lstat(file, { bigint: true });
-  if (before.size > MAX_MARKDOWN_BYTES) throw new Error(`${name} is limited to 5 MB.`);
-  const data = await readRegular(file, MAX_MARKDOWN_BYTES);
+  if (before.size > sizeLimit(name)) throw tooLarge(name);
+  const data = await readRegular(file, sizeLimit(name));
   const after = await fsp.lstat(file, { bigint: true });
   if (!sameFile(before, after) || before.ctimeNs !== after.ctimeNs) throw conflict();
   return { data, stat: after, digest: hash(data) };
@@ -218,16 +224,20 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
   const records = new Map();
   const identities = new Map();
   const opening = new Map();
+  const savingAs = new Set();
   const get = (id, kind) => {
     const record = typeof id === "string" && records.get(id);
     if (!record || kind && record.kind !== kind) throw new Error("This document is no longer open.");
     return record;
   };
   // Text, CSV and SVG documents carry their BOM and line endings (absent when default), so exported copies can keep them.
-  const document = record => ({ kind: "markdown", id: record.id, name: path.basename(record.file), text: record.text,
+  const document = record => record.kind === "canvasDocument"
+    ? { kind: "canvasDocument", id: record.id, name: path.basename(record.file), text: record.text }
+    : ({ kind: "markdown", id: record.id, name: path.basename(record.file), text: record.text,
     ...(record.format && { format: record.format, encoding: ENCODING_LABELS[record.encoding],
       ...(record.bom && { bom: true }), ...(record.eol !== "\n" && { eol: record.eol }), ...(record.cellEol && record.cellEol !== "\n" && { cellEol: record.cellEol }) }) });
-  const decode = (record, data) => record.format ? decodeText(data, getLocale(), record.format === "csv") : decodeMarkdown(data);
+  const decode = (record, data) => record.kind === "canvasDocument" ? decodeCanvasDocument(data)
+    : record.format ? decodeText(data, getLocale(), record.format === "csv") : decodeMarkdown(data);
   const remember = record => {
     record.id = crypto.randomUUID(); records.set(record.id, record); identities.set(record.key, record.id); return record;
   };
@@ -270,20 +280,23 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
   }
   async function open(file) {
     if (XLSX_FILE.test(file)) return openWorkbook(file);
-    if (!MARKDOWN_FILE.test(file) && !fileFormat(file) && !IMAGE_FILE.test(file)) throw new Error("Choose a Markdown file, text file, CSV file, SVG file, HTML file, or supported image.");
+    if (!MARKDOWN_FILE.test(file) && !fileFormat(file) && !IMAGE_FILE.test(file)) throw new Error("Choose a Markdown file, text file, CSV file, SVG file, HTML file, Excalidraw file, or supported image.");
     const resolved = await regular(file);
-    const root = path.dirname(resolved), markdown = MARKDOWN_FILE.test(resolved) || !!fileFormat(resolved);
-    const key = `${markdown ? "markdown" : "gallery"}:${markdown ? resolved : root}`;
+    const root = path.dirname(resolved), format = fileFormat(resolved);
+    const kind = format === "excalidraw" ? "canvasDocument" : MARKDOWN_FILE.test(resolved) || format ? "markdown" : "gallery";
+    const isTextDocument = kind !== "gallery";
+    const key = `${kind}:${isTextDocument ? resolved : root}`;
     const existing = identities.get(key);
-    if (existing) return markdown ? document(get(existing)) : gallery(get(existing), path.basename(resolved), path.basename(resolved));
+    if (existing) return isTextDocument ? document(get(existing)) : gallery(get(existing), path.basename(resolved), path.basename(resolved));
+    if (savingAs.has(key)) throw new Error("This file is still saving. Try opening it again.");
     if (opening.has(key)) {
       const result = await opening.get(key);
-      return markdown ? result : gallery(get(result.id), path.basename(resolved), path.basename(resolved));
+      return isTextDocument ? result : gallery(get(result.id), path.basename(resolved), path.basename(resolved));
     }
     const loading = (async () => {
-      const record = { kind: markdown ? "markdown" : "gallery", format: fileFormat(resolved), file: resolved, root, key, directory: await fsp.lstat(root, { bigint: true }) };
+      const record = { kind, format, file: resolved, root, key, directory: await fsp.lstat(root, { bigint: true }) };
       // Register only after a successful read, so failed opens cannot retain filesystem access.
-      if (markdown) {
+      if (isTextDocument) {
         const source = await snapshot(resolved, kindName(record.format));
         Object.assign(record, decode(record, source.data), { source });
         remember(record); return document(record);
@@ -372,37 +385,50 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
     return true;
   }
   // `utf8` re-saves a text file as UTF-8 after the user accepts that its own encoding cannot hold some characters.
-  async function save(id, text, copy = false, utf8 = false) {
-    let record, acquired = false;
+  async function save(id, text, copy = false, utf8 = false, kind = "markdown") {
+    let record, acquired = false, destinationKey;
     try {
-      record = get(id, "markdown");
+      const firstSave = kind === "canvasDocument" && id === undefined;
+      record = firstSave ? { kind, format: "excalidraw", encoding: "utf-8", eol: "\n" } : get(id, kind);
       if (record.format === "html") throw new Error("HTML documents are read-only.");
       if (record.busy) return { error: "This document is still saving." };
       const name = kindName(record.format);
       if (typeof text !== "string" || typeof copy !== "boolean" || typeof utf8 !== "boolean") throw new Error(`Invalid ${name} save request.`);
       if (text.includes("\0")) throw new Error(record.format ? `${name} can't contain null characters.` : "Markdown must be a UTF-8 text file.");
       // Cheap bound before encoding: every supported encoding needs at least one byte per character.
-      if (text.length > MAX_MARKDOWN_BYTES) throw new Error(`${name} is limited to 5 MB.`);
+      if (text.length > sizeLimit(name)) throw tooLarge(name);
+      if (kind === "canvasDocument") validateCanvasDocument(text);
       const encoding = utf8 ? "utf-8" : record.encoding;
       const unified = text.replace(/\r\n|\r/g, "\n");
       // An SVG moving to UTF-8 from another encoding gets its XML declaration updated; the record then holds the rewritten text.
       const normalized = record.format === "svg" && encoding !== record.encoding ? xmlUtf8(unified) : unified;
       const data = encodeText(record.format === "csv" ? csvRestore(normalized, record.eol, record.cellEol) : normalized.replace(/\n/g, record.eol), encoding, record.bom);
-      if (data.length > MAX_MARKDOWN_BYTES) throw new Error(`${name} is limited to 5 MB.`);
+      if (data.length > sizeLimit(name)) throw tooLarge(name);
       record.busy = true;
       acquired = true;
-      await checkRoot(record);
+      if (!firstSave) await checkRoot(record);
       let file = record.file;
+      if (firstSave) copy = true;
       if (copy) {
-        file = await chooseSavePath?.(path.basename(record.file), record.format);
+        file = await chooseSavePath?.(firstSave ? "Untitled Canvas.excalidraw" : path.basename(record.file), record.format);
         if (!file) return { cancelled: true };
         const [copyName, copyWords] = COPY_NAME[record.format] ?? [MARKDOWN_FILE, "a .md or .markdown"];
         if (!path.isAbsolute(file) || !copyName.test(file)) throw new Error(`Save the copy with ${copyWords} extension.`);
         checkDiskPath(file);
         file = path.join(await fsp.realpath(path.dirname(file)), path.basename(file));
+        if (kind === "canvasDocument") {
+          // The picker can return a different spelling of an existing file on a case-insensitive volume.
+          try { file = await regular(file); }
+          catch (error) { if (error.code !== "ENOENT") throw error; }
+        }
         if (file === record.file) throw new Error("Choose a different file name to save a copy.");
-        const other = identities.get(`markdown:${file}`);
+        const key = `${kind}:${file}`;
+        const other = identities.get(key);
         if (other && other !== record.id) throw new Error("That file is already open. Choose another name.");
+        if (kind === "canvasDocument") {
+          if (opening.has(key) || savingAs.has(key)) throw new Error("That file is being opened or saved. Choose another name.");
+          savingAs.add(key); destinationKey = key;
+        }
       }
       let expected;
       try { expected = await snapshot(file, name); }
@@ -436,17 +462,22 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
       const source = await snapshot(file, name);
       if (source.digest !== hash(data)) throw conflict();
       identities.delete(record.key);
-      Object.assign(record, { file, root, directory, key: `markdown:${file}`, source, text: normalized, encoding });
-      identities.set(record.key, record.id);
+      Object.assign(record, { file, root, directory, key: `${kind}:${file}`, source, text: normalized, encoding });
+      if (firstSave) remember(record);
+      else identities.set(record.key, record.id);
       return { ok: true, document: document(record) };
     } catch (error) {
       return error.conflict ? { conflict: true } : error.unencodable ? { unencodable: true, error: error.message } : { error: error.code === "EACCES" || error.code === "EPERM" || error.code === "EROFS" ? "Couldn't write this file. Save a copy in another folder." : error.message };
-    } finally { if (acquired) record.busy = false; }
+    } finally {
+      if (destinationKey) savingAs.delete(destinationKey);
+      if (acquired) record.busy = false;
+    }
   }
-  return { open, save, trash, reveal, asset, image: (id, name) => asset(id, name, true),
+  return { open, save, saveCanvasDocument: (id, text, copy) => save(id, text, copy, false, "canvasDocument"),
+    trash, reveal, asset, image: (id, name) => asset(id, name, true),
     reload: async id => loadMarkdown(get(id, "markdown")), refresh: async (id, selected) => gallery(get(id, "gallery"), selected),
     release(id) { const record = get(id); if (record.busy) throw new Error("This document is still saving."); records.delete(id); identities.delete(record.key); },
     clear() { records.clear(); identities.clear(); } };
 }
 
-module.exports = { createContentFiles, imageInfo, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, SVG_FILE, HTML_FILE, XLSX_FILE, IMAGE_FILE, MAX_MARKDOWN_BYTES, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS };
+module.exports = { createContentFiles, imageInfo, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, SVG_FILE, HTML_FILE, CANVAS_DOCUMENT_FILE, XLSX_FILE, IMAGE_FILE, MAX_MARKDOWN_BYTES, MAX_CANVAS_DOCUMENT_BYTES, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS };

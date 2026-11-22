@@ -19,6 +19,7 @@ const paths = {
   expand: <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
   file: <><path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9a2 2 0 0 0-.6-1.4l-3.5-3.5a2 2 0 0 0-1.4-.6Z" /><path d="M13 3.5V8a1.5 1.5 0 0 0 1.5 1.5H19M8.5 13h7M8.5 16.5h4" /></>,
+  canvasDocument: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="m6.5 16 3.5-6 3 4 2-2 2.5 4Z" /><path d="M15.5 7.5h.01" /></>,
   upload: <><path d="M12 15V4M8 8l4-4 4 4M4.5 16v2.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V16" /></>,
   grid: <><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></>,
   list: <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />,

@@ -1,6 +1,6 @@
 function fileMenuTemplate({ platform, send, open, state = { kind: 'none', busy: false } }) {
   const active = state.kind !== 'none' && !state.busy;
-  // Workbooks and HTML are read-only; only workbooks support Print.
+  // Workbooks and HTML are read-only. Canvases use Export instead of Print.
   const writable = active && !['workbook', 'html'].includes(state.kind);
   const action = (label, command, accelerator, enabled = active) => ({ label, enabled, accelerator, click: () => send('folio:file-command', command) });
   return [
@@ -11,15 +11,16 @@ function fileMenuTemplate({ platform, send, open, state = { kind: 'none', busy: 
     ] }] : []),
     { label: 'File', submenu: [
       { label: 'New Tab', accelerator: 'CmdOrCtrl+T', click: () => send('folio:tab-command', 'new') },
+      { label: 'New Canvas', accelerator: 'CmdOrCtrl+Shift+N', click: () => send('folio:tab-command', 'new-canvas-document') },
       { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: open },
       action('Open Recent…', 'recent', undefined, true),
       { type: 'separator' },
       action('Save', 'save', 'CmdOrCtrl+S', writable),
       action('Save As…', 'save-as', 'CmdOrCtrl+Shift+S', writable),
-      action('Export / Convert…', 'export', undefined, writable),
+      action('Export / Convert…', 'export', undefined, writable || (state.kind === 'canvasDocument' && !state.busy)),
       action('Reduce File Size…', 'compress', undefined, active && ['pdf', 'photo'].includes(state.kind)),
       { type: 'separator' },
-      action('Print…', 'print', 'CmdOrCtrl+P', active && state.kind !== 'html'),
+      action('Print…', 'print', 'CmdOrCtrl+P', active && !['html', 'canvasDocument'].includes(state.kind)),
       action('Properties…', 'properties', undefined, writable),
       { type: 'separator' },
       { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: () => send('folio:tab-command', 'close') },
