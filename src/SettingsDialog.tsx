@@ -203,7 +203,9 @@ export function UpdateSettings() {
   </>;
 }
 
-export function SettingsDialog({ initialSection = "General", theme, onTheme, night, onNight, wheelPaging, onWheelPaging, scanLanguages, onScanLanguages, onOpenChangelog, onClose }: Props) {
+export function SettingsDialog(props: Props | { initialSection: "Ask AI"; onClose: () => void }) {
+  const { initialSection = "General", onClose } = props;
+  const general = "theme" in props ? props : null;
   const desktop = window.folioDesktop;
   const ai = desktop?.ai;
   const [error, setError] = useState<string | null>(null);
@@ -239,13 +241,13 @@ export function SettingsDialog({ initialSection = "General", theme, onTheme, nig
     <Modal title="Settings" onClose={onClose}>
       <div className="settings">
         <nav className="settings-nav" aria-label="Settings sections">
-          {(["General", "Ask AI", "Storage"] as const).filter(name => name !== "Ask AI" || ai).map(name =>
+          {(["General", "Ask AI", "Storage"] as const).filter(name => name === "Ask AI" ? ai : general).map(name =>
             <button key={name} type="button" aria-current={section === name ? "page" : undefined}
               onClick={() => { setSection(name); setError(null); }}>{name}</button>)}
         </nav>
-        {section === "General" && <><Section title="Appearance">
+        {general && section === "General" && <><Section title="Appearance">
           <Row label="Theme">
-            <Choice label="Theme" value={theme === "dark" ? "dark" : "light"} onChange={onTheme}
+            <Choice label="Theme" value={general.theme === "dark" ? "dark" : "light"} onChange={general.onTheme}
               options={[{ id: "light", name: "Light" }, { id: "dark", name: "Dark" }]} />
           </Row>
           <Row label="Window transparency" hint="Translucent frame and navigation. Panels and documents stay opaque. Uses the system backdrop where supported; accessibility settings take priority.">
@@ -254,18 +256,18 @@ export function SettingsDialog({ initialSection = "General", theme, onTheme, nig
               else setError("Couldn't save this preference. Try again.");
             }} />
           </Row>
-          <AppearanceSettings dark={theme === "dark"} />
+          <AppearanceSettings dark={general.theme === "dark"} />
           <Row label="PDF dark mode" hint="Dims bright pages for night reading. Images keep their colors.">
-            <Switch label="PDF dark mode" checked={night} onChange={onNight} />
+            <Switch label="PDF dark mode" checked={general.night} onChange={general.onNight} />
           </Row>
         </Section>
 
         <Section title="Reading">
           <Row label="Scroll one page at a time" hint="Turn a page with each mouse wheel click or trackpad swipe.">
-            <Switch label="Scroll one page at a time" checked={wheelPaging} onChange={onWheelPaging} />
+            <Switch label="Scroll one page at a time" checked={general.wheelPaging} onChange={general.onWheelPaging} />
           </Row>
           <Row label="Scan languages" hint="Download languages once to recognize scans offline.">
-            <ScanLanguagePicker value={scanLanguages} onChange={onScanLanguages} />
+            <ScanLanguagePicker value={general.scanLanguages} onChange={general.onScanLanguages} />
           </Row>
         </Section>
 
@@ -328,9 +330,9 @@ export function SettingsDialog({ initialSection = "General", theme, onTheme, nig
           <UpdateSettings />
         )}
 
-        {section === "General" && <Section title="About">
+        {general && section === "General" && <Section title="About">
           <Row label="What's new" hint="Changes in each version of Doko.">
-            <button className="btn ghost" onClick={onOpenChangelog}>View changelog</button>
+            <button className="btn ghost" onClick={general.onOpenChangelog}>View changelog</button>
           </Row>
         </Section>}
 

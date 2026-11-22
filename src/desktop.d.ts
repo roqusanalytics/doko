@@ -90,7 +90,7 @@ interface AiStatus {
 }
 
 interface AiDocument {
-  kind: "pdf";
+  kind: "pdf" | "canvas";
   name: string;
   text: string;
   truncated: boolean;

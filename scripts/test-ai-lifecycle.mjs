@@ -64,7 +64,7 @@ await check("missing and unsupported document kinds are rejected before provider
   let requests = 0;
   const b = backend(async () => { requests++; return response(); }, false);
   const { kind, ...untyped } = pdf;
-  for (const document of [untyped, { ...pdf, kind: "canvas" }, { ...pdf, kind: "" }, { ...pdf, kind: 1 }]) {
+  for (const document of [untyped, { ...pdf, kind: "markdown" }, { ...pdf, kind: "" }, { ...pdf, kind: 1 }]) {
     assert.throws(() => b.ask("invalid", document), /Invalid request/);
   }
   await drain();
