@@ -1,7 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { AiPanel, flushAiHistory, forgetClearedChats, stopAiForClose } from "../AiPanel";
 import { Modal } from "../Dialogs";
+import { SettingsDialog } from "../SettingsDialog";
+import { onStoredDataCleared } from "../recent";
+import { summarizeScene } from "./canvasDocumentSceneSummary";
+import { insertCanvasDocumentDrawing } from "./insertCanvasDocumentDrawing";
 import { DocumentTabBar } from "../DocumentTabBar";
 import type { ReaderContext } from "../documentTabs";
 import { useFileCommands } from "../fileCommands";
@@ -28,10 +33,29 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
   const active = useSyncExternalStore(tabs.subscribe, () => tabs.active === tabKey);
   const header = useRef<HTMLElement>(null);
   const editor = useRef<ExcalidrawImperativeAPI>(null);
-  const file = useCanvasDocumentFile(tabs, tabKey, initial, editor);
   const [properties, setProperties] = useState(false);
   const [exportSnapshot, setExportSnapshot] = useState<CanvasExportSnapshot | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">(() => document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiSettings, setAiSettings] = useState(false);
+  const [chatId] = useState(() => `canvas:${initial.id ?? crypto.randomUUID()}`);
+  const [chatGeneration, setChatGeneration] = useState(0);
+  const flushAi = useCallback(async () => { stopAiForClose(chatId); await flushAiHistory(chatId); }, [chatId]);
+  const file = useCanvasDocumentFile(tabs, tabKey, initial, editor, flushAi);
+  useEffect(() => onStoredDataCleared((category, generation) => {
+    if (category !== "ai") return;
+    forgetClearedChats(generation);
+    setChatGeneration(current => Math.max(current, generation));
+  }), []);
+  const readScene = useCallback(async () => {
+    if (!editor.current) throw new Error("The drawing editor is still loading.");
+    return summarizeScene(editor.current.getSceneElements(), editor.current.getAppState().selectedElementIds);
+  }, []);
+  const insertDrawing = useCallback((reply: string) => {
+    if (!editor.current) throw new Error("The drawing editor is still loading.");
+    return insertCanvasDocumentDrawing(editor.current, reply);
+  }, []);
 
   useLayoutEffect(() => {
     if (active && window.folioDesktop && header.current) return trackTitlebar(header.current);
@@ -70,6 +94,10 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
         </button>
         <div className="doc-title"><span>{file.document.name}</span></div>
       </div>
+      {window.folioDesktop?.ai && <div className="topbar-right">
+        <button className={`icon-btn ${aiOpen ? "on" : ""}`} type="button" onClick={() => setAiOpen(!aiOpen)}
+          title="Ask AI" aria-label="Ask AI" aria-pressed={aiOpen}><Icon name="sparkle" /></button>
+      </div>}
     </header>
     <DocumentTabBar tabs={tabs} tabKey={tabKey} />
     {file.error && <div className="content-notice" role="alert">{file.error}</div>}
@@ -80,21 +108,27 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
         <div><dt>Elements</dt><dd>{editor.current?.getSceneElements().length.toLocaleString() ?? "0"}</dd></div>
       </dl>
     </Modal>}
-    <main className="canvas-document-stage" id="reader-panel" role="tabpanel" aria-labelledby="selected-document-tab" inert={!!exportSnapshot}>
-      {file.initialScene && <Excalidraw theme={theme} initialData={file.initialScene} onChange={file.onChange} UIOptions={canvasDocumentUi}
-        aiEnabled={false} validateEmbeddable={false} showDeprecatedFonts
-        excalidrawAPI={api => { editor.current = api; }}>
-        <MainMenu>
-          <MainMenu.DefaultItems.SearchMenu />
-          <MainMenu.DefaultItems.Help />
-          <MainMenu.DefaultItems.ClearCanvas />
-          <MainMenu.DefaultItems.ChangeCanvasBackground />
-          <MainMenu.Item icon={<Icon name="book" size={16} />} onSelect={() => {
-            editor.current?.toggleSidebar({ name: "default", tab: "library" });
-          }}>Library</MainMenu.Item>
-        </MainMenu>
-      </Excalidraw>}
+    <main className="canvas-document-workspace" id="reader-panel" role="tabpanel" aria-labelledby="selected-document-tab" inert={!!exportSnapshot}>
+      <div className="canvas-document-stage">
+        {file.initialScene && <Excalidraw theme={theme} initialData={file.initialScene} onChange={file.onChange} UIOptions={canvasDocumentUi}
+          aiEnabled={false} validateEmbeddable={false} showDeprecatedFonts
+          excalidrawAPI={api => { editor.current = api; }}>
+          <MainMenu>
+            <MainMenu.DefaultItems.SearchMenu />
+            <MainMenu.DefaultItems.Help />
+            <MainMenu.DefaultItems.ClearCanvas />
+            <MainMenu.DefaultItems.ChangeCanvasBackground />
+            <MainMenu.Item icon={<Icon name="book" size={16} />} onSelect={() => {
+              editor.current?.toggleSidebar({ name: "default", tab: "library" });
+            }}>Library</MainMenu.Item>
+          </MainMenu>
+        </Excalidraw>}
+      </div>
+      {active && aiOpen && <AiPanel key={chatGeneration}
+        documentContext={{ kind: "canvas", name: file.document.name, displayName: file.document.name, selection: null, readText: readScene }}
+        docId={chatId} persist onDrawingReply={insertDrawing} onClose={() => setAiOpen(false)} onSettings={() => setAiSettings(true)} />}
     </main>
     {exportSnapshot && <DocumentExportDialog snapshot={exportSnapshot} mode="export" onClose={() => setExportSnapshot(null)} onSave={saveCanvasExport} />}
+    {active && aiSettings && <SettingsDialog initialSection="Ask AI" onClose={() => setAiSettings(false)} />}
   </div>;
 }

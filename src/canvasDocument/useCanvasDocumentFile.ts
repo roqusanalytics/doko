@@ -7,7 +7,9 @@ import { canvasDocumentAppState, loadCanvasDocument, serializeCanvasDocument } f
 const AUTO_SAVE_DELAY = 750;
 
 export function useCanvasDocumentFile(tabs: ReaderContext["tabs"], tabKey: number, initial: CanvasDocument,
-  editor: RefObject<ExcalidrawImperativeAPI | null>) {
+  editor: RefObject<ExcalidrawImperativeAPI | null>, onFlush: () => Promise<void>) {
+  const flushExtra = useRef(onFlush);
+  flushExtra.current = onFlush;
   const [document, setDocument] = useState(initial);
   const [initialScene] = useState(() => {
     try { return loadCanvasDocument(initial.text); }
@@ -97,6 +99,7 @@ export function useCanvasDocumentFile(tabs: ReaderContext["tabs"], tabKey: numbe
       open() {},
       canClose: finishSaving,
       flush: async () => {
+        await flushExtra.current();
         if (!await finishSaving()) throw new Error("Couldn't finish saving this drawing.");
       },
     });

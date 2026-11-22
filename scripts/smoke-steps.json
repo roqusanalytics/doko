@@ -57,6 +57,13 @@
     "scripts/smoke-canvas-save.mjs"
   ],
   [
+    "--test",
+    "scripts/test-canvas-document-ai.mjs"
+  ],
+  [
+    "scripts/smoke-canvas-ai.mjs"
+  ],
+  [
     "scripts/smoke-workbook.mjs"
   ],
   [
