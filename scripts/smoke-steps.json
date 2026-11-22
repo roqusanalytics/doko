@@ -39,6 +39,9 @@
     "scripts/smoke-welcome-cards.mjs"
   ],
   [
+    "scripts/smoke-pdf-open-menu.mjs"
+  ],
+  [
     "scripts/test-print.mjs"
   ],
   [

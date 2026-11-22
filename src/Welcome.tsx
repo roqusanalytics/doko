@@ -1,19 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { clearRecent, getRecent, listRecent, removeRecent, type RecentFile, type RecentSummary } from "./recent";
 import { useAnchoredPopover } from "./anchored-popover";
-import { Icon, type IconName } from "./icons";
+import { Icon } from "./icons";
+import { newCanvasAction, openDocumentTypes } from "./open-document-types";
 import { keys } from "./platform";
 import { formatBytes } from "./Dialogs";
 import { updateSummary } from "./updates";
-
-const documentCards: { type: OpenFileType | "canvasDocument"; name: string; hint: string; icon: IconName }[] = [
-  { type: "canvasDocument", name: "Canvas", hint: "Draw, ask AI", icon: "canvasDocument" },
-  { type: "pdf", name: "PDF", hint: "Read, annotate", icon: "file" },
-  { type: "markdown", name: "Markdown", hint: "Read and edit", icon: "markdown" },
-  { type: "photos", name: "Photos", hint: "Gallery & edit", icon: "photo" },
-  { type: "excel", name: "Excel", hint: "Read tables", icon: "spreadsheet" },
-  { type: "word", name: "Word", hint: "Open as PDF", icon: "wordDocument" },
-];
 
 function timeAgo(t: number) {
   const s = (Date.now() - t) / 1000;
@@ -148,7 +140,7 @@ export function Welcome({ active, onPick, onOpenUrl, onNewCanvas, onOpenRecent, 
       <div className="welcome-inner">
         <div className="hero">
           <h1>Read beautifully.</h1>
-          <p>A calm place for PDFs, Markdown, and photos.</p>
+          <p>{desktop ? "A calm place for PDFs, Markdown, photos, and drawings." : "A calm place for PDFs, Markdown, and photos."}</p>
         </div>
 
         <button className="dropzone" onClick={() => onPick()} disabled={loading}>
@@ -163,23 +155,25 @@ export function Welcome({ active, onPick, onOpenUrl, onNewCanvas, onOpenRecent, 
         </button>
 
         <div className="welcome-cards" role="group" aria-label="Document types">
-          {documentCards.map(({ type, name, hint, icon }) => {
-            const isNew = type === "canvasDocument";
-            if (!desktop && (isNew || type === "word")) return null;
-            const label = !desktop && type === "excel" ? "CSV" : name;
-            const hintId = `${cardId}-${type}`;
-            return (
-              <button key={type} type="button" className={isNew ? "welcome-card welcome-card-new" : "welcome-card"}
-                aria-label={isNew ? "New canvas" : label} aria-describedby={hintId} disabled={loading}
-                onClick={isNew ? onNewCanvas : () => onPick(type)}>
-                <Icon name={icon} size={20} />
-                <span className="welcome-card-copy">
-                  <strong>{label}{isNew && <span className="welcome-card-badge" aria-hidden="true">New</span>}</strong>
-                  <span id={hintId} className="welcome-card-hint">{hint}</span>
-                </span>
-              </button>
-            );
-          })}
+          {desktop && <button type="button" className="welcome-card welcome-card-new"
+            aria-label={newCanvasAction.label} aria-describedby={`${cardId}-canvasDocument`}
+            disabled={loading} onClick={onNewCanvas}>
+            <Icon name={newCanvasAction.icon} size={20} />
+            <span className="welcome-card-copy">
+              <strong>{newCanvasAction.name}<span className="welcome-card-badge" aria-hidden="true">New</span></strong>
+              <span id={`${cardId}-canvasDocument`} className="welcome-card-hint">{newCanvasAction.hint}</span>
+            </span>
+          </button>}
+          {openDocumentTypes(desktop).map(({ type, name, hint, icon }) => (
+            <button key={type} type="button" className="welcome-card" aria-label={name}
+              aria-describedby={`${cardId}-${type}`} disabled={loading} onClick={() => onPick(type)}>
+              <Icon name={icon} size={20} />
+              <span className="welcome-card-copy">
+                <strong>{name}</strong>
+                <span id={`${cardId}-${type}`} className="welcome-card-hint">{hint}</span>
+              </span>
+            </button>
+          ))}
         </div>
 
         <div className="welcome-links">

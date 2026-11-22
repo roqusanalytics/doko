@@ -271,7 +271,7 @@ kbd {
   border-radius: var(--radius);
   background: var(--surface-2);
 }
-.segmented button {
+.segmented button:not(:where(.menu button)) {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -283,7 +283,7 @@ kbd {
   color: var(--text-2);
   transition: background 0.15s, color 0.15s, box-shadow 0.15s;
 }
-.segmented button:not(:disabled):not(.on):hover {
+.segmented button:not(:where(.menu button)):not(:disabled):not(.on):hover {
   background: var(--hover);
   color: var(--text);
 }
@@ -291,6 +291,13 @@ kbd {
   background: var(--active);
   color: var(--accent-text);
 }
+.segmented[role="toolbar"] { align-items: center; }
+.tool-menu > button {
+  min-width: 32px;
+  height: 32px;
+  font-weight: 600;
+}
+.tool-menu .menu button { height: 32px; font-weight: 600; }
 .app[data-tool="highlight"] .segmented button.on,
 .app[data-tool="ink"] .segmented button.on,
 .app[data-tool="freetext"] .segmented button.on {
@@ -1617,13 +1624,16 @@ kbd {
 
 /* ── Responsive ─────────────────────────────────────────────────────── */
 /* Keep the tools clear of the native window controls at the minimum desktop width. */
-@media (max-width: 540px) {
-  .desktop .app:has(.topbar-center .segmented) { --topbar-h: 88px; }
-  .desktop .app .topbar:has(.segmented) { flex-wrap: wrap; align-content: center; padding-left: 4px; padding-right: 4px; }
+@media (max-width: 660px) {
+  .desktop .app:has(.topbar-center .segmented),
+  .app:has(.topbar-center .tool-menu) { --topbar-h: 88px; }
+  .desktop .app .topbar:has(.segmented),
+  .topbar:has(.tool-menu) { flex-wrap: wrap; align-content: center; padding-left: 4px; padding-right: 4px; }
   .desktop .topbar:has(.segmented) .topbar-right { margin-right: 146px; }
   .desktop.platform-darwin .topbar:has(.segmented) .topbar-right { margin-right: 0; }
   .desktop.platform-darwin .topbar:has(.segmented) .topbar-left { margin-left: 80px; }
-  .desktop .topbar-center:has(.segmented) {
+  .desktop .topbar-center:has(.segmented),
+  .topbar-center:has(.tool-menu) {
     order: 1;
     flex-basis: 100%;
     display: flex;
@@ -1634,15 +1644,23 @@ kbd {
 /* Keep added contextual tools and Save reachable before the toolbar reaches the window controls. */
 @media (max-width: 1400px) {
   .segmented:has(.more) > button > span,
-  .segmented:has([aria-label="Undo document edit"]) > button > span { display: none; }
+  .segmented:has([aria-label="Undo document edit"]) > button > span,
+  .segmented:has([aria-label="Undo document edit"]) .tool-menu > button > span { display: none; }
   .segmented:has(.more) > button,
-  .segmented:has([aria-label="Undo document edit"]) > button { padding: 0 7px; }
+  .segmented:has([aria-label="Undo document edit"]) > button,
+  .segmented:has([aria-label="Undo document edit"]) .tool-menu > button { padding: 0 7px; }
+}
+/* The wider PDF tool group needs room for the desktop window controls. */
+@media (max-width: 1200px) {
+  .desktop .segmented:has(.tool-menu) > button > span,
+  .desktop .segmented .tool-menu > button > span { display: none; }
 }
 @media (max-width: 1080px) {
-  .segmented > button > span {
+  .segmented > button > span,
+  .segmented .tool-menu > button > span {
     display: none;
   }
-  .segmented button {
+  .segmented button:not(:where(.menu button)) {
     padding: 0 10px;
   }
 }
@@ -1652,9 +1670,6 @@ kbd {
   .topbar-right .divider,
   .wide-only {
     display: none;
-  }
-  .segmented button {
-    padding: 0 8px;
   }
   .page-field {
     padding: 0 2px;
@@ -1672,7 +1687,7 @@ kbd {
     padding: 6px;
     margin-right: 0;
   }
-  .segmented button {
+  .segmented button:not(:where(.menu button)) {
     padding: 0 7px;
   }
   .icon-btn {

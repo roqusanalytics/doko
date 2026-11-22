@@ -31,6 +31,7 @@ import { recognizeScannedPages } from "./pageOcr";
 import { OcrFindController } from "./OcrFindController";
 import { ImageMenu, ImageViewer, type ImageTarget } from "./ImageViewer";
 import { MoreMenu, type MoreItem } from "./MoreMenu";
+import { newCanvasAction, openDocumentTypes } from "./open-document-types";
 import { IS_MAC, keys } from "./platform";
 import { AiPanel, forgetClearedChats, flushAiHistory, stopAiForClose, type AiContext } from "./AiPanel";
 import { readAiDocumentText } from "./aiDocumentText";
@@ -1669,6 +1670,18 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
                 onClick={() => contentEditing ? leaveEditMode() : chooseTool("select", true)}>
                 <Icon name={contentEditing ? "check" : "edit"} size={16} /><span>{contentEditing ? "Exit edit mode" : "Edit mode"}</span>
               </button>
+              {!gallery && <MoreMenu label="Open" toolbarIcon="folderOpen" items={[
+                ...(window.folioDesktop ? [
+                  { kind: "action", icon: newCanvasAction.icon, label: newCanvasAction.label,
+                    shortcut: keys(IS_MAC ? "Shift+Ctrl+N" : "Ctrl+Shift+N"), onSelect: () => tabs.newCanvasDocument() },
+                  { kind: "divider" },
+                ] satisfies MoreItem[] : []),
+                ...openDocumentTypes(!!window.folioDesktop).map(({ type, name, icon }): MoreItem => ({
+                  kind: "action", icon, label: name, onSelect: () => pickFile(type),
+                })),
+                { kind: "divider" },
+                { kind: "action", icon: "link", label: "From URL…", onSelect: () => openUrlDialog() },
+              ]} />}
               {gallery && <MoreMenu label="Image" items={[{kind:"action",icon:"edit",label:"Crop, resize and adjust…",onSelect:()=>void prepareWork("photo")}]} />}
               {operationUndo?.pdf === doc.pdf && <button aria-label="Undo document edit" title={contentEditing ? "Exit edit mode to undo the earlier document edit" : keys("Undo document edit (Ctrl+Z)")} disabled={fileBusy || contentEditing || editorDirty} onClick={()=>void undoOperation()}><Icon name="undo" size={16}/><span>Undo edit</span></button>}
               {gallery && <button aria-label="Copy image" disabled={photoBusy || refreshingPhotos || !!photoFailure} onClick={() => void exportPhoto("copy")}><Icon name="copy" size={16} /><span>Copy image</span></button>}

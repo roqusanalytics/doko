@@ -7,23 +7,25 @@ export type MoreItem =
   | { kind: "toggle"; icon: IconName; label: string; checked: boolean; onSelect: () => void }
   | { kind: "divider" };
 
-export function MoreMenu({ items, label }: { items: MoreItem[]; label?: string }) {
+export function MoreMenu({ items, label, toolbarIcon }: { items: MoreItem[]; label?: string; toolbarIcon?: IconName }) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const open = useAnchoredPopover(trigger, panel);
 
   return (
-    <div className="more">
+    <div className={toolbarIcon ? "tool-menu" : "more"}>
       <button
         ref={trigger} popoverTarget={id} aria-controls={id}
-        className={label ? "link small" : `icon-btn ${open ? "on" : ""}`}
+        className={toolbarIcon ? (open ? "on" : undefined) : label ? "link small" : `icon-btn ${open ? "on" : ""}`}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={label ?? "More"}
         title={label ?? "More"}
       >
-        {label ? <>{label}<Icon name="chevronDown" size={13} /></> : <Icon name="more" />}
+        {toolbarIcon
+          ? <><Icon name={toolbarIcon} size={16} /><span>{label}</span><Icon name="chevronDown" size={12} /></>
+          : label ? <>{label}<Icon name="chevronDown" size={13} /></> : <Icon name="more" />}
       </button>
       <div ref={panel} id={id} popover="auto" className="menu dropdown anchored-popover" role="menu" aria-label={label ?? "More"}>
           {items.map((item, i) =>
@@ -44,7 +46,7 @@ export function MoreMenu({ items, label }: { items: MoreItem[]; label?: string }
                 <Icon name={item.icon} size={15} />
                 <span className="menu-label">{item.label}</span>
                 {item.kind === "toggle" && item.checked && <Icon name="check" size={14} />}
-                {item.kind === "action" && item.shortcut && <kbd className="menu-kbd">{item.shortcut}</kbd>}
+                {item.kind === "action" && item.shortcut && <kbd className="menu-kbd" aria-hidden={toolbarIcon ? true : undefined}>{item.shortcut}</kbd>}
               </button>
             ),
           )}

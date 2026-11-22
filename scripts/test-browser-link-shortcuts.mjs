@@ -33,6 +33,19 @@ try {
   }
   await page.getByRole("button", { name: /Try a sample/ }).click();
   assert.equal(await page.evaluate(() => !!window.folioDesktop), false);
+  const open = page.getByRole("toolbar", { name: "Tools" }).getByRole("button", { name: "Open", exact: true });
+  await open.press("Enter");
+  const menu = page.getByRole("menu", { name: "Open", exact: true });
+  await menu.waitFor();
+  assert.deepEqual(await menu.getByRole("menuitem").allTextContents(), ["PDF", "Markdown", "Photos", "CSV", "From URL…"]);
+  const [csv] = await Promise.all([
+    tab.waitForEvent("filechooser"),
+    menu.getByRole("menuitem", { name: "CSV", exact: true }).click(),
+  ]);
+  assert.equal(await csv.element().getAttribute("accept"), ".csv");
+  await csv.setFiles([]);
+  console.log("ok  Browser Edition PDF Open menu offers CSV and opens the filtered picker");
+
   const link = page.locator('.page[data-page-number="1"] .annotationLayer a');
   await link.nth(3).click();
   await page.getByRole("button", { name: "Back to previous spot", exact: true }).click();
