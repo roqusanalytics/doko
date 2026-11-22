@@ -39,7 +39,7 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
 
   const [aiOpen, setAiOpen] = useState(false);
   const [aiSettings, setAiSettings] = useState(false);
-  const [chatId] = useState(() => `canvas:${initial.id ?? crypto.randomUUID()}`);
+  const [chatId] = useState(() => `canvas:${initial.id ?? initial.draftId ?? crypto.randomUUID()}`);
   const [chatGeneration, setChatGeneration] = useState(0);
   const flushAi = useCallback(async () => { stopAiForClose(chatId); await flushAiHistory(chatId); }, [chatId]);
   const file = useCanvasDocumentFile(tabs, tabKey, initial, editor, flushAi);
@@ -68,7 +68,7 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
     return () => window.removeEventListener("storage", syncTheme);
   }, []);
   useEffect(() => {
-    if (!active || properties || exportSnapshot || !window.folioDesktop) return;
+    if (!active || properties || exportSnapshot || file.confirmClose || !window.folioDesktop) return;
     const onKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "s") return;
       event.preventDefault();
@@ -77,8 +77,8 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [active, properties, exportSnapshot, file.save]);
-  useFileCommands(active, "canvas", file.saving || properties || !!exportSnapshot, command => {
+  }, [active, properties, exportSnapshot, file.confirmClose, file.save]);
+  useFileCommands(active, "canvas", file.saving || file.confirmClose || properties || !!exportSnapshot, command => {
     if (command === "recent") tabs.library();
     else if (command === "save" || command === "save-as") void file.save(command === "save-as");
     else if (command === "properties") setProperties(true);
@@ -108,7 +108,19 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
         <div><dt>Elements</dt><dd>{editor.current?.getSceneElements().length.toLocaleString() ?? "0"}</dd></div>
       </dl>
     </Modal>}
-    <main className="canvas-document-workspace" id="reader-panel" role="tabpanel" aria-labelledby="selected-document-tab" inert={!!exportSnapshot}>
+    {file.confirmClose && <Modal title="Save?" onClose={() => void file.answerClose("cancel")}>
+      <div className="content-dialog">
+        <p>Save changes to “{file.document.name}” before closing?</p>
+        {file.error && <p className="form-error" role="alert">{file.error}</p>}
+        <div className="form-actions">
+          <button className="btn ghost" autoFocus disabled={file.saving} onClick={() => void file.answerClose("cancel")}>Cancel</button>
+          <button className="btn ghost" disabled={file.saving} onClick={() => void file.answerClose("discard")}>Don't save</button>
+          <button className="btn primary" disabled={file.saving || !file.initialScene || !window.folioDesktop}
+            onClick={() => void file.answerClose("save")}>Save</button>
+        </div>
+      </div>
+    </Modal>}
+    <main className="canvas-document-workspace" id="reader-panel" role="tabpanel" aria-labelledby="selected-document-tab" inert={!!exportSnapshot || file.confirmClose}>
       <div className="canvas-document-stage">
         {file.initialScene && <Excalidraw theme={theme} initialData={file.initialScene} onChange={file.onChange} UIOptions={canvasDocumentUi}
           aiEnabled={false} validateEmbeddable={false} showDeprecatedFonts

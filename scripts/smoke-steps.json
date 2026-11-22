@@ -64,6 +64,9 @@
     "scripts/smoke-canvas-ai.mjs"
   ],
   [
+    "scripts/smoke-canvas-draft.mjs"
+  ],
+  [
     "scripts/smoke-workbook.mjs"
   ],
   [

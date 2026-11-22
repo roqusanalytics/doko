@@ -1,5 +1,5 @@
 type ContentDocument = MarkdownDocument | GalleryDocument | WorkbookDocument | CanvasDocument;
-interface CanvasDocument { kind: "canvas"; id?: string; name: string; text?: string }
+interface CanvasDocument { kind: "canvas"; id?: string; draftId?: string; name: string; text?: string }
 // `format` marks a content document that is not Markdown ("text" is a .txt file, "csv" a .csv file, "svg" an .svg file shown as an image with its XML as the source; "html" is a read-only HTML preview; absent means Markdown).
 // `encoding` is the label of the file's encoding on desktop (for example "UTF-8" or "Windows-1257").
 interface MarkdownDocument { kind: "markdown"; id?: string; name: string; text: string; format?: "text" | "csv" | "svg" | "html"; encoding?: string;
