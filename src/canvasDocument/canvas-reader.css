@@ -14,10 +14,212 @@
   min-width: 0;
 }
 
-/* Excalidraw has no switches for the online library actions or these extra tools. */
-.canvas-document-reader .library-menu-browse-button,
-.canvas-document-reader [data-testid="lib-dropdown--remove"],
-.canvas-document-reader [data-testid="toolbar-embeddable"],
-.canvas-document-reader .App-toolbar__extra-tools-dropdown div:has(+ [data-testid="toolbar-embeddable"]) {
+/* Excalidraw reuses the embed test ID for Mermaid. Hide Web Embed and the Generate heading. */
+.canvas-document-reader .excalidraw .library-menu-browse-button,
+.canvas-document-reader .excalidraw .dropdown-menu [data-testid="lib-dropdown--remove"],
+.canvas-document-reader .excalidraw .App-toolbar__extra-tools-dropdown
+  [data-testid="toolbar-frame"] + [data-testid="toolbar-embeddable"],
+.canvas-document-reader .excalidraw .App-toolbar__extra-tools-dropdown div:has(+ [data-testid="toolbar-embeddable"]) {
   display: none;
+}
+
+/* Excalidraw chrome follows the reader palette. Leave its Scene and drawing tokens alone. */
+.canvas-document-reader :is(.excalidraw, .excalidraw.theme--dark) {
+  --ui-font: var(--font);
+  --island-bg-color: var(--surface);
+  --shadow-island: var(--glass-shadow);
+  --sidebar-bg-color: var(--surface);
+  --sidebar-border-color: var(--line);
+  --sidebar-shadow: var(--glass-shadow);
+  --library-dropdown-shadow: var(--glass-shadow);
+  --color-on-surface: var(--text);
+  --color-surface-high: var(--surface-2);
+  --color-surface-mid: var(--surface-2);
+  --color-surface-low: var(--surface);
+  --color-surface-lowest: var(--surface);
+  --color-primary: var(--accent-text);
+  --color-primary-darker: var(--accent-text);
+  --color-primary-darkest: var(--accent-text);
+  --color-primary-hover: var(--accent-text);
+  --color-primary-light: var(--color-surface-primary-container);
+  --color-primary-light-darker: var(--color-surface-primary-container);
+  --color-brand-hover: var(--accent-text);
+  --color-brand-active: var(--accent-text);
+  --color-surface-primary-container: color-mix(in srgb, var(--accent) 68%, var(--surface));
+  --color-on-primary-container: var(--accent-foreground);
+  --color-slider-track: var(--accent-soft);
+  --color-slider-thumb: var(--accent-text);
+  --button-hover-bg: var(--hover);
+  --button-active-bg: var(--hover);
+  --button-active-border: transparent;
+  --default-border-color: var(--line);
+  --focus-highlight-color: var(--accent-text);
+  --keybinding-color: var(--text-3);
+  --border-radius-md: var(--radius);
+  --border-radius-lg: var(--radius);
+  --default-button-size: 32px;
+  --lg-button-size: var(--default-button-size);
+  --default-icon-size: 18px;
+  --lg-icon-size: var(--default-icon-size);
+}
+
+.canvas-document-reader .excalidraw.theme--dark {
+  /* A lighter tint keeps Ink and the shortcut number readable in dark mode. */
+  --color-surface-primary-container: color-mix(in srgb, var(--accent) 84%, var(--surface));
+}
+
+[data-window-transparency] .canvas-document-reader :is(.excalidraw, .excalidraw.theme--dark) {
+  --color-surface-primary-container: color-mix(in srgb, var(--bg) 16%, #c5cec7);
+}
+
+.canvas-document-reader .excalidraw {
+  & :is(.App-toolbar.Island, .zoom-actions, .undo-redo-buttons, .main-menu-trigger, .default-sidebar-trigger, .help-icon) {
+    background: var(--glass);
+    backdrop-filter: var(--glass-filter);
+    border: 0;
+    border-radius: var(--radius);
+    box-shadow: var(--glass-shadow);
+  }
+
+  & :is(.main-menu-trigger, .default-sidebar-trigger, .help-icon):is(:hover, :active) {
+    background: linear-gradient(var(--hover), var(--hover)), var(--glass);
+    box-shadow: var(--glass-shadow);
+  }
+
+  & .main-menu-trigger.active,
+  & .sidebar-trigger__label-element input:checked + .default-sidebar-trigger {
+    background: var(--color-surface-primary-container);
+    color: var(--color-on-primary-container);
+  }
+
+  & :is(.main-menu-trigger, .help-icon, .App-toolbar__extra-tools-trigger) {
+    padding: 0;
+  }
+
+  & .App-toolbar__extra-tools-trigger:not(.App-toolbar__extra-tools-trigger--selected):is(:hover, :active) {
+    background: var(--hover);
+  }
+
+  & .default-sidebar-trigger {
+    padding: 0 10px;
+    letter-spacing: normal;
+    line-height: 1;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  /* Upstream zoom and history buttons force their fills and corner shapes. */
+  & :is(.zoom-actions, .undo-redo-buttons) button {
+    --canvas-button-fill: transparent;
+    background: var(--canvas-button-fill) !important;
+    border: 0 !important;
+    border-radius: var(--radius) !important;
+  }
+
+  & :is(.zoom-actions, .undo-redo-buttons) button:not(:disabled):is(:hover, :active) {
+    --canvas-button-fill: var(--hover);
+  }
+
+  & :is(.zoom-actions, .undo-redo-buttons) button .ToolIcon__icon {
+    background: transparent;
+  }
+
+  & .reset-zoom-button {
+    font-weight: 600;
+  }
+
+  & .App-toolbar .ToolIcon__icon:active {
+    border: 0;
+  }
+
+  & .App-toolbar .ToolIcon__icon[aria-disabled="true"] {
+    background: transparent;
+  }
+
+  & :is(.App-toolbar__extra-tools-trigger--selected, .App-toolbar .eraser.active) {
+    background: var(--color-surface-primary-container);
+    color: var(--color-on-primary-container);
+  }
+
+  & .App-toolbar .eraser.ToolIcon:hover {
+    --icon-fill-color: var(--text);
+    --keybinding-color: var(--text-3);
+  }
+
+  & .App-toolbar .ToolIcon input:checked + .ToolIcon__icon {
+    --keybinding-color: color-mix(in srgb, var(--accent-foreground) 85%, var(--accent));
+  }
+
+  & .HintViewer {
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
+  & .HintViewer > span {
+    align-self: center;
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 4px 8px;
+  }
+
+  & .dropdown-menu .dropdown-menu-item {
+    height: var(--default-button-size);
+    border: 0;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  & .dropdown-menu-item__shortcut {
+    color: var(--text-3);
+    font-size: 11px;
+    font-weight: 500;
+    opacity: 1;
+  }
+
+  & .default-sidebar {
+    /* The reader sidebar starts hidden. Excalidraw mounts its sidebar when open. */
+    opacity: 1;
+    border: 0;
+    border-radius: var(--radius);
+  }
+
+  & .default-sidebar .sidebar-tab-trigger[data-state="active"] {
+    --button-bg: var(--color-surface-primary-container);
+    --button-hover-bg: var(--button-bg);
+    --button-hover-color: var(--color-on-primary-container);
+    color: var(--color-on-primary-container);
+  }
+
+  & :is(.App-toolbar, .zoom-actions, .undo-redo-buttons, .dropdown-menu, .default-sidebar) :is(button, a, input):focus-visible,
+  & :is(.main-menu-trigger, .help-icon):focus-visible,
+  & .App-toolbar .ToolIcon input:focus-visible + .ToolIcon__icon,
+  & .sidebar-trigger__label-element input:focus-visible + .default-sidebar-trigger {
+    outline: 2px solid var(--accent-text);
+    outline-offset: -2px;
+    box-shadow: none;
+  }
+
+  /* Keep outline glyphs at Doko's stroke weight without affecting library previews. */
+  & :is(.App-toolbar, .main-menu-trigger, .default-sidebar-trigger, .help-icon, .zoom-actions, .undo-redo-buttons,
+    .dropdown-menu-item__icon, .sidebar__header__buttons) svg
+    :is(path, circle, ellipse, line, polyline, polygon, rect):not([stroke="none"]) {
+    vector-effect: non-scaling-stroke;
+    stroke-width: 1.5px;
+  }
+
+  @media (forced-colors: active) {
+    & .App-toolbar .ToolIcon input:checked:not(:focus-visible) + .ToolIcon__icon,
+    & .sidebar-trigger__label-element input:checked:not(:focus-visible) + .default-sidebar-trigger,
+    & :is(.main-menu-trigger.active, .App-toolbar__extra-tools-trigger--selected,
+      .sidebar-tab-trigger[data-state="active"]):not(:focus-visible) {
+      outline: 1px solid Highlight;
+      outline-offset: -1px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    & :is(.App-toolbar, .App-menu__left, .App-mobile-menu, .layer-ui__wrapper, .default-sidebar) :is(button, label, .ToolIcon__icon) {
+      transition: none;
+    }
+  }
 }
