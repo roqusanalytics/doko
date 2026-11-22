@@ -1,7 +1,8 @@
 import { CaptureUpdateAction, convertToExcalidrawElements, getCommonBounds } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement, ExcalidrawLinearElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { drawingLayout, parseDrawingReply } from "./canvasDocumentAiReply";
+import { copyMermaidElements, drawingLayout, parseDrawingReply, readDrawingBlock, readMermaidDrawing,
+  validateDrawingReferences, type DrawingElement, type PreparedDrawing } from "./canvasDocumentAiReply";
 
 type Skeleton = NonNullable<Parameters<typeof convertToExcalidrawElements>[0]>[number];
 type Point = [number, number];
@@ -36,12 +37,28 @@ function attachArrow(arrow: ExcalidrawLinearElement, start?: ExcalidrawElement, 
     endBinding: end ? { elementId: end.id, focus: 0, gap } : null };
 }
 
-export function insertCanvasDocumentDrawing(editor: ExcalidrawImperativeAPI, reply: string) {
-  const existing = editor.getSceneElements();
-  const { elements, description } = parseDrawingReply(reply, existing);
-  const state = editor.getAppState();
-  const selectedFrames = existing.filter(element => element.type === "frame" && state.selectedElementIds[element.id]);
-  const selectedFrame = selectedFrames.length === 1 ? selectedFrames[0] : null;
+export async function prepareCanvasDocumentDrawing(reply: string, existing: readonly ExcalidrawElement[], repeated: boolean) {
+  const { block, description, format } = readDrawingBlock(reply);
+  const drawing: PreparedDrawing = format === "excalidraw"
+    ? { format, elements: parseDrawingReply(reply, existing, repeated).elements }
+    : { format, elements: await readMermaidDrawing(block, async (definition, limits) => {
+      const { parseMermaidToExcalidraw } = await import("@excalidraw/mermaid-to-excalidraw");
+      const config = { ...limits, securityLevel: "strict" as const };
+      let result;
+      try {
+        result = await parseMermaidToExcalidraw(definition, config);
+      } catch {
+        throw new Error("The Mermaid diagram has invalid syntax or exceeds its size limit.");
+      }
+      if (result.files && Object.keys(result.files).length) throw new Error("The Mermaid diagram must convert to editable Elements.");
+      if (result.elements.some(element => element.link)) throw new Error("Links are not allowed in a drawing.");
+      return convertToExcalidrawElements(result.elements);
+    }) };
+  return { description: description || "Drawing added.", drawing };
+}
+
+function convertDrawingElements(elements: DrawingElement[], existing: readonly ExcalidrawElement[], repeated: boolean) {
+  validateDrawingReferences(elements, existing, repeated);
   const ids = elements.map(() => crypto.randomUUID());
   const remapped = new Map(elements.flatMap((element, i) => element.id ? [[element.id, ids[i]] as const] : []));
   const frameById = new Map<string, string>();
@@ -66,14 +83,26 @@ export function insertCanvasDocumentDrawing(editor: ExcalidrawImperativeAPI, rep
     }
     return { ...element, id };
   });
-  const converted = convertToExcalidrawElements(skeletons, { regenerateIds: false });
+  const converted = convertToExcalidrawElements(skeletons, { regenerateIds: false }).map(element => ({
+    ...element, frameId: frameById.get(element.type === "text" ? element.containerId ?? element.id : element.id) ?? null,
+  }));
+  return { converted, arrows, remapped };
+}
+
+export function insertCanvasDocumentDrawing(editor: ExcalidrawImperativeAPI, drawing: PreparedDrawing, repeated: boolean) {
+  const existing = editor.getSceneElements();
+  const state = editor.getAppState();
+  const selectedFrames = existing.filter(element => element.type === "frame" && state.selectedElementIds[element.id]);
+  const selectedFrame = !repeated && selectedFrames.length === 1 ? selectedFrames[0] : null;
+  const { converted, arrows, remapped } = drawing.format === "excalidraw"
+    ? convertDrawingElements(drawing.elements, existing, repeated)
+    : { converted: copyMermaidElements(drawing.elements), arrows: null, remapped: null };
   const center: Point = [state.width / (2 * state.zoom.value) - state.scrollX, state.height / (2 * state.zoom.value) - state.scrollY];
   const bounds = getCommonBounds(converted);
   const { scale, x, y } = drawingLayout(bounds, existing.length ? getCommonBounds(existing) : null,
     center, selectedFrame ? getCommonBounds([selectedFrame]) : null);
   const placed: ExcalidrawElement[] = converted.map(element => {
-    const container = element.type === "text" ? element.containerId : null;
-    const frameId = frameById.get(container || element.id) ?? selectedFrame?.id ?? null;
+    const frameId = element.frameId ?? selectedFrame?.id ?? null;
     const base = { x: element.x * scale + x, y: element.y * scale + y, width: element.width * scale,
       height: element.height * scale, frameId, index: null };
     if (element.type === "arrow" || element.type === "line") {
@@ -88,12 +117,14 @@ export function insertCanvasDocumentDrawing(editor: ExcalidrawImperativeAPI, rep
   const incoming = new Map<string, string[]>();
   const target = (ref: { id: string } | undefined, arrowId: string) => {
     if (!ref) return undefined;
-    const targetId = remapped.get(ref.id) ?? ref.id;
+    const internalId = remapped?.get(ref.id);
+    if (repeated && !internalId) return undefined;
+    const targetId = internalId ?? ref.id;
     if (newIds.has(targetId)) incoming.set(targetId, [...(incoming.get(targetId) ?? []), arrowId]);
     return byId.get(targetId);
   };
   const attached = placed.map(element => {
-    if (element.type !== "arrow") return element;
+    if (!arrows || element.type !== "arrow") return element;
     const refs = arrows.get(element.id);
     return attachArrow(element, target(refs?.start, element.id), target(refs?.end, element.id));
   });
@@ -110,5 +141,4 @@ export function insertCanvasDocumentDrawing(editor: ExcalidrawImperativeAPI, rep
     captureUpdate: CaptureUpdateAction.IMMEDIATELY,
   });
   editor.scrollToContent(added, { fitToViewport: true, viewportZoomFactor: 0.7, maxZoom: 1 });
-  return description || "Drawing added.";
 }

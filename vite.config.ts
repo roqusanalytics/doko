@@ -21,6 +21,16 @@ const offlineExcalidraw: Plugin = {
   name: "doko-offline-excalidraw",
   enforce: "pre",
   transform(code, id) {
+    if (id.endsWith("/@excalidraw/mermaid-to-excalidraw/dist/parser/class.js")) {
+      // Recent Mermaid versions prefix class group IDs with the SVG ID. The renderer
+      // also reparses the input, so the numeric suffix can differ from the parser's.
+      return code.replace(/const regex = new RegExp\([^\n]+\);\s*const all = [^\n]+;/, [
+        'const prefix = `classId-${id}-`;',
+        'const svgPrefix = `${containerEl.querySelector("svg")?.id}-${prefix}`;',
+        'const all = Array.from(containerEl.querySelectorAll("[id]")).filter(({ id }) =>',
+        '    [prefix, svgPrefix].some(start => id.startsWith(start) && /^\\d+$/.test(id.slice(start.length))));',
+      ].join("\n"));
+    }
     if (!id.includes("/@excalidraw/excalidraw/dist/") || !id.endsWith(".js")) return;
     const rewritten = code.replace(/"ASSETS_FALLBACK_URL",\s*`https:\/\/esm\.sh\/[^\r\n]+?\/dist\/prod\/`/,
       '"ASSETS_FALLBACK_URL", window.EXCALIDRAW_ASSET_PATH');
