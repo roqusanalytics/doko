@@ -59,12 +59,13 @@ interface Props {
   active: boolean;
   onPick: () => void;
   onOpenUrl: () => void;
+  onNewCanvas: () => void;
   onOpenRecent: (file: RecentFile) => void;
   onSample: () => void;
   loading: boolean;
 }
 
-export function Welcome({ active, onPick, onOpenUrl, onOpenRecent, onSample, loading }: Props) {
+export function Welcome({ active, onPick, onOpenUrl, onNewCanvas, onOpenRecent, onSample, loading }: Props) {
   const [recent, setRecent] = useState<RecentFile[]>([]);
   const [version, setVersion] = useState<string | null>(null);
 
@@ -110,6 +111,9 @@ export function Welcome({ active, onPick, onOpenUrl, onOpenRecent, onSample, loa
         <div className="welcome-links">
           <button className="link" onClick={onOpenUrl} disabled={loading}>
             <Icon name="link" size={15} /> Open from URL
+          </button>
+          <button className="link" onClick={onNewCanvas} disabled={loading}>
+            <Icon name="canvasDocument" size={15} /> New canvas
           </button>
           <button className="link" onClick={onSample}>
             <Icon name="book" size={15} /> Try a sample document

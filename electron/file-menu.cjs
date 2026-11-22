@@ -1,5 +1,6 @@
 function fileMenuTemplate({ platform, send, open, state = { kind: 'none', busy: false } }) {
-  const active = state.kind !== 'none' && !state.busy;
+  // Canvas scene file actions arrive with .excalidraw support.
+  const active = !['none', 'canvas'].includes(state.kind) && !state.busy;
   // Workbooks and HTML are read-only; only workbooks support Print.
   const writable = active && !['workbook', 'html'].includes(state.kind);
   const action = (label, command, accelerator, enabled = active) => ({ label, enabled, accelerator, click: () => send('folio:file-command', command) });
@@ -11,6 +12,7 @@ function fileMenuTemplate({ platform, send, open, state = { kind: 'none', busy: 
     ] }] : []),
     { label: 'File', submenu: [
       { label: 'New Tab', accelerator: 'CmdOrCtrl+T', click: () => send('folio:tab-command', 'new') },
+      { label: 'New Canvas', accelerator: 'CmdOrCtrl+Shift+N', click: () => send('folio:tab-command', 'new-canvas') },
       { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: open },
       action('Open Recent…', 'recent', undefined, true),
       { type: 'separator' },

@@ -1,0 +1,13 @@
+.canvas-document-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Excalidraw has no switches for the online library actions or these extra tools. */
+.canvas-document-reader .library-menu-browse-button,
+.canvas-document-reader [data-testid="lib-dropdown--remove"],
+.canvas-document-reader [data-testid="toolbar-embeddable"],
+.canvas-document-reader .App-toolbar__extra-tools-dropdown div:has(+ [data-testid="toolbar-embeddable"]) {
+  display: none;
+}
