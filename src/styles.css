@@ -143,6 +143,8 @@ kbd {
   flex: none;
   z-index: 12;
 }
+.document-tab-actions { display: flex; gap: 4px; margin-left: auto; align-items: center; }
+.document-tab-actions .focus-mode-btn { width: 28px; height: 28px; }
 .document-tab-list { display: flex; min-width: 0; gap: 3px; overflow-x: auto; scrollbar-width: thin; }
 .document-tab {
   display: flex;

@@ -63,7 +63,7 @@ try {
   const draw = async (tool, offset = 0) => {
     const bounds = await surface.boundingBox();
     const x = bounds.x + bounds.width * 0.38 + offset, y = bounds.y + bounds.height * 0.45;
-    await page.locator(`label:has([data-testid="toolbar-${tool}"])`).click();
+    await page.getByRole("toolbar", { name: "Tools" }).getByRole("button", { name: tool, exact: true }).click();
     await page.mouse.move(x, y);
     await page.mouse.down();
     await page.mouse.move(x + 65, y + 55, { steps: 5 });
@@ -113,7 +113,7 @@ try {
   }, [null, saved, savedOnClose]);
   await welcome.click();
   await surface.waitFor();
-  await draw("rectangle");
+  await draw("Rectangle");
   await waitForDraft(1);
   await page.evaluate(() => {
     document.documentElement.dataset.beforeCanvasReload = "yes";
@@ -123,7 +123,7 @@ try {
     ?.hasAttribute("data-before-canvas-reload"));
   await assertElements(1);
 
-  await draw("ellipse", 100);
+  await draw("Ellipse", 100);
   await suspendActiveTab();
   await waitForDraft(2);
   await dirtyClose.click();
@@ -143,7 +143,7 @@ try {
   const read = file => JSON.parse(readFileSync(file, "utf8"));
   assert.deepEqual(read(saved).elements.map(element => element.id), beforeSave.elements.map(element => element.id));
 
-  await draw("diamond", 200);
+  await draw("Diamond", 200);
   await suspendActiveTab();
   assert.deepEqual(read(saved).elements.map(element => element.type), ["rectangle", "ellipse", "diamond"]);
   await page.getByRole("tab", { name: path.basename(saved), exact: true }).click();
@@ -151,7 +151,7 @@ try {
 
   await native("New Canvas");
   await surface.waitFor();
-  await draw("rectangle");
+  await draw("Rectangle");
   await waitForDraft(1);
   await dirtyClose.click();
   await prompt.getByRole("button", { name: "Don't save", exact: true }).click();
@@ -160,7 +160,7 @@ try {
 
   await native("New Canvas");
   await surface.waitFor();
-  await draw("ellipse");
+  await draw("Ellipse");
   await dirtyClose.click();
   await prompt.getByRole("button", { name: "Save", exact: true }).click();
   await draftTab.waitFor({ state: "hidden" });
@@ -171,7 +171,7 @@ try {
 
   await native("New Canvas");
   await surface.waitFor();
-  await draw("diamond");
+  await draw("Diamond");
   await waitForDraft(1);
   await app.evaluate(({ BrowserWindow }) => new Promise(resolve => {
     const webContents = BrowserWindow.getAllWindows()[0].webContents;
@@ -192,5 +192,5 @@ try {
   console.log("PASS Canvas draft survives reader reload and renderer crash, Save and discard remove it, Cancel retains the tab, and draft/file suspension keeps the latest edit");
 } finally {
   if (app) await closeHidden(app);
-  await rm(temp, { recursive: true, force: true, maxRetries: 5 });
+  await rm(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

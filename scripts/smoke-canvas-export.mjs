@@ -43,7 +43,9 @@ try {
   const surface = page.locator("canvas.excalidraw__canvas.interactive");
   await surface.waitFor();
 
-  await openExport();
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Export / Convert…", exact: true }).click();
+  await exportDialog.waitFor();
   assert.equal(await exportDialog.getByRole("checkbox", { name: "Selected Elements only" }).isDisabled(), true);
   const paddingInput = exportDialog.getByRole("spinbutton", { name: "Padding (px)" });
   for (const value of ["", "-1", "1001"]) {
@@ -58,7 +60,7 @@ try {
   const bounds = await surface.boundingBox();
   const x = Math.round(bounds.x + bounds.width * 0.35), y = Math.round(bounds.y + bounds.height * 0.35);
   const drawRectangle = async (left, top, right, bottom) => {
-    await page.locator('label:has([data-testid="toolbar-rectangle"])').click();
+    await page.getByRole("toolbar", { name: "Tools" }).getByRole("button", { name: "Rectangle", exact: true }).click();
     await page.mouse.move(left, top);
     await page.mouse.down();
     await page.mouse.move(right, bottom, { steps: 10 });

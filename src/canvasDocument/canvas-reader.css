@@ -14,14 +14,39 @@
   min-width: 0;
 }
 
-/* Excalidraw reuses the embed test ID for Mermaid. Hide Web Embed and the Generate heading. */
-.canvas-document-reader .excalidraw .library-menu-browse-button,
-.canvas-document-reader .excalidraw .dropdown-menu [data-testid="lib-dropdown--remove"],
-.canvas-document-reader .excalidraw .App-toolbar__extra-tools-dropdown
-  [data-testid="toolbar-frame"] + [data-testid="toolbar-embeddable"],
-.canvas-document-reader .excalidraw .App-toolbar__extra-tools-dropdown div:has(+ [data-testid="toolbar-embeddable"]) {
-  display: none;
+/* Keep the same centered column and trailing controls as the PDF chrome. */
+.canvas-document-tools > button[aria-label]:not(:has(> span)),
+.canvas-document-tools > .compact-tool-menu > button {
+  min-width: 0;
+  padding: 0 6px;
 }
+
+.canvas-document-tools .menu button[aria-current="true"] {
+  background: var(--active);
+  color: var(--accent-text);
+}
+
+.canvas-document-tools .menu .canvas-tool-overflow { display: none; }
+
+@media (max-width: 940px) and (min-width: 661px), (max-width: 470px) {
+  .canvas-document-tools > button.canvas-tool-collapsible[aria-label] { display: none; }
+  .canvas-document-tools .menu .canvas-tool-overflow { display: flex; }
+}
+
+/* Windows and Linux reserve the trailing space for window controls. */
+@media (661px <= width <= 760px) {
+  .desktop:not(.platform-darwin) .canvas-document-tools > button[aria-label],
+  .desktop:not(.platform-darwin) .canvas-document-tools > .tool-menu > button {
+    padding-inline: 4px;
+  }
+}
+
+/* Hide the replaced controls in both Excalidraw layouts. Keep the element
+   properties, library sidebar, and bottom controls mounted. */
+.canvas-document-reader .excalidraw :is(
+  .shapes-section, .App-top-bar, .main-menu-trigger, .HintViewer, .sidebar-trigger__label-element,
+  .library-menu-browse-button, .dropdown-menu [data-testid="lib-dropdown--remove"]
+) { display: none; }
 
 /* Excalidraw chrome follows the reader palette. Leave its Scene and drawing tokens alone. */
 .canvas-document-reader :is(.excalidraw, .excalidraw.theme--dark) {
@@ -73,7 +98,7 @@
 }
 
 .canvas-document-reader .excalidraw {
-  & :is(.App-toolbar.Island, .zoom-actions, .undo-redo-buttons, .main-menu-trigger, .default-sidebar-trigger, .help-icon) {
+  & :is(.zoom-actions, .undo-redo-buttons, .help-icon) {
     background: var(--glass);
     backdrop-filter: var(--glass-filter);
     border: 0;
@@ -81,32 +106,12 @@
     box-shadow: var(--glass-shadow);
   }
 
-  & :is(.main-menu-trigger, .default-sidebar-trigger, .help-icon):is(:hover, :active) {
+  & .help-icon:is(:hover, :active) {
     background: linear-gradient(var(--hover), var(--hover)), var(--glass);
     box-shadow: var(--glass-shadow);
   }
 
-  & .main-menu-trigger.active,
-  & .sidebar-trigger__label-element input:checked + .default-sidebar-trigger {
-    background: var(--color-surface-primary-container);
-    color: var(--color-on-primary-container);
-  }
-
-  & :is(.main-menu-trigger, .help-icon, .App-toolbar__extra-tools-trigger) {
-    padding: 0;
-  }
-
-  & .App-toolbar__extra-tools-trigger:not(.App-toolbar__extra-tools-trigger--selected):is(:hover, :active) {
-    background: var(--hover);
-  }
-
-  & .default-sidebar-trigger {
-    padding: 0 10px;
-    letter-spacing: normal;
-    line-height: 1;
-    font-size: 13px;
-    font-weight: 600;
-  }
+  & .help-icon { padding: 0; }
 
   /* Upstream zoom and history buttons force their fills and corner shapes. */
   & :is(.zoom-actions, .undo-redo-buttons) button {
@@ -126,40 +131,6 @@
 
   & .reset-zoom-button {
     font-weight: 600;
-  }
-
-  & .App-toolbar .ToolIcon__icon:active {
-    border: 0;
-  }
-
-  & .App-toolbar .ToolIcon__icon[aria-disabled="true"] {
-    background: transparent;
-  }
-
-  & :is(.App-toolbar__extra-tools-trigger--selected, .App-toolbar .eraser.active) {
-    background: var(--color-surface-primary-container);
-    color: var(--color-on-primary-container);
-  }
-
-  & .App-toolbar .eraser.ToolIcon:hover {
-    --icon-fill-color: var(--text);
-    --keybinding-color: var(--text-3);
-  }
-
-  & .App-toolbar .ToolIcon input:checked + .ToolIcon__icon {
-    --keybinding-color: color-mix(in srgb, var(--accent-foreground) 85%, var(--accent));
-  }
-
-  & .HintViewer {
-    color: var(--text-2);
-    font-size: 12px;
-  }
-
-  & .HintViewer > span {
-    align-self: center;
-    background: var(--surface);
-    border-radius: var(--radius);
-    padding: 4px 8px;
   }
 
   & .dropdown-menu .dropdown-menu-item {
@@ -190,17 +161,15 @@
     color: var(--color-on-primary-container);
   }
 
-  & :is(.App-toolbar, .zoom-actions, .undo-redo-buttons, .dropdown-menu, .default-sidebar) :is(button, a, input):focus-visible,
-  & :is(.main-menu-trigger, .help-icon):focus-visible,
-  & .App-toolbar .ToolIcon input:focus-visible + .ToolIcon__icon,
-  & .sidebar-trigger__label-element input:focus-visible + .default-sidebar-trigger {
+  & :is(.zoom-actions, .undo-redo-buttons, .dropdown-menu, .default-sidebar) :is(button, a, input):focus-visible,
+  & .help-icon:focus-visible {
     outline: 2px solid var(--accent-text);
     outline-offset: -2px;
     box-shadow: none;
   }
 
   /* Keep outline glyphs at Doko's stroke weight without affecting library previews. */
-  & :is(.App-toolbar, .main-menu-trigger, .default-sidebar-trigger, .help-icon, .zoom-actions, .undo-redo-buttons,
+  & :is(.help-icon, .zoom-actions, .undo-redo-buttons,
     .dropdown-menu-item__icon, .sidebar__header__buttons) svg
     :is(path, circle, ellipse, line, polyline, polygon, rect):not([stroke="none"]) {
     vector-effect: non-scaling-stroke;
@@ -208,17 +177,14 @@
   }
 
   @media (forced-colors: active) {
-    & .App-toolbar .ToolIcon input:checked:not(:focus-visible) + .ToolIcon__icon,
-    & .sidebar-trigger__label-element input:checked:not(:focus-visible) + .default-sidebar-trigger,
-    & :is(.main-menu-trigger.active, .App-toolbar__extra-tools-trigger--selected,
-      .sidebar-tab-trigger[data-state="active"]):not(:focus-visible) {
+    & .sidebar-tab-trigger[data-state="active"]:not(:focus-visible) {
       outline: 1px solid Highlight;
       outline-offset: -1px;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    & :is(.App-toolbar, .App-menu__left, .App-mobile-menu, .layer-ui__wrapper, .default-sidebar) :is(button, label, .ToolIcon__icon) {
+    & :is(.App-menu__left, .App-mobile-menu, .layer-ui__wrapper, .default-sidebar) :is(button, label, .ToolIcon__icon) {
       transition: none;
     }
   }

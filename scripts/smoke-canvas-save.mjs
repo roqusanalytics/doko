@@ -140,17 +140,17 @@ try {
   assert.match(first.files[image.fileId].dataURL, /^data:image\/png;base64,/);
 
   const draw = async (tool, left, top) => {
-    await page.locator(`label:has([data-testid="toolbar-${tool}"])`).click();
+    await page.getByRole("toolbar", { name: "Tools" }).getByRole("button", { name: tool, exact: true }).click();
     await page.mouse.move(left, top);
     await page.mouse.down();
     await page.mouse.move(left + 65, top + 55, { steps: 5 });
     await page.mouse.up();
   };
-  await draw("diamond", x - 110, y + 40);
+  await draw("Diamond", x - 110, y + 40);
   await wait(() => readScene(lightPath).elements.length === 7, "Canvas changes did not autosave");
   assert.ok(readScene(lightPath).elements.some(element => element.type === "diamond"));
 
-  await draw("ellipse", x + 20, y + 55);
+  await draw("Ellipse", x + 20, y + 55);
   await native("Close Tab");
   await welcome.waitFor();
   const autosaved = readScene(lightPath);
@@ -216,5 +216,5 @@ try {
   console.log("PASS Canvas Save, autosave, Save As, reopen by Open/drop/OS event, image and bindings round-trip, theme, corrupt-file error, and Recent exclusion");
 } finally {
   if (app) await closeHidden(app);
-  await rm(temp, { recursive: true, force: true, maxRetries: 5 });
+  await rm(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

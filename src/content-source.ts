@@ -62,6 +62,20 @@ export function restoreText(doc: Pick<MarkdownDocument, "format" | "bom" | "eol"
  */
 export const xmlUtf8 = (text: string) => text.replace(/^(\ufeff?\s*<\?xml\s[^?]*?\bencoding\s*=\s*)(["'])(?!utf-?8\2)[^"']*\2/i, "$1$2UTF-8$2");
 
+export function pickReaderFiles(type: OpenFileType | undefined, onFiles: (files: FileList) => void, onError: () => void) {
+  const desktop = window.folioDesktop;
+  if (type && desktop) {
+    void desktop.openFiles(type).catch(onError);
+    return;
+  }
+  const input = document.createElement("input");
+  input.type = "file";
+  input.multiple = true;
+  input.accept = desktop ? CONTENT_ACCEPT : (type && BROWSER_FILE_ACCEPT[type]) || BROWSER_ACCEPT;
+  input.onchange = () => { if (input.files?.length) onFiles(input.files); };
+  input.click();
+}
+
 export async function localSources(files: File[]): Promise<OpenSource[]> {
   const browserImages = !window.folioDesktop ? files.filter(file => IMAGE.test(file.name)) : [];
   const sources = await Promise.all(files.map(async (file): Promise<OpenSource | null> => {
