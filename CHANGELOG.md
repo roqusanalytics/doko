@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.22.0
+
+- Ask AI for Markdown: ask about a Markdown document or the selected passage, and ask for changes. Suggested edits appear as a preview, and Apply changes the document in one step that Undo reverts.
+- Markdown source view colors headings, links, code, quotes and Markdown marks, with readable colors on every work-area color.
+- Canvas tools now sit in the Doko toolbar in the same place as PDF tools, and Canvas controls match the rest of Doko.
+- The start screen shows cards for Canvas, PDF, Markdown, Photos, Excel and Word, and a new Open menu in the PDF and Canvas toolbars creates a Canvas or opens any document type in a new tab.
+
 ## 1.21.0
 
 - New Canvas: File → New Canvas (Ctrl/Cmd+Shift+N) or New canvas on the start screen opens a hand-drawn whiteboard for shapes, arrows, text, frames, images and Mermaid diagrams. It works offline and follows the Doko theme.
