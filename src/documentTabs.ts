@@ -2,7 +2,7 @@ import { keys } from "./platform";
 import { activeDocument, setActiveDocument } from "./session";
 import { getRecent, listCanvasDocumentDrafts } from "./recent";
 
-const untitledCanvasDocument = (draftId?: string): CanvasDocument => ({ kind: "canvas", name: "Untitled Canvas", draftId });
+const untitledCanvasDocument = (draftId?: string): CanvasDocument => ({ kind: "canvasDocument", name: "Untitled Canvas", draftId });
 
 export type OpenSource =
   | { kind: "content"; name: string; document: ContentDocument }
@@ -158,7 +158,7 @@ export class DocumentTabs {
         }
       }
       const current = this.entry(this.active);
-      const newCanvasDocument = source.kind === "content" && source.document.kind === "canvas" && !source.document.id;
+      const newCanvasDocument = source.kind === "content" && source.document.kind === "canvasDocument" && !source.document.id;
       const tab = !newCanvasDocument && !first && current && !current.name && !current.closing ? current : this.create();
       if (source.kind === "content") this.resetFrame(tab);
       tab.name = source.name;
@@ -250,7 +250,7 @@ export class DocumentTabs {
     if (tab && !tab.contentId) { tab.name = ""; if (tab.frame) tab.frame.title = "Library"; this.changed(); }
   }
   private async canClose(tab: Tab) {
-    if (tab.dirty && !tab.reader && tab.content?.kind === "canvas" && tab.content.draftId) {
+    if (tab.dirty && !tab.reader && tab.content?.kind === "canvasDocument" && tab.content.draftId) {
       if (!tab.waking) {
         let resolve!: (reader: Reader) => void;
         const promise = new Promise<Reader>(ready => { resolve = ready; });
@@ -352,7 +352,7 @@ export class DocumentTabs {
     desktop?.onTabCommand(command => {
       if (this.root.inert) return;
       if (command === "new") this.library();
-      else if (command === "new-canvas") this.newCanvasDocument();
+      else if (command === "new-canvas-document") this.newCanvasDocument();
       else if (command === "close") void this.close(this.active);
       else this.cycle(command === "next" ? 1 : -1);
     });

@@ -45,7 +45,7 @@ contextBridge.exposeInMainWorld("folioDesktop", {
       return () => ipcRenderer.removeListener("folio:open-content", listener);
     },
     save: (id, text, copy = false, utf8 = false) => ipcRenderer.invoke("folio:content-save", id, text, copy, utf8),
-    saveCanvasDocument: (id, text, copy = false) => ipcRenderer.invoke("folio:content-save-canvas", id, text, copy),
+    saveCanvasDocument: (id, text, copy = false) => ipcRenderer.invoke("folio:content-save-canvas-document", id, text, copy),
     reload: id => ipcRenderer.invoke("folio:content-reload", id),
     refresh: (id, selected) => ipcRenderer.invoke("folio:content-refresh", id, selected),
     async image(id, name) {

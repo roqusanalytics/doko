@@ -85,7 +85,7 @@ async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBReq
 
 // The v8 snapshot store uses string keys for PDF versions. Tuple keys keep Canvas drafts
 // outside PDF version lookups and deletion, and outside Recent's eviction and clear operations.
-const draftKey = (id: string) => ["canvas-draft", id];
+const draftKey = (id: string) => ["canvas-document-draft", id];
 export function getCanvasDocumentDraft(id: string) {
   return tx<string | undefined>("readonly", store => store.get(draftKey(id)), "versionPdfs");
 }

@@ -1,5 +1,5 @@
 type ContentDocument = MarkdownDocument | GalleryDocument | WorkbookDocument | CanvasDocument;
-interface CanvasDocument { kind: "canvas"; id?: string; draftId?: string; name: string; text?: string }
+interface CanvasDocument { kind: "canvasDocument"; id?: string; draftId?: string; name: string; text?: string }
 // `format` marks a content document that is not Markdown ("text" is a .txt file, "csv" a .csv file, "svg" an .svg file shown as an image with its XML as the source; "html" is a read-only HTML preview; absent means Markdown).
 // `encoding` is the label of the file's encoding on desktop (for example "UTF-8" or "Windows-1257").
 interface MarkdownDocument { kind: "markdown"; id?: string; name: string; text: string; format?: "text" | "csv" | "svg" | "html"; encoding?: string;
@@ -31,7 +31,7 @@ interface FolioDesktop {
   /** Opens desktop area selection; returns only the selected PNG, or null on cancellation. */
   captureDesktop(): Promise<Uint8Array<ArrayBuffer> | null>;
   cancelScreenshot(): Promise<void>;
-  setFileMenu(state: { kind: "none" | "pdf" | "photo" | "markdown" | "workbook" | "html" | "canvas"; busy: boolean }): void;
+  setFileMenu(state: { kind: "none" | "pdf" | "photo" | "markdown" | "workbook" | "html" | "canvasDocument"; busy: boolean }): void;
   onFileCommand(callback: (command: FileCommand) => void): () => void;
   content: {
     open(file: File): Promise<ContentDocument>;
@@ -54,7 +54,7 @@ interface FolioDesktop {
   onOpenFile(callback: (name: string, data: Uint8Array, note?: string, token?: string) => void): () => void;
   onConverting(callback: (name: string, token: string) => void): () => void;
   onOpenFailed(callback: (message: string, token: string) => void): () => void;
-  onTabCommand(callback: (command: "new" | "new-canvas" | "close" | "next" | "previous") => void): () => void;
+  onTabCommand(callback: (command: "new" | "new-canvas-document" | "close" | "next" | "previous") => void): () => void;
   openDocument(file: File): Promise<{ name: string; data: Uint8Array; note?: string }>;
   ready(): Promise<boolean>;
   /** Null when the user declines to open an address on their computer or local network, or the request is stopped. */
@@ -91,7 +91,7 @@ interface AiStatus {
 }
 
 interface AiDocument {
-  kind: "pdf" | "canvas";
+  kind: "pdf" | "canvasDocument";
   name: string;
   text: string;
   truncated: boolean;

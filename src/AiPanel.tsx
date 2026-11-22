@@ -428,8 +428,8 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
   };
 
   const placeholder = !ready ? "Connect an AI provider to ask questions"
-    : kind === "canvas" ? "Describe what to draw…" : context ? "Ask about the selected passage…" : "Ask about this document…";
-  const documentText = kind === "canvas" ? "a text summary of the Scene" : "the document's text";
+    : kind === "canvasDocument" ? "Describe what to draw…" : context ? "Ask about the selected passage…" : "Ask about this document…";
+  const documentText = kind === "canvasDocument" ? "a text summary of the Scene" : "the document's text";
 
   return (
     <aside className="ai-panel" aria-label="Ask AI">
@@ -497,7 +497,7 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
             )}
             {loaded && messages.length === 0 && (
               <div className="ai-empty">
-                {kind === "canvas" ? <p>Describe what you want to draw. You can select Elements to give AI context.</p> : <>
+                {kind === "canvasDocument" ? <p>Describe what you want to draw. You can select Elements to give AI context.</p> : <>
                 <p>Ask anything about <strong>{displayName}</strong>, or select text in the document and choose <em>Ask AI</em>.</p>
                 <div className="suggestions">
                   {(context ? ["Explain this in simple terms", "Why does this matter?", "Summarize this passage"]
@@ -516,7 +516,7 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
                     <p>{m.content}</p>
                   </>
                 ) : m.error ? (
-                  <div className="msg-error" role={kind === "canvas" ? "alert" : undefined}>
+                  <div className="msg-error" role={kind === "canvasDocument" ? "alert" : undefined}>
                     <p>{m.error.message}</p>
                     {m.error.code === "usage_limit" && provider === "chatgpt" && (
                       <a className="btn primary" href={m.error.link || USAGE_URL} target="_blank" rel="noreferrer">Manage usage</a>

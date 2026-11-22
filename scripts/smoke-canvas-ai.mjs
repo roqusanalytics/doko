@@ -144,7 +144,7 @@ try {
   assert.match(request.messages[0].content, /Element skeletons/);
   assert.equal(request.model, "sample/draw");
   const sentDocument = JSON.parse(request.messages[1].content).document;
-  assert.equal(sentDocument.kind, "canvas");
+  assert.equal(sentDocument.kind, "canvasDocument");
   const [sent] = sentDocument.text.split("\n").map(JSON.parse);
   assert.equal(sent.id, before.elements[0].id);
   assert.equal(sent.selected, true);

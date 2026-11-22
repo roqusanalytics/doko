@@ -753,14 +753,14 @@ if (!app.requestSingleInstanceLock()) {
     registerScreenshots(handle, () => win, { hidden: TEST_HIDDEN, devUrl: DEV_URL,
       fixture: TEST_HIDDEN && process.env.FOLIO_TEST_SCREENSHOT === "1" });
     on("folio:file-menu", (_event, state) => {
-      if (!state || !["none", "pdf", "photo", "markdown", "workbook", "html", "canvas"].includes(state.kind) || typeof state.busy !== "boolean") return;
+      if (!state || !["none", "pdf", "photo", "markdown", "workbook", "html", "canvasDocument"].includes(state.kind) || typeof state.busy !== "boolean") return;
       fileMenuState = { kind: state.kind, busy: state.busy }; updateFileMenu();
     });
     ai.register(handle, (channel, payload) => win?.webContents.send(channel, payload));
     registerPrinting(handle, () => win);
     handle("folio:content-open", (_event, file) => contentFiles.open(file));
     handle("folio:content-save", (_event, id, text, copy, utf8) => contentFiles.save(id, text, copy, utf8));
-    handle("folio:content-save-canvas", (_event, id, text, copy) => contentFiles.saveCanvasDocument(id, text, copy));
+    handle("folio:content-save-canvas-document", (_event, id, text, copy) => contentFiles.saveCanvasDocument(id, text, copy));
     handle("folio:content-reload", (_event, id) => contentFiles.reload(id));
     handle("folio:content-refresh", (_event, id, selected) => contentFiles.refresh(id, selected));
     handle("folio:content-image", (_event, id, name) => contentFiles.image(id, name));

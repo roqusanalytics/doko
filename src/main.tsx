@@ -30,7 +30,7 @@ if (reader) {
   };
   const failedImport = () => renderReader(<FailedReaderImport />);
   // Separate imports let Vite preload each reader's own styles.
-  if (content?.kind === "canvas") {
+  if (content?.kind === "canvasDocument") {
     window.EXCALIDRAW_ASSET_PATH = new URL("./excalidraw/", location.href).href;
     void import("./canvasDocument/CanvasReader").then(({ default: CanvasReader }) => {
       renderReader(<CanvasReader tabs={reader.tabs} tabKey={reader.key} initial={content} />);

@@ -40,7 +40,7 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
 
   const [aiOpen, setAiOpen] = useState(false);
   const [aiSettings, setAiSettings] = useState(false);
-  const [chatId] = useState(() => `canvas:${initial.id ?? initial.draftId ?? crypto.randomUUID()}`);
+  const [chatId] = useState(() => `canvasDocument:${initial.id ?? initial.draftId ?? crypto.randomUUID()}`);
   const [chatGeneration, setChatGeneration] = useState(0);
   const flushAi = useCallback(async () => { stopAiForClose(chatId); await flushAiHistory(chatId); }, [chatId]);
   const file = useCanvasDocumentFile(tabs, tabKey, initial, editor, flushAi);
@@ -85,7 +85,7 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [active, properties, exportSnapshot, file.confirmClose, file.save]);
-  useFileCommands(active, "canvas", file.saving || file.confirmClose || properties || !!exportSnapshot, command => {
+  useFileCommands(active, "canvasDocument", file.saving || file.confirmClose || properties || !!exportSnapshot, command => {
     if (command === "recent") tabs.library();
     else if (command === "save" || command === "save-as") void file.save(command === "save-as");
     else if (command === "properties") setProperties(true);
@@ -144,7 +144,7 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
         </Excalidraw>}
       </div>
       {active && aiOpen && <AiPanel key={chatGeneration}
-        documentContext={{ kind: "canvas", name: file.document.name, displayName: file.document.name, selection: null, readText: readScene }}
+        documentContext={{ kind: "canvasDocument", name: file.document.name, displayName: file.document.name, selection: null, readText: readScene }}
         docId={chatId} persist onDrawingReply={insertDrawing} onClose={() => setAiOpen(false)} onSettings={() => setAiSettings(true)} />}
     </main>
     {exportSnapshot && <DocumentExportDialog snapshot={exportSnapshot} mode="export" onClose={() => setExportSnapshot(null)} onSave={saveCanvasExport} />}

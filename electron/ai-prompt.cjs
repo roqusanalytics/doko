@@ -27,7 +27,7 @@ const drawingInstructions = [
   "Use only those types and fields. Do not include links, embeds, images, or changes to existing Elements.",
 ].join("\n");
 
-const instructionsFor = document => document.kind === "canvas" ? drawingInstructions : instructions;
+const instructionsFor = document => document.kind === "canvasDocument" ? drawingInstructions : instructions;
 
 function chatRequest(model, document, messages) {
   const input = [

@@ -97,7 +97,7 @@ function formats() {
     }
     await fs.writeFile(canvasDocumentPath, "\ufeff" + sceneText);
     const drawingDocument = await files.open(canvasDocumentPath);
-    assert.deepEqual([drawingDocument.kind, drawingDocument.name, drawingDocument.text], ["canvas", "diagram.excalidraw", sceneText]);
+    assert.deepEqual([drawingDocument.kind, drawingDocument.name, drawingDocument.text], ["canvasDocument", "diagram.excalidraw", sceneText]);
     assert.equal((await files.open(canvasDocumentPath)).id, drawingDocument.id);
     assert.match((await files.save(drawingDocument.id, sceneText)).error, /no longer open/);
     assert.match((await files.saveCanvasDocument(first.id, sceneText)).error, /no longer open/);

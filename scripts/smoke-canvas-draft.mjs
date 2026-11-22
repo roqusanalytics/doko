@@ -23,7 +23,7 @@ const drafts = async () => {
   });
   try {
     return await new Promise((resolve, reject) => {
-      const range = IDBKeyRange.bound(["canvas-draft", ""], ["canvas-draft", "\uffff"]);
+      const range = IDBKeyRange.bound(["canvas-document-draft", ""], ["canvas-document-draft", "\uffff"]);
       const request = db.transaction("versionPdfs").objectStore("versionPdfs").getAll(range);
       request.onsuccess = () => resolve(request.result.map(text => JSON.parse(text)));
       request.onerror = () => reject(request.error);

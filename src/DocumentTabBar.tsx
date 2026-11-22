@@ -31,7 +31,7 @@ export function DocumentTabBar({ tabs, tabKey }: { tabs: ReaderContext["tabs"]; 
               if (event.key === "Home" || event.key === "End") tabs.select(tabs.all[event.key === "Home" ? 0 : tabs.all.length - 1].key, true);
               else tabs.cycle(event.key === "ArrowRight" ? 1 : -1);
             }}>
-            <Icon name={tab.content?.kind === "canvas" ? "canvasDocument" : tab.name ? "file" : "book"} size={14} /><span>{name}</span>
+            <Icon name={tab.content?.kind === "canvasDocument" ? "canvasDocument" : tab.name ? "file" : "book"} size={14} /><span>{name}</span>
           </button>
           <button className="close-document-tab" title={tab.dirty ? "Unsaved changes · Close tab" : "Close tab"}
             aria-label={`Close ${name}${tab.dirty ? ", unsaved changes" : ""}`} onClick={() => void tabs.close(tab.key)}>

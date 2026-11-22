@@ -227,12 +227,12 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
     return record;
   };
   // Text, CSV and SVG documents carry their BOM and line endings (absent when default), so exported copies can keep them.
-  const document = record => record.kind === "canvas"
-    ? { kind: "canvas", id: record.id, name: path.basename(record.file), text: record.text }
+  const document = record => record.kind === "canvasDocument"
+    ? { kind: "canvasDocument", id: record.id, name: path.basename(record.file), text: record.text }
     : ({ kind: "markdown", id: record.id, name: path.basename(record.file), text: record.text,
     ...(record.format && { format: record.format, encoding: ENCODING_LABELS[record.encoding],
       ...(record.bom && { bom: true }), ...(record.eol !== "\n" && { eol: record.eol }), ...(record.cellEol && record.cellEol !== "\n" && { cellEol: record.cellEol }) }) });
-  const decode = (record, data) => record.kind === "canvas" ? decodeCanvasDocument(data)
+  const decode = (record, data) => record.kind === "canvasDocument" ? decodeCanvasDocument(data)
     : record.format ? decodeText(data, getLocale(), record.format === "csv") : decodeMarkdown(data);
   const remember = record => {
     record.id = crypto.randomUUID(); records.set(record.id, record); identities.set(record.key, record.id); return record;
@@ -279,7 +279,7 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
     if (!MARKDOWN_FILE.test(file) && !fileFormat(file) && !IMAGE_FILE.test(file)) throw new Error("Choose a Markdown file, text file, CSV file, SVG file, HTML file, Excalidraw file, or supported image.");
     const resolved = await regular(file);
     const root = path.dirname(resolved), format = fileFormat(resolved);
-    const kind = format === "excalidraw" ? "canvas" : MARKDOWN_FILE.test(resolved) || format ? "markdown" : "gallery";
+    const kind = format === "excalidraw" ? "canvasDocument" : MARKDOWN_FILE.test(resolved) || format ? "markdown" : "gallery";
     const isTextDocument = kind !== "gallery";
     const key = `${kind}:${isTextDocument ? resolved : root}`;
     const existing = identities.get(key);
@@ -384,7 +384,7 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
   async function save(id, text, copy = false, utf8 = false, kind = "markdown") {
     let record, acquired = false, destinationKey;
     try {
-      const firstSave = kind === "canvas" && id === undefined;
+      const firstSave = kind === "canvasDocument" && id === undefined;
       record = firstSave ? { kind, format: "excalidraw", encoding: "utf-8", eol: "\n" } : get(id, kind);
       if (record.format === "html") throw new Error("HTML documents are read-only.");
       if (record.busy) return { error: "This document is still saving." };
@@ -393,7 +393,7 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
       if (text.includes("\0")) throw new Error(record.format ? `${name} can't contain null characters.` : "Markdown must be a UTF-8 text file.");
       // Cheap bound before encoding: every supported encoding needs at least one byte per character.
       if (text.length > MAX_MARKDOWN_BYTES) throw new Error(`${name} is limited to 5 MB.`);
-      if (kind === "canvas") validateCanvasDocument(text);
+      if (kind === "canvasDocument") validateCanvasDocument(text);
       const encoding = utf8 ? "utf-8" : record.encoding;
       const unified = text.replace(/\r\n|\r/g, "\n");
       // An SVG moving to UTF-8 from another encoding gets its XML declaration updated; the record then holds the rewritten text.
@@ -412,7 +412,7 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
         if (!path.isAbsolute(file) || !copyName.test(file)) throw new Error(`Save the copy with ${copyWords} extension.`);
         checkDiskPath(file);
         file = path.join(await fsp.realpath(path.dirname(file)), path.basename(file));
-        if (kind === "canvas") {
+        if (kind === "canvasDocument") {
           // The picker can return a different spelling of an existing file on a case-insensitive volume.
           try { file = await regular(file); }
           catch (error) { if (error.code !== "ENOENT") throw error; }
@@ -421,7 +421,7 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
         const key = `${kind}:${file}`;
         const other = identities.get(key);
         if (other && other !== record.id) throw new Error("That file is already open. Choose another name.");
-        if (kind === "canvas") {
+        if (kind === "canvasDocument") {
           if (opening.has(key) || savingAs.has(key)) throw new Error("That file is being opened or saved. Choose another name.");
           savingAs.add(key); destinationKey = key;
         }
@@ -469,7 +469,7 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
       if (acquired) record.busy = false;
     }
   }
-  return { open, save, saveCanvasDocument: (id, text, copy) => save(id, text, copy, false, "canvas"),
+  return { open, save, saveCanvasDocument: (id, text, copy) => save(id, text, copy, false, "canvasDocument"),
     trash, reveal, asset, image: (id, name) => asset(id, name, true),
     reload: async id => loadMarkdown(get(id, "markdown")), refresh: async (id, selected) => gallery(get(id, "gallery"), selected),
     release(id) { const record = get(id); if (record.busy) throw new Error("This document is still saving."); records.delete(id); identities.delete(record.key); },
