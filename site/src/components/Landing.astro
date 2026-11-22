@@ -16,6 +16,7 @@ const formats = [
   { id: "url", label: "URL", color: "#66625D" },
   { id: "avif", label: "AVIF", color: "#E0873A", photo: "fishing-harbour" },
   { id: "md", label: "MD", color: "#1A1A1A" },
+  { id: "canvas", label: "CANVAS", color: "#6965DB", icon: "canvas" },
   { id: "webp", label: "WEBP", color: "#4E9A5B", photo: "kittiwakes" },
   { id: "jpg", label: "JPG", color: "#D9A441", photo: "coast-cliffs" },
   { id: "png", label: "PNG", color: "#3FA7A0", photo: "lighthouse" },
@@ -31,9 +32,10 @@ const drift = [
   { id: "docx", x: "12%", y: "78%", s: .7, b: 4, v: .5 },
   { id: "png", photo: "lighthouse", x: "78%", y: "92%", s: .65, b: 2, v: .9 },
   { id: "webp", photo: "forest-path", x: "24%", y: "4%", s: .6, b: 5, v: .4 },
+  { id: "canvas", x: "5%", y: "47%", s: .75, b: 2, v: .8 },
 ];
-const tileBrand: Record<string, string> = { pdf: "acrobat", docx: "word" };
-const tileColor: Record<string, string> = { pdf: logos.acrobat.color, md: "#1A1A1A", docx: logos.word.color, jpg: "#D9A441", png: "#3FA7A0", webp: "#4E9A5B" };
+const tileBrand: Record<string, string> = { pdf: "#b-acrobat", docx: "#b-word", canvas: "#i-canvas" };
+const tileColor: Record<string, string> = { pdf: logos.acrobat.color, md: "#1A1A1A", docx: logos.word.color, jpg: "#D9A441", png: "#3FA7A0", webp: "#4E9A5B", canvas: "#6965DB" };
 
 // Brand SVGs become currentColor symbols so the logo follows light and dark mode.
 const symbol = (svg: string, id: string) => {
@@ -44,7 +46,15 @@ const symbol = (svg: string, id: string) => {
 const logoSymbols = symbol(logoRaw, "logo") + symbol(markRaw, "mark");
 const t = Astro.props.lang === "lt" ? lt : en;
 const { faq } = t;
-const shotPrefix = Astro.props.lang === "lt" ? "/mockups/practical" : "/mockups/practical-en";
+// Hero tour: real recordings of the app, in the page language (selected at build time, checked by check-seo.mjs).
+const tourPrefix = `/tour/${Astro.props.lang === "lt" ? "lt" : "en"}`;
+const tour = [
+  { id: "pdf", file: "pdf", icon: "pdf", label: "PDF" },
+  { id: "canvas", file: "canvas", icon: "canvas", label: "Canvas" },
+  { id: "photo", file: "photos", icon: "photo", label: t.hero.photos },
+  { id: "md", file: "markdown", icon: "md", label: "Markdown" },
+  { id: "table", file: "excel", icon: "table", label: t.hero.tables },
+] as const;
 // Kinetic statement: words reveal on scroll, format icons pop in between them.
 const statement = t.kinetic.statement;
 const softwareLd = { ...software, url: t.url, description: t.software.description, featureList: t.software.featureList };
@@ -93,6 +103,7 @@ const faqLd = {
   <Fragment set:html={logoSymbols} />
   {Object.entries(logos).map(([k, l]) => <symbol id={`b-${k}`} viewBox="0 0 24 24"><path fill="currentColor" d={l.d} /></symbol>)}
   <symbol id="i-pdf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></symbol>
+  <symbol id="i-canvas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="2"/><circle cx="17" cy="17" r="4"/><path d="M11 7h3.5A2.5 2.5 0 0 1 17 9.5V13"/><path d="m15 11 2 2 2-2"/></symbol>
   <symbol id="i-photo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-9 9"/></symbol>
   <symbol id="i-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M6 15V9l2.5 3L11 9v6M15.5 9v6m0 0-2-2m2 2 2-2"/></symbol>
   <symbol id="i-table" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18M3 15h18M9 4v16"/></symbol>
@@ -160,7 +171,7 @@ const faqLd = {
             ) : f.id === "url" ? (
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z"/></svg>
             ) : (
-              <>{f.brand && <svg class="brand"><use href={`#b-${f.brand}`} /></svg>}<span class="doc">{f.label}</span></>
+              <>{f.brand && <svg class="brand"><use href={`#b-${f.brand}`} /></svg>}{f.icon && <svg class="brand"><use href={`#i-${f.icon}`} /></svg>}<span class="doc">{f.label}</span></>
             )}
           </div>
         </div>
@@ -168,30 +179,30 @@ const faqLd = {
       <div class="hubx" aria-hidden="true"><span class="halo"></span><Fragment set:html={appIcon} /></div>
     </div>
 
-    <div class="stage">
+    <div class="stage" data-tour>
       <div class="window">
         <div class="views">
-          <div class="view on" role="tabpanel" tabindex="0" id="p-pdf" aria-labelledby="t-pdf">
-            <img src={`${shotPrefix}-pdf-1334.jpg`} srcset={`${shotPrefix}-pdf-1334.jpg 1x, ${shotPrefix}-pdf-2668.jpg 2x`} alt={t.hero.shots.pdf} width="1334" height="870" fetchpriority="high" decoding="async" />
-          </div>
-          <div class="view" role="tabpanel" tabindex="0" id="p-photo" aria-labelledby="t-photo">
-            <img src={`${shotPrefix}-photos-1334.jpg`} srcset={`${shotPrefix}-photos-1334.jpg 1x, ${shotPrefix}-photos-2668.jpg 2x`} alt={t.hero.shots.photo} width="1334" height="870" loading="lazy" decoding="async" />
-          </div>
-          <div class="view" role="tabpanel" tabindex="0" id="p-md" aria-labelledby="t-md">
-            <img src={`${shotPrefix}-markdown-1334.jpg`} srcset={`${shotPrefix}-markdown-1334.jpg 1x, ${shotPrefix}-markdown-2668.jpg 2x`} alt={t.hero.shots.md} width="1334" height="870" loading="lazy" decoding="async" />
-          </div>
-          <div class="view" role="tabpanel" tabindex="0" id="p-table" aria-labelledby="t-table">
-            <img src={`${shotPrefix}-excel-1334.jpg`} srcset={`${shotPrefix}-excel-1334.jpg 1x, ${shotPrefix}-excel-2668.jpg 2x`} alt={t.hero.shots.table} width="1334" height="870" loading="lazy" decoding="async" />
-          </div>
+          {tour.map((v, i) => (
+            <div class={`view${i ? "" : " on"}`} role="tabpanel" tabindex="0" id={`p-${v.id}`} aria-labelledby={`t-${v.id}`}>
+              <video muted playsinline preload={i ? "none" : "metadata"} width="1600" height="1044" aria-label={t.hero.shots[v.id]}
+                poster={i ? undefined : `${tourPrefix}/${v.file}.jpg`} data-poster={`${tourPrefix}/${v.file}.jpg`}>
+                <source src={`${tourPrefix}/${v.file}.mp4`} type="video/mp4" />
+              </video>
+            </div>
+          ))}
         </div>
       </div>
       <div class="switch">
-          <div class="tabs" role="tablist" aria-label={t.hero.filesLabel}>
-            <button class="tab" role="tab" id="t-pdf" aria-controls="p-pdf" aria-selected="true"><svg aria-hidden="true"><use href="#i-pdf"/></svg><span>PDF</span></button>
-            <button class="tab" role="tab" id="t-photo" aria-controls="p-photo" aria-selected="false" tabindex="-1"><svg aria-hidden="true"><use href="#i-photo"/></svg><span>{t.hero.photos}</span></button>
-            <button class="tab" role="tab" id="t-md" aria-controls="p-md" aria-selected="false" tabindex="-1"><svg aria-hidden="true"><use href="#i-md"/></svg><span>Markdown</span></button>
-            <button class="tab" role="tab" id="t-table" aria-controls="p-table" aria-selected="false" tabindex="-1"><svg aria-hidden="true"><use href="#i-table"/></svg><span>{t.hero.tables}</span></button>
-          </div>
+        <div class="tabs" role="tablist" aria-label={t.hero.filesLabel}>
+          <span class="pill" aria-hidden="true"></span>
+          {tour.map((v, i) => (
+            <button class="tab" type="button" role="tab" id={`t-${v.id}`} aria-controls={`p-${v.id}`} aria-selected={i ? "false" : "true"} tabindex={i ? "-1" : undefined}><svg aria-hidden="true"><use href={`#i-${v.icon}`}/></svg><span>{v.label}</span></button>
+          ))}
+        </div>
+        <button class="tour-toggle" type="button" data-tour-toggle aria-label={t.hero.pause} data-pause={t.hero.pause} data-play={t.hero.play}>
+          <svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg>
+          <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>
+        </button>
       </div>
     </div>
   </section>
@@ -307,7 +318,41 @@ const faqLd = {
           <div class="cap"><h3>{t.bento.pages[0]}</h3><p>{t.bento.pages[1]}</p></div>
         </li>
 
-        <li class="cell c-photo" data-cell="photo">
+        <li class="cell c-3" data-cell="canvas">
+          <div class="viz demo-viz">
+            <div class="demo d-cv" aria-hidden="true">
+              <div class="app">
+                <div class="app-bar"><em>{t.bento.canvasMini.file}</em>
+                  <span class="cv-tool" data-tool="rect"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2"/></svg></span>
+                  <span class="cv-tool" data-tool="arrow"><svg viewBox="0 0 24 24"><path d="M4 12h15M14 7l5 5-5 5"/></svg></span>
+                  <span class="cv-tool"><svg viewBox="0 0 24 24"><path d="M6 6h12M12 6v12"/></svg></span>
+                  <span class="cv-ai"><svg viewBox="0 0 24 24"><use href="#i-ai"/></svg>Ask AI</span>
+                </div>
+                <div class="app-body cv-body">
+                  <svg class="cv-board" viewBox="-6 -10 420 180">
+                    <g class="cv-you">
+                      <path class="cv-draw cv-box" pathLength="1" d="M22 57C50 54 85 56 109 55C111 70 110 88 111 104C80 106 50 104 21 105C19 88 20 72 22 57Z"/>
+                      <text class="cv-label" x="66" y="85" text-anchor="middle">{t.bento.canvasMini.labels[0]}</text>
+                      <path class="cv-draw cv-arrow" pathLength="1" d="M115 80C130 78 142 81 155 80M148 74 156 80 148 86"/>
+                    </g>
+                    <g class="cv-ai-made">
+                      <path class="cv-draw cv-box ai" pathLength="1" d="M161 56C190 54 222 57 249 55C251 72 250 88 250 105C222 106 190 104 160 105C159 88 160 72 161 56Z"/>
+                      <text class="cv-label" x="205" y="85" text-anchor="middle">{t.bento.canvasMini.labels[1]}</text>
+                      <path class="cv-draw cv-arrow" pathLength="1" d="M254 80C270 79 282 81 294 80M287 74 295 80 287 86"/>
+                      <path class="cv-draw cv-box ai" pathLength="1" d="M300 56C328 54 358 57 389 55C391 72 389 88 390 105C360 106 330 104 299 105C298 88 299 72 300 56Z"/>
+                      <text class="cv-label" x="345" y="85" text-anchor="middle">{t.bento.canvasMini.labels[2]}</text>
+                    </g>
+                  </svg>
+                </div>
+              </div>
+              <div class="cv-ask"><svg viewBox="0 0 24 24"><use href="#i-ai"/></svg><span class="cv-field">{t.bento.canvasMini.prompt}</span><b>↵</b></div>
+              <span class="ptr"><svg viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" /></svg><b>{t.bento.you}</b></span>
+            </div>
+          </div>
+          <div class="cap"><h3>{t.bento.canvas[0]}</h3><p>{t.bento.canvas[1]}</p></div>
+        </li>
+
+        <li class="cell c-3 c-photo" data-cell="photo">
           <div class="viz demo-viz">
             <div class="demo d-ph" aria-hidden="true">
               <div class="app">
@@ -348,7 +393,7 @@ const faqLd = {
         <div class="dt" data-speed={t.v} style={`left:${t.x};top:${t.y};--s:${t.s};--b:${t.b}px;--c:${tileColor[t.id]}`}>
           <div class={`fmt-in${t.photo ? " is-photo" : ""}`}>
             {t.photo ? <><img src={`/photos/${t.photo}.jpg`} alt="" width="64" height="64" loading="lazy" /><span class="badge">{t.id.toUpperCase()}</span></>
-              : t.id === "md" ? <Fragment set:html={markdownMark} /> : <><svg class="brand"><use href={`#b-${tileBrand[t.id]}`} /></svg><span class="doc">{t.id.toUpperCase()}</span></>}
+              : t.id === "md" ? <Fragment set:html={markdownMark} /> : <><svg class="brand"><use href={tileBrand[t.id]} /></svg><span class="doc">{t.id.toUpperCase()}</span></>}
           </div>
         </div>
       ))}
@@ -440,7 +485,7 @@ const faqLd = {
   <!-- Closing picture: a photo reduced to one-bit pixels -->
   <div class="outro" aria-hidden="true">
     <canvas data-dither="/photos/coast-sunset.jpg" data-cell="3" data-fade="1.1" data-focus-y=".62"></canvas>
-    <p class="wrap"><span>░▒▓ doko.lt</span><span>PDF · MD · TXT · CSV · XLSX · DOCX · HTML · SVG · JPG · PNG · WEBP · GIF · AVIF</span></p>
+    <p class="wrap"><span>░▒▓ doko.lt</span><span>PDF · MD · TXT · CSV · XLSX · DOCX · EXCALIDRAW · HTML · SVG · JPG · PNG · WEBP · GIF · AVIF</span></p>
   </div>
 </main>
 

@@ -7,9 +7,9 @@ export const en = {
   url: "https://doko.lt/",
   meta: {
     title: "Doko: Free PDF Reader, plus Markdown, Excel and Photos",
-    description: "Doko is a free, open-source PDF reader for Mac, Windows and Linux with no ads. It also opens Word, Markdown, CSV and Excel files and photo folders.",
+    description: "Doko is a free, open-source PDF reader for Mac, Windows and Linux with no ads. It opens Word, Markdown, Excel and photos, and draws on a Canvas.",
     ogTitle: "Doko: Free PDF Reader, plus Markdown, Excel and Photos",
-    ogDescription: "One free, open-source app for PDFs, Word, Markdown, spreadsheets and photos on Mac, Windows and Linux. No account. Your files stay on your computer.",
+    ogDescription: "One free, open-source app for PDFs, Word, Markdown, spreadsheets, photos and drawings on Mac, Windows and Linux. No account. Your files stay on your computer.",
     ogImageAlt: "Doko window with a spreadsheet open and the headline Documents, photos and spreadsheets. One reader.",
     ogLocale: "en_US",
   },
@@ -17,25 +17,28 @@ export const en = {
   hero: {
     lines: ["Documents, photos", "and spreadsheets"],
     bold: "One reader",
-    lede: "A free, open-source app for PDFs, Word, Markdown, spreadsheets and photos on Mac, Windows and Linux. No ads, no upsells, no account.",
+    lede: "A free, open-source app to read PDFs, Word, Markdown, spreadsheets and photos, and to draw on a Canvas. Mac, Windows and Linux. No ads, no upsells, no account.",
     get: "Download Doko",
     getMac: "Download for Mac",
     getWin: "Download for Windows",
     source: "View source",
-    formats: "Doko opens PDF, Word documents, web pages, Markdown, text, CSV and Excel files and JPG, PNG, WebP, GIF and AVIF images.",
+    formats: "Doko opens PDF, Word documents, web pages, Markdown, text, CSV and Excel files and JPG, PNG, WebP, GIF and AVIF images. It also draws on a Canvas and opens .excalidraw files.",
     photos: "Photos",
     tables: "Spreadsheets",
     filesLabel: "Open files",
+    pause: "Pause the tour",
+    play: "Play the tour",
     shots: {
-      pdf: "Doko showing the North Coast Studio PDF project brief",
-      photo: "Doko browsing the North Coast Studio photo folder",
-      md: "Doko showing the North Coast Studio Markdown project plan in preview",
-      table: "Doko showing the North Coast Studio project budget, an Excel workbook with two sheets",
+      pdf: "Doko opens the North Coast Studio PDF brief, scrolls and highlights a sentence",
+      canvas: "Doko Canvas: a Review step is drawn and linked below Build in the launch map",
+      photo: "Doko moves through the North Coast Studio photo folder",
+      md: "Doko scrolls the North Coast Studio Markdown launch plan",
+      table: "Doko selects totals in the North Coast Studio Excel budget and opens its second sheet",
     },
   },
   ai: {
     h2: ["Ask AI,", "bring your own plan"],
-    p: "Doko works with ChatGPT through your ChatGPT plan, with Claude through your own Claude Code, or with any model on OpenRouter. Answers cite the page they came from, and nothing is sent until you ask.",
+    p: "Doko works with ChatGPT through your ChatGPT plan, with Claude through your own Claude Code, or with any model on OpenRouter. Answers cite the page they came from, and nothing is sent until you ask. On a Canvas, it draws the diagram you describe.",
     label: "Ask ChatGPT, Claude or OpenRouter about a PDF, a Markdown file or a spreadsheet. Every answer cites its page, section or cell.",
     ask: "Ask",
     about: "about",
@@ -44,7 +47,7 @@ export const en = {
   },
   bento: {
     h2: ["Read it, mark it,", "finish it"],
-    p: "Everything you need to read, annotate and sign a document, in one calm window.",
+    p: "Everything you need to read, annotate, sign and sketch, in one calm window.",
     sheet: {
       title: "Spring survey",
       p1: ["Nesting sites rose by 18%", " compared with the previous year, mostly on the north cliffs."],
@@ -60,6 +63,8 @@ export const en = {
     md: ["Write Markdown", "Edit and preview. Save writes the original file."],
     sign: ["Sign documents", "Photograph your signature and place it on the page."],
     pages: ["Organize pages", "Reorder, rotate, delete. Redact or password-protect a copy."],
+    canvas: ["Draw on a Canvas", "Shapes, arrows and text in .excalidraw files. Ask AI draws a diagram for you."],
+    canvasMini: { file: "Plan.excalidraw", labels: ["Draft", "Review", "Publish"], prompt: "Add review and publish steps" },
     photo: ["Browse photo folders", "Open one image, scroll the folder. Crop, resize, adjust."],
     local: {
       say: ["No account,", "documents and notes stay on your computer"],
@@ -90,12 +95,13 @@ export const en = {
       ["Redact content", "Included", "Pro plan"],
       ["Password-protect PDFs", "Included", "Pro plan"],
       ["Ask AI with page citations", "Included, with your ChatGPT or Claude plan", "AI Assistant add-on, US$4.99/mo"],
+      ["Drawing Canvas with AI diagrams", "Included, saves .excalidraw files", "Not offered"],
     ],
     source: ["Adobe prices and plan features from ", "adobe.com", " (US, annual plans billed monthly), checked November 2026. Adobe and Acrobat are trademarks of Adobe Inc."],
   },
   details: {
     h2: ["A complete PDF reader", "and more"],
-    p: "Doko replaces a PDF reader, a Markdown editor, a spreadsheet viewer and a photo viewer with one free app.",
+    p: "Doko replaces a PDF reader, a Markdown editor, a spreadsheet viewer, a photo viewer and a whiteboard with one free app.",
     perksLabel: "Small things that matter",
     perks: ["Every file in its own tab", "Dark mode and five color themes", "Opens where you left off", "Export notes to Markdown or JSON", "Updates from one button", "Works offline"],
     items: [
@@ -105,6 +111,7 @@ export const en = {
       ["Markdown and text editor", "Open .md files to write and preview them, or edit plain .txt files with their encoding and line endings kept. Save writes back to the original file, and Markdown changes made elsewhere show a conflict instead of being overwritten."],
       ["Photo viewer", "Open one JPG, PNG, WebP, GIF, BMP or AVIF and browse every image in its folder. Crop, resize, rotate and adjust brightness, contrast and saturation. SVG files open as a picture, with their XML source one switch away."],
       ["Tables, Word files and web pages", "Edit CSV files as a table or as text; saving changes only what you edited. Read Excel workbooks sheet by sheet and preview HTML files. Open Word documents as PDFs, or turn a web page into a PDF you can highlight."],
+      ["Canvas for drawing", "File → New Canvas opens a hand-drawn whiteboard for shapes, arrows, text, frames, images and Mermaid diagrams. Save standard .excalidraw files and export them to PNG, SVG or PDF. Ask AI draws editable shapes or a Mermaid diagram from your description, and one Undo removes it."],
     ],
   },
   // Single source for the visible FAQ and its FAQPage structured data.
@@ -113,12 +120,13 @@ export const en = {
     items: [
       { q: "Is Doko free?", a: "Yes. Doko is free and open source under the MIT License. There is no paid tier, no subscription and no account." },
       { q: "Does Doko show ads or upgrade prompts?", a: "No. Doko has no ads, no trials, no paid tier and no upgrade prompts. Every feature is included for everyone." },
-      { q: "Does Doko work offline?", a: "Yes. Reading, annotating, signing, editing Markdown and viewing photos all work without an internet connection. Doko goes online only to check for updates, download scan languages you choose, open a link you give it, or answer an Ask AI question." },
+      { q: "Does Doko work offline?", a: "Yes. Reading, annotating, signing, editing Markdown, viewing photos and drawing on a Canvas all work without an internet connection. Doko goes online only to check for updates, download scan languages you choose, open a link you give it, or answer an Ask AI question." },
       { q: "Does Doko upload my documents?", a: "No. Doko has no analytics or telemetry and never uploads documents on its own. Only when you ask AI a question does the document text, your selected passage and the conversation go to the provider you chose." },
-      { q: "Which files can Doko open?", a: "PDF files, Word documents (.docx and .doc), Markdown files (.md and .markdown), text files (.txt), CSV tables and images (JPG, PNG, WebP, GIF, BMP, AVIF and SVG). Excel workbooks (.xlsx) and HTML files open read-only. Web pages open as PDFs from a link." },
+      { q: "Which files can Doko open?", a: "PDF files, Word documents (.docx and .doc), Markdown files (.md and .markdown), text files (.txt), CSV tables, Canvas drawings (.excalidraw) and images (JPG, PNG, WebP, GIF, BMP, AVIF and SVG). Excel workbooks (.xlsx) and HTML files open read-only. Web pages open as PDFs from a link." },
       { q: "Which systems does Doko run on?", a: "Windows 10 and 11 (64-bit), macOS 12 or later on Apple silicon and Intel, and 64-bit Linux as a .deb package or an AppImage." },
       { q: "Is Doko an alternative to “that other PDF” or macOS Preview?", a: "Yes, for most document work. That other PDF reader is free for viewing, printing, sharing and commenting, while editing text, organizing pages, redacting and password protection need its Pro plan (US$19.99/month). Doko does all of these for free, without ads or upgrade prompts, and also opens Markdown files, spreadsheets and photo folders." },
       { q: "How do I ask AI about a PDF?", a: "Open the Ask AI panel, choose ChatGPT, Claude or OpenRouter, then ask about the whole document or a selected passage. Answers stream in with page citations that jump to the source." },
+      { q: "Can Doko draw diagrams?", a: "Yes. File → New Canvas (Ctrl/Cmd+Shift+N) opens a hand-drawn whiteboard for shapes, arrows, text, frames, images and Mermaid diagrams. Drawings save as standard .excalidraw files and export to PNG, SVG or PDF. Ask AI can draw the diagram you describe as editable shapes and arrows, or as a Mermaid flowchart, sequence or class diagram." },
     ],
   },
   download: {
@@ -132,15 +140,15 @@ export const en = {
     firstRun: "First launch: on Mac, open <b>System Settings → Privacy &amp; Security</b> and choose <b>Open Anyway</b>. On Windows, choose <b>More info → Run anyway</b>.",
   },
   footer: {
-    about: "Free, open-source reader for PDFs, Word, Markdown, spreadsheets and photos on Windows, macOS and Linux.",
-    trademarks: "Apple, macOS, Windows, Word, Adobe, Acrobat, ChatGPT, OpenAI, Claude, OpenRouter and Linux are trademarks of their respective owners, shown only to indicate compatibility. Doko is not affiliated with or endorsed by them.",
+    about: "Free, open-source reader for PDFs, Word, Markdown, spreadsheets and photos, with a drawing Canvas, on Windows, macOS and Linux.",
+    trademarks: "Apple, macOS, Windows, Word, Adobe, Acrobat, ChatGPT, OpenAI, Claude, OpenRouter, Excalidraw and Linux are trademarks of their respective owners, shown only to indicate compatibility. Doko is not affiliated with or endorsed by them.",
     privacy: "Privacy",
     changelog: "Changelog",
     license: "License",
   },
   // SoftwareApplication JSON-LD text (the rest lives in src/data/software.ts).
   software: {
-    description: "Doko is a free, open-source, local-first PDF reader, Markdown editor and photo viewer for Windows, macOS and Linux. It highlights, annotates and signs PDFs, answers questions about documents with AI, and keeps files on your computer.",
+    description: "Doko is a free, open-source, local-first PDF reader, Markdown editor and photo viewer for Windows, macOS and Linux. It highlights, annotates and signs PDFs, answers questions about documents with AI, draws diagrams on a Canvas, and keeps files on your computer.",
     featureList: [
       "PDF reader with search, outline and thumbnails",
       "Highlights, notes, drawing and text boxes",
@@ -153,6 +161,8 @@ export const en = {
       "Photo folder viewer with crop, resize and adjustments",
       "Open Word documents and web pages as PDFs",
       "Edit TXT, CSV and SVG files; view Excel workbooks and HTML files",
+      "Canvas whiteboard with .excalidraw files and PNG, SVG and PDF export",
+      "Ask AI draws diagrams and Mermaid charts on a Canvas",
     ],
   },
 };
