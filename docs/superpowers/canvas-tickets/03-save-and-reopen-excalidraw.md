@@ -8,7 +8,7 @@ Failas: standartinis Excalidraw JSON (`type: "excalidraw"`, `version: 2`, `sourc
 
 **Status:** ready-for-agent
 
-- [ ] Main proceso turinio failų modulis skaito ir rašo `excalidraw` formatą: UTF-8, JSON ir `type === "excalidraw"` patikra, ta pati dydžio riba ir atomic save
+- [ ] Main proceso turinio failų modulis skaito ir rašo `excalidraw` formatą: UTF-8, JSON ir `type === "excalidraw"` patikra, dydžio riba 50 MB ir atomic save
 - [ ] `.excalidraw` yra Open dialogo filtre, renderer'io priimamų plėtinių sąraše, failų asociacijose ir Linux MIME tipuose
 - [ ] File meniu būsena `canvas`: Save, Save As, Export / Convert, Properties įjungti; Print ir Reduce File Size išjungti
 - [ ] Autosave veikia po Save; failas atsidaro excalidraw.com formatu (rankiniu būdu patikrinta arba patikrinta JSON struktūra)

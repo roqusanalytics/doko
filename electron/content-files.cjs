@@ -17,11 +17,15 @@ const CANVAS_DOCUMENT_FILE = /\.excalidraw$/i;
 const XLSX_FILE = /\.xlsx?$/i;
 const IMAGE_FILE = /\.(jpe?g|png|webp|gif|bmp|avif)$/i;
 const MAX_MARKDOWN_BYTES = 5 * 1024 * 1024;
+// Excalidraw caps each embedded image at 4 MB but not the drawing, whose images are stored as base64.
+const MAX_CANVAS_DOCUMENT_BYTES = 50 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 100 * 1024 * 1024;
 const MAX_IMAGE_PIXELS = 80_000_000;
 const ENCODING_LABELS = { "utf-8": "UTF-8", "utf-16le": "UTF-16 LE", "utf-16be": "UTF-16 BE", "windows-1252": "Windows-1252", "windows-1257": "Windows-1257" };
 const NOT_TEXT = "This file isn't plain text or uses an encoding Doko can't read.";
 // `txt`, `csv`, `svg` and `html` records are plain text for I/O (same encodings); a CSV table or an SVG image is only a view of that text.
+const sizeLimit = name => name === "Excalidraw" ? MAX_CANVAS_DOCUMENT_BYTES : MAX_MARKDOWN_BYTES;
+const tooLarge = name => new Error(`${name} is limited to ${sizeLimit(name) / 1024 / 1024} MB.`);
 const kindName = format => format === "text" ? "Text" : format === "csv" ? "CSV" : format === "svg" ? "SVG" : format === "html" ? "HTML" : format === "excalidraw" ? "Excalidraw" : "Markdown";
 const fileFormat = file => TEXT_FILE.test(file) ? "text" : CSV_FILE.test(file) ? "csv" : SVG_FILE.test(file) ? "svg" : HTML_FILE.test(file) ? "html" : CANVAS_DOCUMENT_FILE.test(file) ? "excalidraw" : undefined;
 // What a copy of each text-based format must be named: the pattern it must match and the words for the error.
@@ -42,8 +46,8 @@ async function regular(file) {
 
 async function snapshot(file, name = "Markdown") {
   const before = await fsp.lstat(file, { bigint: true });
-  if (before.size > MAX_MARKDOWN_BYTES) throw new Error(`${name} is limited to 5 MB.`);
-  const data = await readRegular(file, MAX_MARKDOWN_BYTES);
+  if (before.size > sizeLimit(name)) throw tooLarge(name);
+  const data = await readRegular(file, sizeLimit(name));
   const after = await fsp.lstat(file, { bigint: true });
   if (!sameFile(before, after) || before.ctimeNs !== after.ctimeNs) throw conflict();
   return { data, stat: after, digest: hash(data) };
@@ -392,14 +396,14 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
       if (typeof text !== "string" || typeof copy !== "boolean" || typeof utf8 !== "boolean") throw new Error(`Invalid ${name} save request.`);
       if (text.includes("\0")) throw new Error(record.format ? `${name} can't contain null characters.` : "Markdown must be a UTF-8 text file.");
       // Cheap bound before encoding: every supported encoding needs at least one byte per character.
-      if (text.length > MAX_MARKDOWN_BYTES) throw new Error(`${name} is limited to 5 MB.`);
+      if (text.length > sizeLimit(name)) throw tooLarge(name);
       if (kind === "canvasDocument") validateCanvasDocument(text);
       const encoding = utf8 ? "utf-8" : record.encoding;
       const unified = text.replace(/\r\n|\r/g, "\n");
       // An SVG moving to UTF-8 from another encoding gets its XML declaration updated; the record then holds the rewritten text.
       const normalized = record.format === "svg" && encoding !== record.encoding ? xmlUtf8(unified) : unified;
       const data = encodeText(record.format === "csv" ? csvRestore(normalized, record.eol, record.cellEol) : normalized.replace(/\n/g, record.eol), encoding, record.bom);
-      if (data.length > MAX_MARKDOWN_BYTES) throw new Error(`${name} is limited to 5 MB.`);
+      if (data.length > sizeLimit(name)) throw tooLarge(name);
       record.busy = true;
       acquired = true;
       if (!firstSave) await checkRoot(record);
@@ -476,4 +480,4 @@ function createContentFiles({ chooseSavePath, confirmTrash, trashItem, requestTr
     clear() { records.clear(); identities.clear(); } };
 }
 
-module.exports = { createContentFiles, imageInfo, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, SVG_FILE, HTML_FILE, CANVAS_DOCUMENT_FILE, XLSX_FILE, IMAGE_FILE, MAX_MARKDOWN_BYTES, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS };
+module.exports = { createContentFiles, imageInfo, MARKDOWN_FILE, TEXT_FILE, CSV_FILE, SVG_FILE, HTML_FILE, CANVAS_DOCUMENT_FILE, XLSX_FILE, IMAGE_FILE, MAX_MARKDOWN_BYTES, MAX_CANVAS_DOCUMENT_BYTES, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS };

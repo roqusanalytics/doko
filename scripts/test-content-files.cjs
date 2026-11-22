@@ -10,7 +10,7 @@ if (process.platform === 'win32') {
     callback(error, stdout, stderr);
   });
 }
-const { createContentFiles, imageInfo, MAX_MARKDOWN_BYTES, MAX_IMAGE_BYTES } = require("../electron/content-files.cjs");
+const { createContentFiles, imageInfo, MAX_MARKDOWN_BYTES, MAX_CANVAS_DOCUMENT_BYTES, MAX_IMAGE_BYTES } = require("../electron/content-files.cjs");
 
 function png(width = 2, height = 3) {
   const data = Buffer.alloc(33);
@@ -90,7 +90,7 @@ function formats() {
       [JSON.stringify({ ...scene, elements: [null] }), /invalid or unsupported/],
       [JSON.stringify({ ...scene, elements: [{ type: "iframe" }] }), /invalid or unsupported/],
       [Buffer.from([0xc3, 0x28]), /UTF-8/],
-      [Buffer.alloc(MAX_MARKDOWN_BYTES + 1, 32), /Excalidraw is limited to 5 MB/],
+      [Buffer.alloc(MAX_CANVAS_DOCUMENT_BYTES + 1, 32), /Excalidraw is limited to 50 MB/],
     ]) {
       await fs.writeFile(canvasDocumentPath, data);
       await assert.rejects(files.open(canvasDocumentPath), failure);
@@ -101,7 +101,7 @@ function formats() {
     assert.equal((await files.open(canvasDocumentPath)).id, drawingDocument.id);
     assert.match((await files.save(drawingDocument.id, sceneText)).error, /no longer open/);
     assert.match((await files.saveCanvasDocument(first.id, sceneText)).error, /no longer open/);
-    assert.match((await files.saveCanvasDocument(drawingDocument.id, "x".repeat(MAX_MARKDOWN_BYTES + 1))).error, /Excalidraw is limited to 5 MB/);
+    assert.match((await files.saveCanvasDocument(drawingDocument.id, "x".repeat(MAX_CANVAS_DOCUMENT_BYTES + 1))).error, /Excalidraw is limited to 50 MB/);
     assert.match((await files.saveCanvasDocument(drawingDocument.id, '{"type":"pdf"}')).error, /isn't an Excalidraw drawing/);
     assert.equal(await fs.readFile(canvasDocumentPath, "utf8"), "\ufeff" + sceneText);
     const editedScene = JSON.stringify({ ...scene, appState: { viewBackgroundColor: "#fafafa" } });
@@ -109,6 +109,11 @@ function formats() {
     assert.equal((await files.saveCanvasDocument(drawingDocument.id, editedScene)).ok, true);
     assert.equal(await fs.readFile(canvasDocumentPath, "utf8"), "\ufeff" + editedScene);
     if (process.platform !== "win32") assert.notEqual((await fs.stat(canvasDocumentPath)).ino, beforeSave.ino, "save replaces the inode atomically");
+    // Embedded images make drawings far larger than Markdown: a 6 MB scene still saves and reopens.
+    const imageScene = JSON.stringify({ ...scene, files: { photo: { id: "photo", mimeType: "image/png", created: 1,
+      dataURL: "data:image/png;base64," + "A".repeat(6 * 1024 * 1024) } } });
+    assert.equal((await files.saveCanvasDocument(drawingDocument.id, imageScene)).ok, true);
+    assert.equal((await files.open(canvasDocumentPath)).text.length, imageScene.length);
     await fs.writeFile(canvasDocumentPath, sceneText);
     assert.equal((await files.saveCanvasDocument(drawingDocument.id, editedScene)).conflict, true);
     assert.equal(await fs.readFile(canvasDocumentPath, "utf8"), sceneText);
