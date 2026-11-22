@@ -11,6 +11,7 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 const drain = async () => { for (let i = 0; i < 60; i++) await Promise.resolve(); };
+const pdf = { kind: "pdf", name: "test", text: "test", truncated: false };
 let passed = 0;
 async function check(name, test) { await test(); passed++; console.log(`ok ${name}`); }
 
@@ -35,8 +36,8 @@ function backend(fetch, expired = true) {
   sandbox.module.exports.register((name, fn) => handlers.set(name, fn), (_name, event) => events.push(event));
   return {
     events, timers,
-    ask(id) { return handlers.get("folio:ai-ask")(null, { id, provider: "chatgpt", model: "test",
-      document: { name: "test", text: "test", truncated: false }, messages: [{ role: "user", content: "test" }] }); },
+    ask(id, document = pdf) { return handlers.get("folio:ai-ask")(null, { id, provider: "chatgpt", model: "test",
+      document, messages: [{ role: "user", content: "test" }] }); },
     cancel(id) { handlers.get("folio:ai-cancel")(null, id); },
     async tick(ms) {
       const end = now + ms;
@@ -59,6 +60,16 @@ function response(chunks = ['data: {"type":"response.completed"}\n\n'], stall = 
     cancel: async () => stallCancel ? new Promise(() => {}) : undefined,
   }) } };
 }
+await check("missing and unsupported document kinds are rejected before provider access", async () => {
+  let requests = 0;
+  const b = backend(async () => { requests++; return response(); }, false);
+  const { kind, ...untyped } = pdf;
+  for (const document of [untyped, { ...pdf, kind: "canvas" }, { ...pdf, kind: "" }, { ...pdf, kind: 1 }]) {
+    assert.throws(() => b.ask("invalid", document), /Invalid request/);
+  }
+  await drain();
+  assert.equal(requests, 0);
+});
 await check("completed answers release slots even when the transport stays open", async () => {
   const b = backend(async () => response(['data: {"type":"response.output_text.delta","delta":"Complete answer"}\n\n',
     'data: {"type":"response.completed"}\n\n'], true, true), false);
