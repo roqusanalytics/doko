@@ -40,20 +40,20 @@ try {
   });
   await page.getByRole("button", { name: /Try a sample/ }).waitFor();
   // A refused attempt is retried when the inactive reader binds after its temporary state clears.
+  // The app may bind its own reader again before the retry runs, so check the outcome, not who suspended.
   assert.equal(await window.evaluate(async first => {
     const tabs = window.suspensionTabs, tab = tabs.all.find(tab => tab.key === first);
     clearTimeout(tab.suspendTimer);
     tab.suspendDue = true;
     const reader = tab.reader, original = reader.suspend;
-    let attempts = 0;
-    reader.suspend = async () => { attempts++; return undefined; };
+    reader.suspend = async () => undefined;
     await tabs.suspend(tab);
-    tabs.bind(first, { ...reader, suspend: async () => { attempts++; return original(); } });
-    // The retry and frame release are asynchronous; slow CI runners need longer than a fixed pause.
-    const retried = () => attempts === 2 && !tab.frame && tab.source?.kind === "blob";
-    for (const started = Date.now(); !retried() && Date.now() - started < 3000;) await new Promise(resolve => setTimeout(resolve, 20));
     reader.suspend = original;
-    return retried() || `attempts=${attempts} frame=${!!tab.frame} source=${tab.source?.kind}`;
+    if (!tab.frame) return "a refused suspension released the frame";
+    tabs.bind(first, { ...reader, suspend: original });
+    const suspended = () => !tab.frame && tab.source?.kind === "blob";
+    for (const started = Date.now(); !suspended() && Date.now() - started < 3000;) await new Promise(resolve => setTimeout(resolve, 20));
+    return suspended() || `frame=${!!tab.frame} source=${tab.source?.kind}`;
   }, first), true, "Inactive tab should retry after a reader rebind");
   await window.evaluate(first => window.suspensionTabs.select(first), first);
   await page.getByRole("textbox", { name: "Page number" }).waitFor();

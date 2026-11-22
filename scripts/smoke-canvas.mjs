@@ -155,7 +155,10 @@ try {
   await openMore();
   await action(more, "Reset the canvas").click();
   await page.locator(".clear-canvas__content").waitFor();
-  await page.keyboard.press("Escape");
+  // Close with the dialog's own Cancel: Escape depends on where focus lands, and the modal
+  // backdrop blocks the toolbar until it has closed.
+  await page.locator(".excalidraw-modal-container").getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.locator(".excalidraw-modal-container .Modal__background").waitFor({ state: "detached" });
   await openMore();
   await action(more, "Properties").click();
   const properties = page.getByRole("dialog", { name: "Properties" });
