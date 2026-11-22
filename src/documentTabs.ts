@@ -152,7 +152,7 @@ export class DocumentTabs {
         }
       }
       const current = this.entry(this.active);
-      const newCanvasDocument = source.kind === "content" && source.document.kind === "canvas";
+      const newCanvasDocument = source.kind === "content" && source.document.kind === "canvas" && !source.document.id;
       const tab = !newCanvasDocument && !first && current && !current.name && !current.closing ? current : this.create();
       if (source.kind === "content") this.resetFrame(tab);
       tab.name = source.name;

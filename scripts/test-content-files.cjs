@@ -81,6 +81,38 @@ function formats() {
     await fs.writeFile(binaryHtml, Buffer.from([0, 1, 2]));
     await assert.rejects(files.open(binaryHtml), /isn't plain text/);
 
+    const canvasDocumentPath = path.join(root, "diagram.excalidraw");
+    const scene = { type: "excalidraw", version: 2, source: "test", elements: [], appState: {}, files: {} };
+    const sceneText = JSON.stringify(scene);
+    for (const [data, failure] of [
+      ["not JSON", /invalid JSON/],
+      [JSON.stringify({ elements: [] }), /isn't an Excalidraw drawing/],
+      [JSON.stringify({ ...scene, elements: [null] }), /invalid or unsupported/],
+      [JSON.stringify({ ...scene, elements: [{ type: "iframe" }] }), /invalid or unsupported/],
+      [Buffer.from([0xc3, 0x28]), /UTF-8/],
+      [Buffer.alloc(MAX_MARKDOWN_BYTES + 1, 32), /Excalidraw is limited to 5 MB/],
+    ]) {
+      await fs.writeFile(canvasDocumentPath, data);
+      await assert.rejects(files.open(canvasDocumentPath), failure);
+    }
+    await fs.writeFile(canvasDocumentPath, "\ufeff" + sceneText);
+    const drawingDocument = await files.open(canvasDocumentPath);
+    assert.deepEqual([drawingDocument.kind, drawingDocument.name, drawingDocument.text], ["canvas", "diagram.excalidraw", sceneText]);
+    assert.equal((await files.open(canvasDocumentPath)).id, drawingDocument.id);
+    assert.match((await files.save(drawingDocument.id, sceneText)).error, /no longer open/);
+    assert.match((await files.saveCanvasDocument(first.id, sceneText)).error, /no longer open/);
+    assert.match((await files.saveCanvasDocument(drawingDocument.id, "x".repeat(MAX_MARKDOWN_BYTES + 1))).error, /Excalidraw is limited to 5 MB/);
+    assert.match((await files.saveCanvasDocument(drawingDocument.id, '{"type":"pdf"}')).error, /isn't an Excalidraw drawing/);
+    assert.equal(await fs.readFile(canvasDocumentPath, "utf8"), "\ufeff" + sceneText);
+    const editedScene = JSON.stringify({ ...scene, appState: { viewBackgroundColor: "#fafafa" } });
+    const beforeSave = await fs.stat(canvasDocumentPath);
+    assert.equal((await files.saveCanvasDocument(drawingDocument.id, editedScene)).ok, true);
+    assert.equal(await fs.readFile(canvasDocumentPath, "utf8"), "\ufeff" + editedScene);
+    if (process.platform !== "win32") assert.notEqual((await fs.stat(canvasDocumentPath)).ino, beforeSave.ino, "save replaces the inode atomically");
+    await fs.writeFile(canvasDocumentPath, sceneText);
+    assert.equal((await files.saveCanvasDocument(drawingDocument.id, editedScene)).conflict, true);
+    assert.equal(await fs.readFile(canvasDocumentPath, "utf8"), sceneText);
+
     const initialSave = await files.save(first.id, "# Edited\nText\n");
     assert.equal(initialSave.ok, true, JSON.stringify(initialSave));
     assert.equal(await fs.readFile(file, "utf8"), "\ufeff# Edited\r\nText\r\n");
@@ -229,7 +261,7 @@ function formats() {
     await fs.rm(textDestination);
     locale = "en-US";
     texts.clear();
-    await assert.rejects(texts.open(path.join(root, "plain.rtf")), /Markdown file, text file, CSV file, SVG file, HTML file, or supported image/);
+    await assert.rejects(texts.open(path.join(root, "plain.rtf")), /Markdown file, text file, CSV file, SVG file, HTML file, Excalidraw file, or supported image/);
 
     // CSV: the same record and encodings as text, with its own format marker, wording and file filter.
     let csvDestination = null, csvPrompts = [];
@@ -435,7 +467,7 @@ function formats() {
     files.release(gallery.id);
     await assert.rejects(files.image(gallery.id, "photo1.png"), /no longer open/);
     await assert.rejects(files.open("relative.md"), /local file/);
-    await assert.rejects(files.open(path.join(root, "ignored.zip")), /Markdown file, text file, CSV file, SVG file, HTML file, or supported image/);
+    await assert.rejects(files.open(path.join(root, "ignored.zip")), /Markdown file, text file, CSV file, SVG file, HTML file, Excalidraw file, or supported image/);
     files.clear();
     await assert.rejects(files.reload(second.id), /no longer open/);
 

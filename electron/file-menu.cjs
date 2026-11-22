@@ -1,7 +1,6 @@
 function fileMenuTemplate({ platform, send, open, state = { kind: 'none', busy: false } }) {
-  // Canvas scene file actions arrive with .excalidraw support.
-  const active = !['none', 'canvas'].includes(state.kind) && !state.busy;
-  // Workbooks and HTML are read-only; only workbooks support Print.
+  const active = state.kind !== 'none' && !state.busy;
+  // Workbooks and HTML are read-only. Canvases use Export instead of Print.
   const writable = active && !['workbook', 'html'].includes(state.kind);
   const action = (label, command, accelerator, enabled = active) => ({ label, enabled, accelerator, click: () => send('folio:file-command', command) });
   return [
@@ -21,7 +20,7 @@ function fileMenuTemplate({ platform, send, open, state = { kind: 'none', busy: 
       action('Export / Convert…', 'export', undefined, writable),
       action('Reduce File Size…', 'compress', undefined, active && ['pdf', 'photo'].includes(state.kind)),
       { type: 'separator' },
-      action('Print…', 'print', 'CmdOrCtrl+P', active && state.kind !== 'html'),
+      action('Print…', 'print', 'CmdOrCtrl+P', active && !['html', 'canvas'].includes(state.kind)),
       action('Properties…', 'properties', undefined, writable),
       { type: 'separator' },
       { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: () => send('folio:tab-command', 'close') },
