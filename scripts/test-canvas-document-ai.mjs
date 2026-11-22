@@ -79,6 +79,16 @@ test("rejects malformed, oversized, unsupported, malformed-field, and linked dra
   assert.throws(() => parseDrawingReply(reply({ ...rectangle, isDeleted: true }), []), /unsupported field/);
 });
 
+test("keeps safe style fields and rejects unsafe style values", () => {
+  const style = { strokeColor: "#1e1e1e", backgroundColor: "transparent", fillStyle: "solid", strokeStyle: "dashed", strokeWidth: 2 };
+  const [element] = parseDrawingReply(reply({ ...rectangle, ...style }), []).elements;
+  assert.deepEqual({ ...element }, { ...rectangle, ...style });
+  assert.equal(parseDrawingReply(reply({ ...arrow, strokeColor: "#e03131" }), []).elements[0].strokeColor, "#e03131");
+  for (const bad of [{ strokeColor: "red" }, { backgroundColor: "url(x)" }, { fillStyle: "image" }, { strokeStyle: "wavy" }, { strokeWidth: 0 }, { strokeWidth: 99 }]) {
+    assert.throws(() => parseDrawingReply(reply({ ...rectangle, ...bad }), []), /invalid style/);
+  }
+});
+
 test("checks arrow references and protects existing IDs", () => {
   const connecting = { ...arrow, start: { id: "existing" }, end: { id: "new" } };
   const newElement = { ...rectangle, id: "new" };

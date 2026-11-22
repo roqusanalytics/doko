@@ -1,9 +1,10 @@
-import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { ExcalidrawElement, FillStyle, StrokeStyle } from "@excalidraw/excalidraw/element/types";
 
 const SHAPES = ["rectangle", "diamond", "ellipse"] as const;
 type Shape = typeof SHAPES[number];
 type Point = [number, number];
-type Base = { id?: string; x: number; y: number };
+type Style = Partial<{ strokeColor: string; backgroundColor: string; fillStyle: FillStyle; strokeStyle: StrokeStyle; strokeWidth: number }>;
+type Base = { id?: string; x: number; y: number } & Style;
 type Label = { label?: { text: string } };
 type Sized = { width: number; height: number };
 export type DrawingElement = Base & (
@@ -67,6 +68,26 @@ function fields(value: Record<string, unknown>, allowed: string[]) {
   }
 }
 
+const STYLE_FIELDS = ["strokeColor", "backgroundColor", "fillStyle", "strokeStyle", "strokeWidth"];
+const COLOR = /^(#[0-9a-f]{3}|#[0-9a-f]{6}|transparent)$/i;
+const STYLE_CHECKS: Record<string, (value: unknown) => boolean> = {
+  strokeColor: value => typeof value === "string" && COLOR.test(value),
+  backgroundColor: value => typeof value === "string" && COLOR.test(value),
+  fillStyle: value => ["hachure", "cross-hatch", "solid", "zigzag"].includes(value as string),
+  strokeStyle: value => ["solid", "dashed", "dotted"].includes(value as string),
+  strokeWidth: value => typeof value === "number" && value >= 0.5 && value <= 16,
+};
+
+function styleValues(value: Record<string, unknown>): Style {
+  const style: Record<string, unknown> = {};
+  for (const key of STYLE_FIELDS) {
+    if (value[key] === undefined) continue;
+    if (!STYLE_CHECKS[key](value[key])) invalid("An Element has an invalid style value.");
+    style[key] = value[key];
+  }
+  return style;
+}
+
 function coordinate(value: unknown): number {
   if (typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= LIMIT) return value;
   return invalid("An Element has missing or invalid coordinates.");
@@ -116,8 +137,8 @@ function linePoints(value: Record<string, unknown>): Point[] {
 
 function readElement(input: unknown): DrawingElement {
   const value = record(input);
-  const common = ["type", "id", "x", "y"];
-  const base = { x: coordinate(value.x), y: coordinate(value.y), ...(value.id === undefined ? {} : { id: idValue(value.id) }) };
+  const common = ["type", "id", "x", "y", ...STYLE_FIELDS];
+  const base = { x: coordinate(value.x), y: coordinate(value.y), ...(value.id === undefined ? {} : { id: idValue(value.id) }), ...styleValues(value) };
   const type = value.type;
   switch (type) {
     case "rectangle": case "diamond": case "ellipse":

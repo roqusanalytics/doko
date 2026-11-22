@@ -102,7 +102,8 @@ export function insertCanvasDocumentDrawing(editor: ExcalidrawImperativeAPI, dra
   const { scale, x, y } = drawingLayout(bounds, existing.length ? getCommonBounds(existing) : null,
     center, selectedFrame ? getCommonBounds([selectedFrame]) : null);
   const placed: ExcalidrawElement[] = converted.map(element => {
-    const frameId = element.frameId ?? selectedFrame?.id ?? null;
+    // Excalidraw has no nested frames, so a new frame stays at the top level.
+    const frameId = element.type === "frame" ? null : element.frameId ?? selectedFrame?.id ?? null;
     const base = { x: element.x * scale + x, y: element.y * scale + y, width: element.width * scale,
       height: element.height * scale, frameId, index: null };
     if (element.type === "arrow" || element.type === "line") {

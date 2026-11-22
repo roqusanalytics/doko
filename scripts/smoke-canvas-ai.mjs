@@ -83,6 +83,17 @@ try {
         "Draw broken Mermaid": ["Added a broken flowchart.", "flowchart LR\nA -->"],
       };
       const diagram = diagrams[question];
+      if (question === "Draw a framed note") {
+        const framed = [
+          { type: "frame", id: "ai-frame", x: 0, y: 0, width: 220, height: 140, children: ["ai-note"], name: "AI" },
+          { type: "rectangle", id: "ai-note", x: 30, y: 30, width: 120, height: 60, strokeColor: "#e03131", fillStyle: "solid" },
+        ];
+        const reply = "Added a framed note.\n```excalidraw\n" + JSON.stringify(framed) + "\n```";
+        return new Response(new ReadableStream({ start(controller) {
+          controller.enqueue(new TextEncoder().encode("data: " + JSON.stringify({ choices: [{ delta: { content: reply } }] }) + "\n\ndata: [DONE]\n\n"));
+          controller.close();
+        } }));
+      }
       const text = diagram ? diagram[0] + "\n```mermaid\n" + diagram[1] + "\n```"
         : (broken ? "Drawing a bad reply." : question === "Draw and cancel" ? "Cancelled drawing." : "Added a review step.")
         + "\n```excalidraw\n" + (broken ? "[broken" : JSON.stringify(elements)) + "\n```";
@@ -254,6 +265,31 @@ try {
   await send("Draw broken Mermaid");
   await panel.getByRole("alert").filter({ hasText: "invalid syntax" }).waitFor();
   assert.deepEqual((await scene()).elements, before.elements);
+
+  // A selected user frame receives the AI drawing, but a new AI frame never nests inside it.
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("f");
+  const fx = bounds.x + bounds.width * 0.55, fy = bounds.y + bounds.height * 0.2;
+  await page.mouse.move(fx, fy);
+  await page.mouse.down();
+  await page.mouse.move(fx + 260, fy + 200, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForFunction(() => {
+    const { elements, selected } = globalThis.readCanvasAiScene();
+    return elements.some(element => element.type === "frame" && selected.includes(element.id));
+  });
+  const userFrame = (await scene()).elements.find(element => element.type === "frame");
+  await send("Draw a framed note");
+  await panel.getByText("Added a framed note.", { exact: true }).waitFor();
+  await page.waitForFunction(() => globalThis.readCanvasAiScene().elements.filter(element => element.type === "frame").length === 2);
+  const framedScene = (await scene()).elements;
+  const aiFrame = framedScene.find(element => element.type === "frame" && element.id !== userFrame.id);
+  const note = framedScene.find(element => element.type === "rectangle" && element.strokeColor === "#e03131");
+  assert.equal(aiFrame.frameId, null, "A new AI frame was nested inside the selected frame");
+  assert.equal(note.frameId, aiFrame.id);
+  assert.equal(note.fillStyle, "solid");
+  await undo.click();
+  await page.waitForFunction(() => globalThis.readCanvasAiScene().elements.filter(element => element.type === "frame").length === 1);
 
   await panel.getByRole("button", { name: "Close Ask AI", exact: true }).click();
   await page.getByRole("button", { name: "More tools", exact: true }).click();

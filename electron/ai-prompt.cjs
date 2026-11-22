@@ -23,6 +23,7 @@ const drawingInstructions = [
   'text: text (a non-empty string). frame: width, height, children (array of new non-frame Element ids, may be empty), and optional name.',
   'line, arrow: points [[0,0],[dx,dy],...] (relative to x,y), or signed width and height as the endpoint displacement.',
   'An arrow can have a label {"text":"Label"} and start/end {"id":"element-id"} referring to new or existing shapes, text, or frames, or existing images. Set its points near those targets.',
+  'Any Element may add strokeColor and backgroundColor ("#rrggbb" or "transparent"), fillStyle (hachure, cross-hatch, solid, zigzag), strokeStyle (solid, dashed, dotted) and strokeWidth (1–4).',
   "Use only those types and fields. Do not include links, embeds, images, or changes to existing Elements.",
 ].join("\n");
 
