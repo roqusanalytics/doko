@@ -49,9 +49,11 @@ try {
     reader.suspend = async () => { attempts++; return undefined; };
     await tabs.suspend(tab);
     tabs.bind(first, { ...reader, suspend: async () => { attempts++; return original(); } });
-    await new Promise(resolve => setTimeout(resolve, 50));
+    // The retry and frame release are asynchronous; slow CI runners need longer than a fixed pause.
+    const retried = () => attempts === 2 && !tab.frame && tab.source?.kind === "blob";
+    for (const started = Date.now(); !retried() && Date.now() - started < 3000;) await new Promise(resolve => setTimeout(resolve, 20));
     reader.suspend = original;
-    return attempts === 2 && !tab.frame && tab.source?.kind === "blob";
+    return retried() || `attempts=${attempts} frame=${!!tab.frame} source=${tab.source?.kind}`;
   }, first), true, "Inactive tab should retry after a reader rebind");
   await window.evaluate(first => window.suspensionTabs.select(first), first);
   await page.getByRole("textbox", { name: "Page number" }).waitFor();

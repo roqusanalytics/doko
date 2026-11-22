@@ -36,6 +36,12 @@
     "scripts/smoke-test.mjs"
   ],
   [
+    "scripts/smoke-welcome-cards.mjs"
+  ],
+  [
+    "scripts/smoke-pdf-open-menu.mjs"
+  ],
+  [
     "scripts/test-print.mjs"
   ],
   [
@@ -80,6 +86,13 @@
   ],
   [
     "scripts/smoke-markdown-modes.mjs"
+  ],
+  [
+    "--test",
+    "scripts/test-markdown-ai-edits.mjs"
+  ],
+  [
+    "scripts/smoke-markdown-ai.mjs"
   ],
   [
     "scripts/test-photo-codec.mjs"

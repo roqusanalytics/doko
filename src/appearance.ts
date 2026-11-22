@@ -49,6 +49,25 @@ export function luminance(color: string): number {
   return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
 }
 
+/** GitHub Primer syntax colors for Markdown source, as [light surface, dark surface]. */
+export const SYNTAX_COLORS: Record<string, [string, string]> = {
+  heading: ["#0550ae", "#79c0ff"],
+  link: ["#0969da", "#58a6ff"],
+  url: ["#0a3069", "#a5d6ff"],
+  code: ["#953800", "#ffa657"],
+  quote: ["#116329", "#7ee787"],
+  mark: ["#6e7781", "#8b949e"],
+  keyword: ["#cf222e", "#ff7b72"],
+  string: ["#0a3069", "#a5d6ff"],
+  literal: ["#0550ae", "#79c0ff"],
+  comment: ["#6e7781", "#8b949e"],
+};
+const SYNTAX_TOKENS = Object.keys(SYNTAX_COLORS).map(name => `--md-${name}`);
+const readableOn = (candidate: string, background: string, fallback: string) => {
+  const a = luminance(candidate), b = luminance(background);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) >= 4.5 ? candidate : fallback;
+};
+
 export function appearancePalette(color: string, dark: boolean): Record<string, string> {
   const bg = dark ? mix(color, 0, 0.86) : color;
   const pale = luminance(bg) > 0.179;
@@ -75,6 +94,9 @@ export function appearancePalette(color: string, dark: boolean): Record<string, 
     "--accent-text": readable(pale ? "#305d40" : "#c5e1cb"), "--accent": "#c5e1cb",
     "--accent-foreground": "#1a1a1a",
     "--accent-soft": "#c5e1cb3d",
+    // Markdown source syntax colors; each falls back to plain text where the custom surface leaves it unreadable.
+    ...Object.fromEntries(Object.entries(SYNTAX_COLORS).map(([name, [light, dark]]) =>
+      [`--md-${name}`, readableOn(pale ? light : dark, surface, pale ? "#000000" : "#ffffff")])),
   };
 }
 
@@ -115,7 +137,7 @@ export function applyAppearance(value = readSetting(APPEARANCE_KEY) || DEFAULT_B
 export function surfaceTokens(color: string): Record<string, string> {
   const palette = appearancePalette(color, false);
   const tokens: Record<string, string> = { "color-scheme": palette["--appearance-scheme"], color: "var(--text)" };
-  for (const name of ["--surface", "--surface-2", "--text", "--text-2", "--text-3", "--line", "--line-strong", "--hover", "--active", "--accent-text"]) tokens[name] = palette[name];
+  for (const name of [...SYNTAX_TOKENS, "--surface", "--surface-2", "--text", "--text-2", "--text-3", "--line", "--line-strong", "--hover", "--active", "--accent-text"]) tokens[name] = palette[name];
   tokens["--glass"] = `color-mix(in srgb, ${palette["--surface"]} var(--glass-opacity, 88%), transparent)`;
   return tokens;
 }

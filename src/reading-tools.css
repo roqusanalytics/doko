@@ -1175,3 +1175,27 @@
     box-shadow: none;
   }
 }
+
+.markdown-edit-preview .markdown-diff {
+  max-height: 160px;
+  padding: 0;
+  overflow: auto;
+}
+.markdown-diff-line {
+  display: block;
+  padding-inline: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.markdown-diff-line > span {
+  display: inline-block;
+  width: 1.4em;
+}
+/* Opaque semantic surfaces keep their paired foregrounds readable on custom backgrounds. */
+.markdown-diff .removed { color: var(--danger); }
+.markdown-diff .removed .markdown-diff-line { background: light-dark(#ffe9e7, #482527); }
+.markdown-diff .added { color: light-dark(#305d40, #c5e1cb); }
+.markdown-diff .added .markdown-diff-line { background: light-dark(#e8f3ea, #223a2b); }
+.markdown-diff .removed { --danger: light-dark(#b42318, #ffaca4); }
+.markdown-edit-actions { display: flex; gap: 6px; }
+.markdown-edit-status { color: var(--text-2); }

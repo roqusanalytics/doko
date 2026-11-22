@@ -4,7 +4,7 @@ import { Icon } from "./icons";
 import { keys } from "./platform";
 import { ScreenshotButton } from "./ScreenshotTool";
 
-export function DocumentTabBar({ tabs, tabKey }: { tabs: ReaderContext["tabs"]; tabKey: number }) {
+export function DocumentTabBar({ tabs, tabKey, onEnterFocusMode }: { tabs: ReaderContext["tabs"]; tabKey: number; onEnterFocusMode?: () => void }) {
   useSyncExternalStore(tabs.subscribe, tabs.snapshot);
   const selected = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => {
@@ -40,6 +40,11 @@ export function DocumentTabBar({ tabs, tabKey }: { tabs: ReaderContext["tabs"]; 
         </div>;
       })}
     </div>
-    <ScreenshotButton tabs={tabs} />
+    <div className="document-tab-actions">
+      {onEnterFocusMode && <button className="icon-btn focus-mode-btn" title="Focus mode" aria-label="Focus mode" onClick={onEnterFocusMode}>
+        <Icon name="expand" size={16} />
+      </button>}
+      <ScreenshotButton tabs={tabs} />
+    </div>
   </nav>;
 }

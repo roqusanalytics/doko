@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { clearRecent, getRecent, listRecent, removeRecent, type RecentFile, type RecentSummary } from "./recent";
 import { useAnchoredPopover } from "./anchored-popover";
 import { Icon } from "./icons";
+import { newCanvasAction, openDocumentTypes } from "./open-document-types";
 import { keys } from "./platform";
 import { formatBytes } from "./Dialogs";
 import { updateSummary } from "./updates";
@@ -58,7 +59,7 @@ function UpdateLine({ status }: { status: UpdateStatus }) {
 
 interface Props {
   active: boolean;
-  onPick: () => void;
+  onPick: (type?: OpenFileType) => void;
   onOpenUrl: () => void;
   onNewCanvas: () => void;
   onOpenRecent: (file: RecentFile) => void;
@@ -89,6 +90,8 @@ function RemoveRecentButton({ files, busy, all = false, onRemove }: {
 }
 
 export function Welcome({ active, onPick, onOpenUrl, onNewCanvas, onOpenRecent, onSample, loading }: Props) {
+  const cardId = useId();
+  const desktop = !!window.folioDesktop;
   const [recent, setRecent] = useState<RecentSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<{ message: string; retry(): void } | null>(null);
@@ -137,29 +140,46 @@ export function Welcome({ active, onPick, onOpenUrl, onNewCanvas, onOpenRecent, 
       <div className="welcome-inner">
         <div className="hero">
           <h1>Read beautifully.</h1>
-          <p>A calm place for PDFs, Markdown, and photos.</p>
+          <p>{desktop ? "A calm place for PDFs, Markdown, photos, and drawings." : "A calm place for PDFs, Markdown, and photos."}</p>
         </div>
 
-        <button className="dropzone" onClick={onPick} disabled={loading}>
+        <button className="dropzone" onClick={() => onPick()} disabled={loading}>
           <div className="dropzone-icon">
             <Icon name={loading ? "file" : "upload"} size={26} />
           </div>
           <div className="dropzone-text">
             <strong>{loading ? "Opening…" : "Open a file"}</strong>
-            <span>{window.folioDesktop ? "Choose a PDF, Word document, Markdown file, photo, or link"
-              : "Choose a PDF, Markdown file, photo, or link"}</span>
+            <span>Choose files from your device</span>
           </div>
           <kbd>{keys("Ctrl O")}</kbd>
         </button>
+
+        <div className="welcome-cards" role="group" aria-label="Document types">
+          {desktop && <button type="button" className="welcome-card welcome-card-new"
+            aria-label={newCanvasAction.label} aria-describedby={`${cardId}-canvasDocument`}
+            disabled={loading} onClick={onNewCanvas}>
+            <Icon name={newCanvasAction.icon} size={20} />
+            <span className="welcome-card-copy">
+              <strong>{newCanvasAction.name}<span className="welcome-card-badge" aria-hidden="true">New</span></strong>
+              <span id={`${cardId}-canvasDocument`} className="welcome-card-hint">{newCanvasAction.hint}</span>
+            </span>
+          </button>}
+          {openDocumentTypes(desktop).map(({ type, name, hint, icon }) => (
+            <button key={type} type="button" className="welcome-card" aria-label={name}
+              aria-describedby={`${cardId}-${type}`} disabled={loading} onClick={() => onPick(type)}>
+              <Icon name={icon} size={20} />
+              <span className="welcome-card-copy">
+                <strong>{name}</strong>
+                <span id={`${cardId}-${type}`} className="welcome-card-hint">{hint}</span>
+              </span>
+            </button>
+          ))}
+        </div>
 
         <div className="welcome-links">
           <button className="link" onClick={onOpenUrl} disabled={loading}>
             <Icon name="link" size={15} /> Open from URL
           </button>
-          {/* A Canvas saves through the desktop file API, so the browser edition has no New canvas. */}
-          {window.folioDesktop && <button className="link" onClick={onNewCanvas} disabled={loading}>
-            <Icon name="canvasDocument" size={15} /> New canvas
-          </button>}
           <button className="link" onClick={onSample}>
             <Icon name="book" size={15} /> Try a sample document
           </button>

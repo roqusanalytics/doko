@@ -51,8 +51,11 @@ Doko opens untrusted PDFs, so it's built to keep a malicious document contained:
   Code CLI with all tools, MCP servers, settings, and slash commands disabled, in a private temporary folder under
   Doko's user data. Doko never handles Claude credentials. An OpenRouter API key is verified and stored with OS credential protection by the main
   process; the key is never returned to the reader. Key checks and model lookups send no document content.
-  Document text goes to the chosen provider only when the user asks a question. On a Canvas, that text is a summary of the
+  Document text goes to the chosen provider only when the user sends a request. On a Canvas, that text is a summary of the
   drawing (Element types, positions and labels), never images. OpenRouter forwards the request to the model's serving provider.
+  For Markdown, Ask AI sends the current source text up to the whole-document limit, along with any selected passage.
+  Doko validates suggested edits against the current text, shows them as a diff, and applies them only when the user
+  chooses Apply. Doko checks the matches again at that point and applies the proposal as one undoable change.
   Drawings the AI returns are validated in the reader before they are added; links, embeds and images are rejected.
 
 Known limitations:

@@ -3,20 +3,19 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExtern
 import { createPortal } from "react-dom";
 import { Icon } from "./icons";
 import { copyText } from "./clipboard";
-import { getAiHistory, saveAiHistory } from "./recent";
+import { getAiHistory, saveAiHistory, type StoredAiMessage } from "./recent";
 import { ProviderLogo } from "./ProviderLogo";
 import { ModelMenu, type ModelGroup } from "./ModelMenu";
 import { CLAUDE_CODE_URL, PROVIDERS, savedProvider, saveAiPreference, signInChatGPT, subscribeAiPreferences, USAGE_URL, type AiProvider } from "./ai";
 import { Modal } from "./Dialogs";
 import { readSetting } from "./preferences";
 import { MAX_DRAWING_REPLY, splitDrawingReply, type PreparedDrawing } from "./canvasDocument/canvasDocumentAiReply";
+import { locateMarkdownEdits, markdownReplyDescription, MAX_MARKDOWN_REPLY, parseMarkdownReply, type MarkdownEdit } from "./markdownAiEdits";
+import { MarkdownEditPreview } from "./MarkdownEditPreview";
 
 const AiMarkdown = lazy(() => import("./AiMarkdown").then((module) => ({ default: module.AiMarkdown })));
 
-export interface AiContext {
-  text: string;
-  page: number;
-}
+export type AiContext = NonNullable<AiMessage["context"]>;
 
 interface AiDocumentContext {
   kind: AiDocument["kind"];
@@ -26,11 +25,8 @@ interface AiDocumentContext {
   selection: AiContext | null;
 }
 
-interface Message extends AiMessage {
-  createdAt?: number;
-  context?: AiContext;
+interface Message extends StoredAiMessage {
   error?: { message: string; code?: string; link?: string };
-  drawingReply?: string;
   drawing?: PreparedDrawing;
 }
 
@@ -86,8 +82,9 @@ function CopyResponse({ text }: { text: string }) {
 
 // Failed and empty answers aren't kept.
 const storedMessages = (messages: Message[]) =>
-  messages.filter((m) => !m.error && m.content).map(({ role, content, context, createdAt, drawingReply }) =>
-    ({ role, content, ...(context ? { context } : {}), ...(createdAt ? { createdAt } : {}), ...(drawingReply ? { drawingReply } : {}) }));
+  messages.filter(m => !m.error && (m.content || m.markdownReply)).map(
+    ({ role, content, context, createdAt, drawingReply, markdownReply, markdownEditStatus }) =>
+      ({ role, content, context, createdAt, drawingReply, markdownReply, markdownEditStatus }));
 
 function InsertAgain({ message, apply }: { message: Message; apply: ApplyDrawingReply }) {
   const pending = useRef<AbortController | null>(null);
@@ -152,15 +149,22 @@ interface Props {
   onClearContext?: () => void;
   onGoToPage?: (n: number) => void;
   onDrawingReply?: ApplyDrawingReply;
+  markdownEditing?: {
+    readText: () => string;
+    apply: (edits: readonly MarkdownEdit[]) => void;
+    readOnly: boolean;
+  };
   onSettings: () => void;
   onClose: () => void;
   onSaveError?: (failed: boolean) => void;
 }
 
-export function AiPanel({ documentContext, docId, persist, onClearContext, onGoToPage, onDrawingReply, onSettings, onClose, onSaveError }: Props) {
+export function AiPanel({ documentContext, docId, persist, onClearContext, onGoToPage, onDrawingReply, markdownEditing, onSettings, onClose, onSaveError }: Props) {
   const { kind, name, displayName, readText, selection: context } = documentContext;
   const ai = window.folioDesktop?.ai;
-  const drawing = useRef({ raw: "", oversized: false });
+  const markdownText = markdownEditing?.readText;
+  const cancelIncompleteReply = !!onDrawingReply || !!markdownText;
+  const streamReply = useRef({ raw: "", oversized: false });
   const [status, setStatus] = useState<AiStatus | null>(null);
   const provider = useSyncExternalStore(subscribeAiPreferences, savedProvider);
   const keyRevision = useSyncExternalStore(subscribeAiPreferences, () => readSetting("folio:ai-key-revision"));
@@ -219,7 +223,7 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
     void ai?.status().then(value => { if (current) setStatus(value); }).catch(() => { if (current) setSetupError("Couldn't check AI connections."); });
     return () => { current = false; };
   }, [ai, keyRevision]);
-  useEffect(() => { if (context) inputRef.current?.focus(); }, [context]);
+  useEffect(() => { if (context && kind !== "markdown") inputRef.current?.focus(); }, [context, kind]);
 
   // ChatGPT's model list depends on the signed-in account.
   const chatgptConnected = !!status?.chatgpt.connected;
@@ -257,8 +261,33 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
     if (!ai) return;
     return ai.onEvent((event) => {
       if (event.id !== busyRef.current) return;
+      if (markdownText) {
+        const stream = streamReply.current;
+        if (event.type === "delta") {
+          if (stream.raw.length + (event.text?.length ?? 0) > MAX_MARKDOWN_REPLY) stream.oversized = true;
+          if (stream.oversized) return;
+          stream.raw += event.text ?? "";
+          setMessages(list => [...list.slice(0, -1), { ...list[list.length - 1], content: markdownReplyDescription(stream.raw) }]);
+          return;
+        }
+        if (event.type === "done") {
+          let result: Pick<Message, "content" | "error" | "markdownReply">;
+          try {
+            if (stream.oversized) throw new Error("This reply is too large. Ask for fewer changes.");
+            const { description, edits } = parseMarkdownReply(stream.raw);
+            locateMarkdownEdits(markdownText(), edits);
+            result = { content: description, ...(edits.length ? { markdownReply: stream.raw } : {}) };
+          } catch (error) {
+            result = { content: "", error: { message: error instanceof Error ? error.message : "Couldn’t read the suggested edits." } };
+          }
+          busyRef.current = null;
+          setMessages(list => [...list.slice(0, -1), { ...list[list.length - 1], ...result }]);
+          setBusy(null);
+          return;
+        }
+      }
       if (onDrawingReply) {
-        const stream = drawing.current;
+        const stream = streamReply.current;
         if (event.type === "delta") {
           if (stream.raw.length + (event.text?.length ?? 0) > MAX_DRAWING_REPLY) stream.oversized = true;
           if (stream.oversized) return;
@@ -302,7 +331,7 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
         if (event.code === "signed_out") void ai.status().then(setStatus);
       }
     });
-  }, [ai, onDrawingReply]);
+  }, [ai, onDrawingReply, markdownText]);
 
   useEffect(() => {
     const el = listRef.current;
@@ -339,12 +368,12 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
       if (request) void ai?.cancel(request).catch(() => {});
       setBusy(null);
       const list = messagesRef.current;
-      const kept = request && onDrawingReply && list.at(-1)?.role === "assistant" ? list.slice(0, -1) : list;
+      const kept = request && cancelIncompleteReply && list.at(-1)?.role === "assistant" ? list.slice(0, -1) : list;
       if (kept !== list) setMessages(kept);
       if (generation !== null) rememberChat(docId, persist, kept, generation);
     });
     return () => { closingChats.delete(docId); };
-  }, [ai, docId, persist, generation, onDrawingReply]);
+  }, [ai, docId, persist, generation, cancelIncompleteReply]);
   useEffect(() => () => {
     preparing.current?.controller.abort();
     preparing.current = null;
@@ -355,18 +384,18 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
     void ai?.cancel(id);
     const list = messagesRef.current;
     const last = list[list.length - 1];
-    const kept = last?.role === "assistant" && (onDrawingReply || (!last.content && !last.error)) ? list.slice(0, -1) : list;
+    const kept = last?.role === "assistant" && (cancelIncompleteReply || (!last.content && !last.error)) ? list.slice(0, -1) : list;
     setMessages(kept);
     if (generation !== null) {
       rememberChat(docId, persist, kept, generation);
       // The cached conversation survives a failed save and is retried when the panel reopens.
       if (persist) void saveAiHistory(docId, storedMessages(kept), generation).catch(() => {});
     }
-  }, [ai, readText, docId, persist, generation, onDrawingReply]);
+  }, [ai, readText, docId, persist, generation, cancelIncompleteReply]);
   const stop = () => {
     if (!busy) return;
     if (preparing.current?.id !== busy) {
-      if (onDrawingReply) {
+      if (cancelIncompleteReply) {
         busyRef.current = null;
         setBusy(null);
         setMessages(list => list.slice(0, -1));
@@ -388,14 +417,14 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
     const id = crypto.randomUUID();
     const controller = new AbortController();
     preparing.current = { id, controller };
-    if (onDrawingReply) drawing.current = { raw: "", oversized: false };
+    if (cancelIncompleteReply) streamReply.current = { raw: "", oversized: false };
     busyRef.current = id;
     setBusy(id);
     setMessages([...messages, turn, { role: "assistant", content: "", createdAt: Date.now() }]);
     setInput("");
     onClearContext?.();
     try {
-      const doc = provider === "openrouter" && context ? { text: "", truncated: true } : await readText(controller.signal);
+      const doc = provider === "openrouter" && context && kind !== "markdown" ? { text: "", truncated: true } : await readText(controller.signal);
       if (preparing.current?.id !== id) return;
       preparing.current = null;
       await ai.ask({ id, provider, model, document: { kind, name, ...doc },
@@ -415,7 +444,7 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
         return next;
       });
     }
-  }, [ai, kind, name, readText, context, messages, provider, model, onClearContext, onDrawingReply, ready]);
+  }, [ai, kind, name, readText, context, messages, provider, model, onClearContext, cancelIncompleteReply, ready]);
 
   const signIn = async () => {
     if (!ai) return;
@@ -429,6 +458,9 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
 
   const placeholder = !ready ? "Connect an AI provider to ask questions"
     : kind === "canvasDocument" ? "Describe what to draw…" : context ? "Ask about the selected passage…" : "Ask about this document…";
+  const editStatus = (index: number, status: NonNullable<Message["markdownEditStatus"]>) => {
+    setMessages(list => list.map((message, i) => i === index ? { ...message, markdownEditStatus: status } : message));
+  };
   const documentText = kind === "canvasDocument" ? "a text summary of the Scene" : "the document's text";
 
   return (
@@ -498,7 +530,8 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
             {loaded && messages.length === 0 && (
               <div className="ai-empty">
                 {kind === "canvasDocument" ? <p>Describe what you want to draw. You can select Elements to give AI context.</p> : <>
-                <p>Ask anything about <strong>{displayName}</strong>, or select text in the document and choose <em>Ask AI</em>.</p>
+                {kind === "markdown" ? <p>Ask a question or request changes to <strong>{displayName}</strong>. Review suggested edits before applying them.</p> :
+                <p>Ask anything about <strong>{displayName}</strong>, or select text in the document and choose <em>Ask AI</em>.</p>}
                 <div className="suggestions">
                   {(context ? ["Explain this in simple terms", "Why does this matter?", "Summarize this passage"]
                     : ["Summarize this document", "What are the key takeaways?", "What questions does this leave open?"]).map((q) => (
@@ -512,11 +545,11 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
               <div key={i} className={`msg ${m.role}`}>
                 {m.role === "user" ? (
                   <>
-                    {m.context && <blockquote>p. {m.context.page}: {m.context.text.length > 220 ? m.context.text.slice(0, 220) + "…" : m.context.text}</blockquote>}
+                    {m.context && <blockquote>{m.context.page !== undefined && `p. ${m.context.page}: `}{m.context.text.length > 220 ? m.context.text.slice(0, 220) + "…" : m.context.text}</blockquote>}
                     <p>{m.content}</p>
                   </>
                 ) : m.error ? (
-                  <div className="msg-error" role={kind === "canvasDocument" ? "alert" : undefined}>
+                  <div className="msg-error" role={kind !== "pdf" ? "alert" : undefined}>
                     <p>{m.error.message}</p>
                     {m.error.code === "usage_limit" && provider === "chatgpt" && (
                       <a className="btn primary" href={m.error.link || USAGE_URL} target="_blank" rel="noreferrer">Manage usage</a>
@@ -525,13 +558,16 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
                       <button className="btn primary" onClick={signIn}>Continue with ChatGPT</button>
                     )}
                   </div>
-                ) : m.content ? (
+                ) : m.content || m.markdownReply ? (
                   <>
-                    <Suspense fallback={<p style={{ whiteSpace: "pre-wrap" }}>{m.content}</p>}>
+                    {m.content && <Suspense fallback={<p style={{ whiteSpace: "pre-wrap" }}>{m.content}</p>}>
                       <AiMarkdown text={m.content} onPage={onGoToPage} />
-                    </Suspense>
+                    </Suspense>}
                     {onDrawingReply && m.drawingReply && <InsertAgain message={m} apply={onDrawingReply} />}
-                    {(!busy || i < messages.length - 1) && <div className="msg-meta">
+                    {markdownEditing && m.markdownReply && <MarkdownEditPreview reply={m.markdownReply}
+                      status={m.markdownEditStatus} readOnly={markdownEditing.readOnly} onApply={markdownEditing.apply}
+                      onStatus={status => editStatus(i, status)} />}
+                    {m.content && (!busy || i < messages.length - 1) && <div className="msg-meta">
                       <CopyResponse text={m.content} />
                       {m.createdAt ? <time dateTime={new Date(m.createdAt).toISOString()}>
                         {new Date(m.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
@@ -560,7 +596,7 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
       <footer className="ai-foot">
         {context && (
           <div className="context-chip">
-            <span>p. {context.page}: “{context.text.length > 90 ? context.text.slice(0, 90) + "…" : context.text}”</span>
+            <span>{context.page !== undefined && `p. ${context.page}: `}“{context.text.length > 90 ? context.text.slice(0, 90) + "…" : context.text}”</span>
             <button onClick={onClearContext} aria-label="Ask about the whole document instead" title="Ask about the whole document instead">
               <Icon name="close" size={12} />
             </button>

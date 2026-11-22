@@ -1,6 +1,6 @@
 import type { PageText } from "./OcrFindController";
 
-const MAX_DOC_CHARS = 400_000;
+export const MAX_DOC_CHARS = 400_000;
 
 export async function readAiDocumentText(numPages: number, getPageText: (n: number) => Promise<PageText>, signal: AbortSignal) {
   let text = "";

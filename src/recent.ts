@@ -336,8 +336,10 @@ export interface StoredAiMessage {
   createdAt?: number;
   role: "user" | "assistant";
   content: string;
-  context?: { text: string; page: number };
+  context?: AiMessage["context"];
   drawingReply?: string;
+  markdownReply?: string;
+  markdownEditStatus?: "applied" | "discarded";
 }
 
 export async function getAiHistory(id: string) {

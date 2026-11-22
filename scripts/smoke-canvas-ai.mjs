@@ -122,7 +122,7 @@ try {
   const bounds = await surface.boundingBox();
   assert.ok(bounds && bounds.width > 350 && bounds.height > 200);
   const x = bounds.x + bounds.width * 0.3, y = bounds.y + bounds.height * 0.45;
-  await page.locator('label:has([data-testid="toolbar-rectangle"])').click();
+  await page.getByRole("toolbar", { name: "Tools" }).getByRole("button", { name: "Rectangle", exact: true }).click();
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + 120, y + 65, { steps: 10 });
@@ -297,7 +297,7 @@ try {
 
   await panel.getByRole("button", { name: "Close Ask AI", exact: true }).click();
   await page.getByRole("button", { name: "More tools", exact: true }).click();
-  await page.getByText("Mermaid to Excalidraw", { exact: true }).click();
+  await page.getByRole("menuitem", { name: "Mermaid to Excalidraw", exact: true }).click();
   const dialog = page.locator(".ttd-dialog");
   await dialog.getByText("Mermaid to Excalidraw", { exact: true }).waitFor();
   await dialog.getByRole("textbox").fill("flowchart LR\nA[Manual] --> B[Offline]");

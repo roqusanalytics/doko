@@ -33,13 +33,20 @@
 .markdown-source .cm-selectionBackground, .markdown-source .cm-editor.cm-focused .cm-selectionBackground { background: var(--accent-soft); }
 .markdown-source .cm-panels { background: var(--surface-2); color: var(--text); }
 .markdown-source .cm-tooltip { background: var(--surface); color: var(--text); border-color: var(--line); }
-.markdown-source .md-token-heading, .markdown-source .md-token-strong { font-weight: 650; }
-.markdown-source .md-token-heading, .markdown-source .md-token-link, .markdown-source .md-token-keyword { color: var(--accent-text); }
+/* Source syntax colors: --md-* tokens from styles.css, or per custom surface from appearance.ts. */
+.markdown-source .md-token-heading { color: var(--md-heading); font-weight: 650; }
+.markdown-source .md-token-strong { font-weight: 650; }
 .markdown-source .md-token-emphasis { font-style: italic; }
-.markdown-source .md-token-link { text-decoration: underline; }
-.markdown-source .md-token-comment { color: var(--text-2); }
-.markdown-source .md-token-literal { color: var(--accent-text); }
-.markdown-source .md-token-code { color: var(--text-2); }
+.markdown-source .md-token-strikethrough { text-decoration: line-through; }
+.markdown-source .md-token-link { color: var(--md-link); }
+.markdown-source .md-token-url { color: var(--md-url); text-decoration: underline; text-underline-offset: 2px; }
+.markdown-source .md-token-quote { color: var(--md-quote); }
+.markdown-source .md-token-code { color: var(--md-code); }
+.markdown-source .md-token-mark { color: var(--md-mark); font-weight: 400; }
+.markdown-source .md-token-keyword { color: var(--md-keyword); }
+.markdown-source .md-token-string { color: var(--md-string); }
+.markdown-source .md-token-literal { color: var(--md-literal); }
+.markdown-source .md-token-comment { color: var(--md-comment); font-style: italic; }
 @media (min-width: 760px) {
   .markdown-mode-bar { padding-right: 20px; }
   .markdown-section-rail { flex-basis: 56px; }

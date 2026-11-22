@@ -8,6 +8,8 @@ export function useAnchoredPopover(trigger: RefObject<HTMLButtonElement | null>,
     const button = trigger.current;
     if (!popup || !button) return;
     let frame = 0;
+    const menuButtons = () => [...popup.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")]
+      .filter(item => item.checkVisibility());
     const position = () => {
       if (!popup.matches(":popover-open")) return;
       const anchor = button.getBoundingClientRect();
@@ -34,8 +36,8 @@ export function useAnchoredPopover(trigger: RefObject<HTMLButtonElement | null>,
         // Toolbars animate on entry; follow the anchor until this popup closes.
         trackAnchor();
         if (popup.getAttribute("role") === "menu") {
-          const items = popup.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');
-          (popup.querySelector<HTMLButtonElement>('[aria-checked="true"]') ?? items[0])?.focus();
+          const items = menuButtons();
+          (items.find(item => item.getAttribute("aria-checked") === "true") ?? items[0])?.focus();
         } else popup.querySelector<HTMLElement>("[data-autofocus]")?.focus();
       } else delete popup.dataset.positioned;
     };
@@ -47,7 +49,7 @@ export function useAnchoredPopover(trigger: RefObject<HTMLButtonElement | null>,
       } else if (event.key === "Tab" && popup.getAttribute("role") === "menu") popup.hidePopover();
       else if (popup.getAttribute("role") === "menu") {
         event.stopPropagation();
-        const items = [...popup.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+        const items = menuButtons();
         const index = items.indexOf(document.activeElement as HTMLButtonElement);
         let next: number;
         if (event.key === "ArrowDown") next = (index + 1) % items.length;

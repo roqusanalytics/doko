@@ -16,9 +16,10 @@ import { DocumentTabBar } from "./DocumentTabBar";
 import { trackTitlebar } from "./titlebar";
 import type { DocumentTabs, OpenSource } from "./documentTabs";
 import { readGalleryImage } from "./galleryImage";
-import { BROWSER_ACCEPT, CONTENT_ACCEPT, IPC_PREFIX, localSources } from "./content-source";
+import { IPC_PREFIX, localSources, pickReaderFiles } from "./content-source";
 import { SearchResults } from "./SearchResults";
 import { Icon, type IconName } from "./icons";
+import { IconButton } from "./IconButton";
 import { Welcome } from "./Welcome";
 import { Sidebar, type SidebarTab } from "./Sidebar";
 import { MarkupController, type Mark, type MarkupState } from "./markup";
@@ -31,6 +32,7 @@ import { recognizeScannedPages } from "./pageOcr";
 import { OcrFindController } from "./OcrFindController";
 import { ImageMenu, ImageViewer, type ImageTarget } from "./ImageViewer";
 import { MoreMenu, type MoreItem } from "./MoreMenu";
+import { OpenDocumentMenu } from "./OpenDocumentMenu";
 import { IS_MAC, keys } from "./platform";
 import { AiPanel, forgetClearedChats, flushAiHistory, stopAiForClose, type AiContext } from "./AiPanel";
 import { readAiDocumentText } from "./aiDocumentText";
@@ -621,13 +623,8 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     void localSources(Array.from(files)).then(sources => tabs.open(sources));
   }, [tabs]);
 
-  const pickFile = useCallback(() => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.multiple = true;
-    input.accept = window.folioDesktop ? CONTENT_ACCEPT : BROWSER_ACCEPT;
-    input.onchange = () => { if (input.files?.length) openFiles(input.files); };
-    input.click();
+  const pickFile = useCallback((type?: OpenFileType) => {
+    pickReaderFiles(type, openFiles, () => setError("Couldn't open the file dialog. Try again."));
   }, [openFiles]);
 
   const openUrl = useCallback(
@@ -1664,6 +1661,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
                 onClick={() => contentEditing ? leaveEditMode() : chooseTool("select", true)}>
                 <Icon name={contentEditing ? "check" : "edit"} size={16} /><span>{contentEditing ? "Exit edit mode" : "Edit mode"}</span>
               </button>
+              {!gallery && <OpenDocumentMenu onNewCanvas={() => tabs.newCanvasDocument()} onPick={pickFile} onOpenUrl={openUrlDialog} />}
               {gallery && <MoreMenu label="Image" items={[{kind:"action",icon:"edit",label:"Crop, resize and adjust…",onSelect:()=>void prepareWork("photo")}]} />}
               {operationUndo?.pdf === doc.pdf && <button aria-label="Undo document edit" title={contentEditing ? "Exit edit mode to undo the earlier document edit" : keys("Undo document edit (Ctrl+Z)")} disabled={fileBusy || contentEditing || editorDirty} onClick={()=>void undoOperation()}><Icon name="undo" size={16}/><span>Undo edit</span></button>}
               {gallery && <button aria-label="Copy image" disabled={photoBusy || refreshingPhotos || !!photoFailure} onClick={() => void exportPhoto("copy")}><Icon name="copy" size={16} /><span>Copy image</span></button>}
@@ -1717,7 +1715,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
           />
         </div>
       </header>
-      {!focus && <DocumentTabBar tabs={tabs} tabKey={tabKey} />}
+      {!focus && <DocumentTabBar tabs={tabs} tabKey={tabKey} onEnterFocusMode={doc ? toggleFocus : undefined} />}
 
       <div className="body" inert={loading} id="reader-panel" role={!focus ? "tabpanel" : undefined}
         aria-labelledby={!focus ? "selected-document-tab" : undefined}>
@@ -2059,13 +2057,5 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         </div>
       )}
     </div>
-  );
-}
-
-function IconButton({ icon, label, onClick, active }: { icon: IconName; label: string; onClick: () => void; active?: boolean }) {
-  return (
-    <button className={`icon-btn ${active ? "on" : ""}`} onClick={onClick} title={label} aria-label={label} aria-pressed={active}>
-      <Icon name={icon} />
-    </button>
   );
 }

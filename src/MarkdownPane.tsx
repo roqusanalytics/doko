@@ -8,10 +8,13 @@ import type { CsvChange, CsvTable } from "./csv";
 import { Icon } from "./icons";
 import TableView from "./TableView";
 import type { TableEdit, TableViewHandle } from "./TableView";
+import { applyMarkdownChanges, STALE_MARKDOWN_EDIT, type MarkdownChange } from "./markdownAiEdits";
 import "./markdown-pane.css";
 
 export interface MarkdownEditorHandle {
   focus(): void;
+  selectedText(): string;
+  applyMarkdownEdits(text: string, changes: readonly MarkdownChange[]): void;
   /** Commits a table cell edit in progress, so the text passed to a save is complete. */
   flush(): void;
 }
@@ -23,15 +26,16 @@ const NO_SECTIONS: ReturnType<typeof markdownSections> = [];
 // exists from the start, hidden in table mode, because every table edit is a transaction on it (and so is undo/redo).
 // An SVG file (`format` "svg") is the editor (plain text, no Markdown language) plus its rendered image from `renderPreview`:
 // "view" mode is the image, and the editor exists from the start, hidden, as for CSV.
-export default function MarkdownPane({ text, onChange, renderPreview, editorRef, format, csv, onTableVisible }: {
+export default function MarkdownPane({ text, onChange, renderPreview, editorRef, format, csv, onTableVisible, onSelection }: {
   text: string;
   onChange: (text: string) => void;
-  renderPreview?: (headingIds: readonly string[]) => ReactNode;
+  renderPreview?: (headingIds: readonly string[], reveal?: number) => ReactNode;
   editorRef: Ref<MarkdownEditorHandle>;
   format?: "text" | "csv" | "svg";
   /** `text` parsed with the pinned delimiter; required for CSV. */
   csv?: CsvTable | null;
   /** Tells the parent whether the CSV table is on screen, so it can skip parsing while only the source is shown. */
+  onSelection?: (selection: string) => void;
   onTableVisible?: (visible: boolean) => void;
 }) {
   const plain = format === "text";
@@ -53,6 +57,10 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
   const rendered = useRef<HTMLDivElement>(null);
   const editor = useRef<EditorView | null>(null);
   const extensions = useRef<Extension[]>([]);
+  const viewEdits = useRef<{ before: string; after: string; changes: readonly MarkdownChange[] }[]>([]);
+  const [reveal, setReveal] = useState<{ offset: number }>();
+  const revealTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(revealTimer.current), []);
   const currentMode = useRef(mode);
   currentMode.current = mode;
   const change = useRef(onChange);
@@ -102,7 +110,7 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
       basicSetup,
       ...(sheet ? [] : plain || svg ? [EditorView.lineWrapping] : [
         markdown({ codeLanguages: info => /^(python|py)(?:\s|$)/i.test(info) ? pythonLanguage : null }),
-        syntaxHighlighting(highlighting),
+        syntaxHighlighting(highlighting), loaded.markdownEditHighlight,
       ]),
       EditorState.tabSize.of(2),
       EditorView.contentAttributes.of({ "aria-label": plain ? "Text document" : sheet ? "CSV source" : svg ? "SVG source" : "Markdown source", spellcheck: "false" }),
@@ -112,10 +120,14 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
       }),
       EditorView.domEventHandlers({ scroll: (_event, current) => { sourceSection(current); } }),
     ];
-    view = new EditorView({
-      parent: host.current,
-      state: EditorState.create({ doc: latestText.current, extensions: extensions.current }),
-    });
+    // View can accept edits before the lazy editor exists. Replay those transactions into its undo history.
+    const queued = viewEdits.current.at(-1)?.after === latestText.current ? viewEdits.current : [];
+    let initial = EditorState.create({ doc: queued[0]?.before ?? latestText.current, extensions: extensions.current });
+    for (const { changes } of queued) initial = initial.update({
+      changes, userEvent: "input.markdownEdit", annotations: loaded.isolateHistory.of("full"),
+    }).state;
+    viewEdits.current = [];
+    view = new EditorView({ parent: host.current, state: initial });
     editor.current = view;
     setReady(true);
     if (currentMode.current === "source") sourceSection(view);
@@ -123,7 +135,8 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
     return () => { disposed = true; editor.current = null; view?.destroy(); };
   }, [requested, attempt]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (viewEdits.current.at(-1)?.after !== text) viewEdits.current = [];
     const view = editor.current;
     // Reloading a document must discard undo entries from its previous contents.
     if (view && text !== view.state.doc.toString()) view.setState(modules.current!.EditorState.create({ doc: text, extensions: extensions.current }));
@@ -135,10 +148,77 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
     else previewSection();
   }, [mode, sections]);
 
+  const selectedText = () => {
+    if (mode === "source") {
+      const view = editor.current;
+      if (!view) return "";
+      const { from, to } = view.state.selection.main;
+      return view.state.sliceDoc(from, Math.min(to, from + 12_000)).trim();
+    }
+    const selection = window.getSelection();
+    return selection?.anchorNode && selection.focusNode && rendered.current?.contains(selection.anchorNode) && rendered.current.contains(selection.focusNode)
+      ? selection.toString().trim().slice(0, 12_000) : "";
+  };
+
+  useLayoutEffect(() => {
+    if (reveal === undefined) return;
+    if (mode === "view") {
+      rendered.current?.querySelector(".markdown-edit-highlight")?.scrollIntoView({ block: "center", behavior: "instant" });
+      return;
+    }
+    const view = editor.current;
+    const loaded = modules.current;
+    if (!view || !loaded) return;
+    const anchor = Math.min(reveal.offset, view.state.doc.length);
+    view.dispatch({
+      selection: { anchor },
+      effects: [loaded.EditorView.scrollIntoView(anchor, { y: "center" }), loaded.revealMarkdownLine.of(anchor)],
+    });
+  }, [mode, reveal, ready]);
+
   useImperativeHandle(editorRef, () => ({
     focus() { if (mode === "source") editor.current?.focus(); else if (sheet) tableHandle.current?.focus(); else rendered.current?.focus(); },
     flush() { tableHandle.current?.commit(); },
-  }), [mode, sheet]);
+    selectedText,
+    applyMarkdownEdits(current, changes) {
+      const first = changes[0];
+      if (!first) return;
+      const view = editor.current;
+      const loaded = modules.current;
+      if (view && loaded) {
+        if (view.state.doc.toString() !== current) throw new Error(STALE_MARKDOWN_EDIT);
+        view.dispatch({ changes, userEvent: "input.markdownEdit", annotations: loaded.isolateHistory.of("full") });
+      } else {
+        const after = applyMarkdownChanges(current, changes);
+        viewEdits.current.push({ before: current, after, changes });
+        change.current(after);
+        setRequested(true);
+      }
+      if (mode === "source") view?.focus();
+      else rendered.current?.focus({ preventScroll: true });
+      setReveal({ offset: first.from });
+      window.clearTimeout(revealTimer.current);
+      revealTimer.current = window.setTimeout(() => {
+        setReveal(undefined);
+        if (editor.current && modules.current) editor.current.dispatch({ effects: modules.current.revealMarkdownLine.of(null) });
+      }, 1_600);
+    },
+  }));
+
+  const undoView = (event: React.KeyboardEvent) => {
+    if (!onSelection || !(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "z") return;
+    const view = editor.current;
+    if (view && modules.current) {
+      event.preventDefault();
+      (event.shiftKey ? modules.current.redo : modules.current.undo)(view);
+    } else if (!event.shiftKey) {
+      const last = viewEdits.current.pop();
+      if (!last || last.after !== latestText.current) return;
+      event.preventDefault();
+      change.current(last.before);
+    }
+    setReveal(undefined);
+  };
 
   const csvRows = useMemo(() => csv?.rows.map(row => row.cells.map(cell => cell.value)) ?? [], [csv]);
   // Rows shorter than the widest row; a blank line is not a short row.
@@ -191,12 +271,14 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
     setLabel({ index, top: Math.max(8, Math.min(bounds.top, window.innerHeight - 40)), left: bounds.right + 4 });
   };
 
-  return <div className="markdown-pane" data-mode={mode} data-sections={sections.length > 0}>
+  return <div className="markdown-pane" data-mode={mode} data-sections={sections.length > 0}
+    onPointerUp={onSelection ? () => onSelection(selectedText()) : undefined}
+    onKeyUp={onSelection ? () => onSelection(selectedText()) : undefined}>
     {!plain && <div className="markdown-mode-bar" role="group" aria-label={sheet ? "CSV mode" : svg ? "SVG mode" : "Markdown mode"}>
       {sheet || svg ? <>
         <button className="markdown-mode-button" aria-pressed={mode === "view"} onClick={() => setMode("view")}>{sheet ? "Table" : "Image"}</button>
         <button className="markdown-mode-button" aria-pressed={mode === "source"} onClick={() => { setRequested(true); setMode("source"); }}>Source</button>
-      </> : <button className="markdown-mode-button" onClick={() => { setRequested(true); setMode(mode === "view" ? "source" : "view"); }}>
+      </> : <button className="markdown-mode-button" onClick={() => { onSelection?.(""); setRequested(true); setMode(mode === "view" ? "source" : "view"); }}>
         {/* One toggle: it names the mode a click switches to. */}
         <Icon name={mode === "view" ? "code" : "eye"} size={16} />{mode === "view" ? "View source" : "View"}
       </button>}
@@ -228,8 +310,8 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
         <TableView rows={csvRows} columns={csv?.columns ?? 0} readOnly={!ready} label="CSV table" empty="This file is empty. Add a row to start." onEdit={applyEdit} handle={tableHandle} />
       </div>}
       {svg && <div ref={rendered} className="svg-view" role="region" hidden={mode !== "view"} tabIndex={0} aria-label="SVG image">{renderPreview?.([])}</div>}
-      {!plain && !sheet && !svg && <div ref={rendered} className="markdown-rendered" hidden={mode !== "view"} tabIndex={0} aria-label="Markdown document" onScroll={previewSection}>
-        {mode === "view" && renderPreview?.(headingIds)}
+      {!plain && !sheet && !svg && <div ref={rendered} className="markdown-rendered" hidden={mode !== "view"} tabIndex={0} aria-label="Markdown document" onScroll={previewSection} onKeyDown={undoView}>
+        {mode === "view" && renderPreview?.(headingIds, reveal?.offset)}
       </div>}
       <div className="markdown-source" hidden={mode !== "source"}>
         {loadError && <div role="alert">Couldn't load the editor. <button onClick={() => setAttempt(value => value + 1)}>Retry</button></div>}

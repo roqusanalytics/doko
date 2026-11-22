@@ -14,6 +14,14 @@ const HTML = /\.html?$/i;
 const SVG = /\.svg$/i;
 const IMAGE = /\.(jpe?g|png|webp|gif|bmp|avif)$/i;
 
+const browserAcceptTypes = BROWSER_ACCEPT.split(",");
+export const BROWSER_FILE_ACCEPT: Partial<Record<OpenFileType, string>> = {
+  pdf: browserAcceptTypes.filter(ext => ext === "application/pdf" || ext === ".pdf").join(","),
+  markdown: browserAcceptTypes.filter(ext => MARKDOWN.test(ext)).join(","),
+  photos: browserAcceptTypes.filter(ext => IMAGE.test(ext)).join(","),
+  excel: browserAcceptTypes.filter(ext => CSV.test(ext)).join(","),
+};
+
 /**
  * CSV line endings: rows end with `eol`, line breaks inside quoted cells use `cellEol`, each the dominant one of its kind.
  * A cell break defaults to "\n" (what Excel writes); rows default to the cell ending. Mixed row endings normalize to the
@@ -53,6 +61,20 @@ export function restoreText(doc: Pick<MarkdownDocument, "format" | "bom" | "eol"
  * as electron/content-files.cjs.
  */
 export const xmlUtf8 = (text: string) => text.replace(/^(\ufeff?\s*<\?xml\s[^?]*?\bencoding\s*=\s*)(["'])(?!utf-?8\2)[^"']*\2/i, "$1$2UTF-8$2");
+
+export function pickReaderFiles(type: OpenFileType | undefined, onFiles: (files: FileList) => void, onError: () => void) {
+  const desktop = window.folioDesktop;
+  if (type && desktop) {
+    void desktop.openFiles(type).catch(onError);
+    return;
+  }
+  const input = document.createElement("input");
+  input.type = "file";
+  input.multiple = true;
+  input.accept = desktop ? CONTENT_ACCEPT : (type && BROWSER_FILE_ACCEPT[type]) || BROWSER_ACCEPT;
+  input.onchange = () => { if (input.files?.length) onFiles(input.files); };
+  input.click();
+}
 
 export async function localSources(files: File[]): Promise<OpenSource[]> {
   const browserImages = !window.folioDesktop ? files.filter(file => IMAGE.test(file.name)) : [];

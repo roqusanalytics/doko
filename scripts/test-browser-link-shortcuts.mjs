@@ -16,8 +16,36 @@ try {
   const page = readerPage(tab);
   await tab.route("**/sample.pdf", route => route.fulfill({ contentType: "application/pdf", body: Buffer.from(linkHistoryPdf()) }));
   await tab.goto(server.resolvedUrls.local[0]);
+  const cards = page.getByRole("group", { name: "Document types" });
+  await cards.waitFor();
+  assert.equal(await cards.getByRole("button").count(), 4);
+  for (const [name, accept] of [
+    ["PDF", "application/pdf,.pdf"], ["Markdown", ".md,.markdown"],
+    ["Photos", ".jpg,.jpeg,.png,.webp,.gif,.bmp,.avif"], ["CSV", ".csv"],
+  ]) {
+    const [chooser] = await Promise.all([
+      tab.waitForEvent("filechooser"),
+      cards.getByRole("button", { name, exact: true }).click(),
+    ]);
+    assert.equal(await chooser.element().getAttribute("accept"), accept);
+    assert.equal(chooser.isMultiple(), true);
+    await chooser.setFiles([]);
+  }
   await page.getByRole("button", { name: /Try a sample/ }).click();
   assert.equal(await page.evaluate(() => !!window.folioDesktop), false);
+  const open = page.getByRole("toolbar", { name: "Tools" }).getByRole("button", { name: "Open", exact: true });
+  await open.press("Enter");
+  const menu = page.getByRole("menu", { name: "Open", exact: true });
+  await menu.waitFor();
+  assert.deepEqual(await menu.getByRole("menuitem").allTextContents(), ["PDF", "Markdown", "Photos", "CSV", "From URL…"]);
+  const [csv] = await Promise.all([
+    tab.waitForEvent("filechooser"),
+    menu.getByRole("menuitem", { name: "CSV", exact: true }).click(),
+  ]);
+  assert.equal(await csv.element().getAttribute("accept"), ".csv");
+  await csv.setFiles([]);
+  console.log("ok  Browser Edition PDF Open menu offers CSV and opens the filtered picker");
+
   const link = page.locator('.page[data-page-number="1"] .annotationLayer a');
   await link.nth(3).click();
   await page.getByRole("button", { name: "Back to previous spot", exact: true }).click();

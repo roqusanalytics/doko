@@ -36,8 +36,8 @@ function backend(fetch, expired = true) {
   sandbox.module.exports.register((name, fn) => handlers.set(name, fn), (_name, event) => events.push(event));
   return {
     events, timers,
-    ask(id, document = pdf) { return handlers.get("folio:ai-ask")(null, { id, provider: "chatgpt", model: "test",
-      document, messages: [{ role: "user", content: "test" }] }); },
+    ask(id, document = pdf, context) { return handlers.get("folio:ai-ask")(null, { id, provider: "chatgpt", model: "test",
+      document, messages: [{ role: "user", content: "test", context }] }); },
     cancel(id) { handlers.get("folio:ai-cancel")(null, id); },
     async tick(ms) {
       const end = now + ms;
@@ -64,11 +64,24 @@ await check("missing and unsupported document kinds are rejected before provider
   let requests = 0;
   const b = backend(async () => { requests++; return response(); }, false);
   const { kind, ...untyped } = pdf;
-  for (const document of [untyped, { ...pdf, kind: "markdown" }, { ...pdf, kind: "" }, { ...pdf, kind: 1 }]) {
+  for (const document of [untyped, { ...pdf, kind: "workbook" }, { ...pdf, kind: "" }, { ...pdf, kind: 1 }]) {
     assert.throws(() => b.ask("invalid", document), /Invalid request/);
   }
   await drain();
   assert.equal(requests, 0);
+});
+await check("Markdown uses its own instructions and sends a selection without PDF page markers", async () => {
+  const requests = [];
+  const b = backend(async (_url, options) => { requests.push(JSON.parse(options.body)); return response(); }, false);
+  const markdown = { ...pdf, kind: "markdown", text: "# Plan\n\nLaunch pilot." };
+  assert.throws(() => b.ask("invalid", { ...markdown, text: "a".repeat(400_001) }), /Invalid request/);
+  assert.throws(() => b.ask("invalid", markdown, { text: "test", page: 1 }), /Invalid request/);
+  assert.throws(() => b.ask("invalid", markdown, { text: "x".repeat(12_001) }), /Invalid request/);
+  b.ask("valid", markdown, { text: "Launch pilot." }); await drain();
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].instructions, /doko-edit/);
+  assert.deepEqual(JSON.parse(requests[0].input[0].content).document, markdown);
+  assert.deepEqual(JSON.parse(requests[0].input[1].content).selectedPassage, { text: "Launch pilot." });
 });
 await check("completed answers release slots even when the transport stays open", async () => {
   const b = backend(async () => response(['data: {"type":"response.output_text.delta","delta":"Complete answer"}\n\n',

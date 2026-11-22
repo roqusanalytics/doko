@@ -2,6 +2,17 @@
 :root {
   --radius: 12px;
   color-scheme: light;
+  /* Markdown source syntax colors (GitHub Primer); custom surfaces get contrast-checked ones from appearance.ts. */
+  --md-heading: #0550ae;
+  --md-link: #0969da;
+  --md-url: #0a3069;
+  --md-code: #953800;
+  --md-quote: #116329;
+  --md-mark: #6e7781;
+  --md-keyword: #cf222e;
+  --md-string: #0a3069;
+  --md-literal: #0550ae;
+  --md-comment: #6e7781;
   --font: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
 
   --bg: #f5f4f1;
@@ -38,6 +49,16 @@
 
 [data-theme="dark"] {
   color-scheme: dark;
+  --md-heading: #79c0ff;
+  --md-link: #58a6ff;
+  --md-url: #a5d6ff;
+  --md-code: #ffa657;
+  --md-quote: #7ee787;
+  --md-mark: #8b949e;
+  --md-keyword: #ff7b72;
+  --md-string: #a5d6ff;
+  --md-literal: #79c0ff;
+  --md-comment: #8b949e;
   --bg: #171717;
   --frame: #2a2a2c;
   --stage: #18181a;
@@ -143,6 +164,8 @@ kbd {
   flex: none;
   z-index: 12;
 }
+.document-tab-actions { display: flex; gap: 4px; margin-left: auto; align-items: center; }
+.document-tab-actions .focus-mode-btn { width: 28px; height: 28px; }
 .document-tab-list { display: flex; min-width: 0; gap: 3px; overflow-x: auto; scrollbar-width: thin; }
 .document-tab {
   display: flex;
@@ -271,7 +294,7 @@ kbd {
   border-radius: var(--radius);
   background: var(--surface-2);
 }
-.segmented button {
+.segmented button:not(:where(.menu button)) {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -283,7 +306,7 @@ kbd {
   color: var(--text-2);
   transition: background 0.15s, color 0.15s, box-shadow 0.15s;
 }
-.segmented button:not(:disabled):not(.on):hover {
+.segmented button:not(:where(.menu button)):not(:disabled):not(.on):hover {
   background: var(--hover);
   color: var(--text);
 }
@@ -291,6 +314,13 @@ kbd {
   background: var(--active);
   color: var(--accent-text);
 }
+.segmented[role="toolbar"] { align-items: center; }
+.tool-menu > button {
+  min-width: 32px;
+  height: 32px;
+  font-weight: 600;
+}
+.tool-menu .menu button { height: 32px; font-weight: 600; }
 .app[data-tool="highlight"] .segmented button.on,
 .app[data-tool="ink"] .segmented button.on,
 .app[data-tool="freetext"] .segmented button.on {
@@ -1064,6 +1094,85 @@ kbd {
   font-size: 13.5px;
 }
 
+.welcome-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  max-width: 560px;
+  margin: 16px auto 0;
+}
+.welcome-cards:has(.welcome-card-new) {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  max-width: none;
+}
+.welcome-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 100px;
+  padding: 14px 6px;
+  background: var(--surface);
+}
+.welcome-card:not(:disabled):hover {
+  background: color-mix(in srgb, var(--surface) 88%, var(--accent));
+}
+.welcome-card > .app-icon {
+  color: var(--accent-text);
+}
+.welcome-card-new {
+  background: var(--active);
+}
+.welcome-card-new:not(:disabled):hover {
+  background: color-mix(in srgb, var(--surface) 76%, var(--accent));
+}
+.welcome-card-copy {
+  display: grid;
+  gap: 3px;
+  transition: transform 320ms var(--ease);
+}
+.welcome-card-copy strong {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.welcome-card-hint {
+  color: var(--text-2);
+  font-size: 13px;
+}
+.welcome-card-new .welcome-card-hint {
+  color: inherit;
+}
+.welcome-card-badge {
+  padding: 2px 5px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-foreground);
+  font-size: 11px;
+  line-height: 1.1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .welcome-card:not(:disabled):hover .welcome-card-copy {
+    transform: translateY(-1px);
+    transition-duration: 240ms;
+  }
+}
+@media (max-width: 740px) {
+  .welcome-cards:has(.welcome-card-new) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: 560px;
+  }
+}
+@media (max-width: 480px) {
+  .welcome-cards, .welcome-cards:has(.welcome-card-new) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .welcome-links {
   display: flex;
   justify-content: center;
@@ -1538,13 +1647,16 @@ kbd {
 
 /* ── Responsive ─────────────────────────────────────────────────────── */
 /* Keep the tools clear of the native window controls at the minimum desktop width. */
-@media (max-width: 540px) {
-  .desktop .app:has(.topbar-center .segmented) { --topbar-h: 88px; }
-  .desktop .app .topbar:has(.segmented) { flex-wrap: wrap; align-content: center; padding-left: 4px; padding-right: 4px; }
+@media (max-width: 660px) {
+  .desktop .app:has(.topbar-center .segmented),
+  .app:has(.topbar-center .tool-menu) { --topbar-h: 88px; }
+  .desktop .app .topbar:has(.segmented),
+  .topbar:has(.tool-menu) { flex-wrap: wrap; align-content: center; padding-left: 4px; padding-right: 4px; }
   .desktop .topbar:has(.segmented) .topbar-right { margin-right: 146px; }
   .desktop.platform-darwin .topbar:has(.segmented) .topbar-right { margin-right: 0; }
   .desktop.platform-darwin .topbar:has(.segmented) .topbar-left { margin-left: 80px; }
-  .desktop .topbar-center:has(.segmented) {
+  .desktop .topbar-center:has(.segmented),
+  .topbar-center:has(.tool-menu) {
     order: 1;
     flex-basis: 100%;
     display: flex;
@@ -1555,15 +1667,23 @@ kbd {
 /* Keep added contextual tools and Save reachable before the toolbar reaches the window controls. */
 @media (max-width: 1400px) {
   .segmented:has(.more) > button > span,
-  .segmented:has([aria-label="Undo document edit"]) > button > span { display: none; }
+  .segmented:has([aria-label="Undo document edit"]) > button > span,
+  .segmented:has([aria-label="Undo document edit"]) .tool-menu > button > span { display: none; }
   .segmented:has(.more) > button,
-  .segmented:has([aria-label="Undo document edit"]) > button { padding: 0 7px; }
+  .segmented:has([aria-label="Undo document edit"]) > button,
+  .segmented:has([aria-label="Undo document edit"]) .tool-menu > button { padding: 0 7px; }
+}
+/* The wider PDF tool group needs room for the desktop window controls. */
+@media (max-width: 1200px) {
+  .desktop .segmented:has(.tool-menu) > button > span,
+  .desktop .segmented .tool-menu > button > span { display: none; }
 }
 @media (max-width: 1080px) {
-  .segmented > button > span {
+  .segmented > button > span,
+  .segmented .tool-menu > button > span {
     display: none;
   }
-  .segmented button {
+  .segmented button:not(:where(.menu button)) {
     padding: 0 10px;
   }
 }
@@ -1573,9 +1693,6 @@ kbd {
   .topbar-right .divider,
   .wide-only {
     display: none;
-  }
-  .segmented button {
-    padding: 0 8px;
   }
   .page-field {
     padding: 0 2px;
@@ -1593,7 +1710,7 @@ kbd {
     padding: 6px;
     margin-right: 0;
   }
-  .segmented button {
+  .segmented button:not(:where(.menu button)) {
     padding: 0 7px;
   }
   .icon-btn {
