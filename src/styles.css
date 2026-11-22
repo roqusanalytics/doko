@@ -2,6 +2,17 @@
 :root {
   --radius: 12px;
   color-scheme: light;
+  /* Markdown source syntax colors (GitHub Primer); custom surfaces get contrast-checked ones from appearance.ts. */
+  --md-heading: #0550ae;
+  --md-link: #0969da;
+  --md-url: #0a3069;
+  --md-code: #953800;
+  --md-quote: #116329;
+  --md-mark: #6e7781;
+  --md-keyword: #cf222e;
+  --md-string: #0a3069;
+  --md-literal: #0550ae;
+  --md-comment: #6e7781;
   --font: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
 
   --bg: #f5f4f1;
@@ -38,6 +49,16 @@
 
 [data-theme="dark"] {
   color-scheme: dark;
+  --md-heading: #79c0ff;
+  --md-link: #58a6ff;
+  --md-url: #a5d6ff;
+  --md-code: #ffa657;
+  --md-quote: #7ee787;
+  --md-mark: #8b949e;
+  --md-keyword: #ff7b72;
+  --md-string: #a5d6ff;
+  --md-literal: #79c0ff;
+  --md-comment: #8b949e;
   --bg: #171717;
   --frame: #2a2a2c;
   --stage: #18181a;

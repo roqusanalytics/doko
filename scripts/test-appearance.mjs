@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import { createServer } from "vite";
-
 const server = await createServer({ root: path.resolve(import.meta.dirname, ".."), server: { middlewareMode: true }, appType: "custom" });
 try {
-  const { APPEARANCE_PRESETS, normalizeColor, appearanceColor, appearancePalette, luminance, surfaceTokens, migrateDefaultColors, DEFAULT_BACKGROUND, DEFAULT_WORK_AREA } = await server.ssrLoadModule("/src/appearance.ts");
+  const { APPEARANCE_PRESETS, normalizeColor, appearanceColor, appearancePalette, luminance, surfaceTokens, SYNTAX_COLORS, migrateDefaultColors, DEFAULT_BACKGROUND, DEFAULT_WORK_AREA } = await server.ssrLoadModule("/src/appearance.ts");
   const saved = new Map();
   globalThis.localStorage = { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value) };
   for (const existing of [false, true]) {
@@ -78,6 +77,11 @@ try {
     }
     assert.ok(hoverVisible(color, tokens["--hover"]), `${color}: hover is invisible on the exact surface color`);
     assert.equal(tokens.color, "var(--text)");
+    // Markdown source syntax colors stay readable on the surface the source pane uses.
+    for (const name of Object.keys(SYNTAX_COLORS)) {
+      const a = luminance(tokens["--surface"]), b = luminance(tokens[`--md-${name}`]);
+      assert.ok((Math.max(a, b) + .05) / (Math.min(a, b) + .05) >= 4.5, `${color}: Markdown ${name} ${tokens[`--md-${name}`]} on ${tokens["--surface"]} lacks contrast`);
+    }
     assert.equal(tokens["color-scheme"], luminance(color) > 0.179 ? "light" : "dark");
   }
   console.log("PASS appearance: 5 unique presets, hex validation, light/dark palettes, adaptive surface text and WCAG contrast including custom extremes");

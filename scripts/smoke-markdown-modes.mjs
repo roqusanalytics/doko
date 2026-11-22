@@ -16,7 +16,7 @@ const file = path.join(temp, "Sections.md");
 const plain = path.join(temp, "Plain.md");
 const math = path.join(temp, "Math.md");
 const paragraph = "A section paragraph for scrolling and navigation. ".repeat(12);
-const document = ["# Opening", "", "**Bold** and [a link](https://example.com).", "", "```python", "def greet(name):", '    return "Hello " + name', "# Not a section", "```", "", ...Array.from({ length: 8 }, (_, i) => `${i % 2 ? "###" : "##"} Repeated section\n\n${Array(5).fill(paragraph).join("\n\n")}\n`), "Setext ending", "============", "", "The final section.", ""].join("\n");
+const document = ["# Opening", "", "**Bold** and [a link](https://example.com).", "", "> A quote with `inline code`.", "", "```python", "def greet(name):", '    return "Hello " + name', "# Not a section", "```", "", ...Array.from({ length: 8 }, (_, i) => `${i % 2 ? "###" : "##"} Repeated section\n\n${Array(5).fill(paragraph).join("\n\n")}\n`), "Setext ending", "============", "", "The final section.", ""].join("\n");
 writeFileSync(file, document);
 writeFileSync(plain, "A document without headings.\n");
 writeFileSync(math, "\\[\n# x+y\n\\]\n\n# Actual section\n");
@@ -116,6 +116,21 @@ try {
   assert.equal(await pythonToken.count(), 1, "Python fenced code has no highlighted keyword");
   const keywordColor = await pythonToken.evaluate(element => getComputedStyle(element).color);
   assert.notEqual(keywordColor, await editor().evaluate(element => getComputedStyle(element).color), "Python keyword uses plain source color");
+  // Source uses distinct syntax colors for headings, marks, link text, URLs, inline code and quotes.
+  // The color of the element that directly holds this text on the source line.
+  const tokenColor = (line, text) => editor().locator(".cm-line").filter({ hasText: line }).first().evaluate((element, text) => {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node.textContent.trim() === text.trim()) return getComputedStyle(node.parentElement).color;
+    }
+    throw new Error(`No source token "${text}"`);
+  }, text);
+  const colors = {
+    heading: await tokenColor("# Opening", "Opening"), mark: await tokenColor("# Opening", "#"),
+    link: await tokenColor("a link", "a link"), url: await tokenColor("a link", "https://example.com"),
+    code: await tokenColor("A quote with", "inline code"), quote: await tokenColor("A quote with", "A quote with"),
+  };
+  assert.equal(new Set(Object.values(colors)).size, Object.keys(colors).length, `Markdown source colors are not distinct: ${JSON.stringify(colors)}`);
   await end.click();
   await activeSection(9);
   await page.waitForFunction(() => {
