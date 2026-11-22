@@ -267,7 +267,8 @@ try {
   assert.deepEqual((await scene()).elements, before.elements);
 
   // A selected user frame receives the AI drawing, but a new AI frame never nests inside it.
-  await page.keyboard.press("Escape");
+  // Focus the drawing surface first, so the shortcut reaches Excalidraw and not the chat box.
+  await page.mouse.click(bounds.x + bounds.width * 0.1, bounds.y + bounds.height * 0.9);
   await page.keyboard.press("f");
   const fx = bounds.x + bounds.width * 0.55, fy = bounds.y + bounds.height * 0.2;
   await page.mouse.move(fx, fy);
