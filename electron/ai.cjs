@@ -556,7 +556,7 @@ const MAX_CHARS = 1_500_000;
 function validRequest(req) {
   return req && typeof req.id === "string" && req.id.length < 100 && ["chatgpt", "claude", "openrouter"].includes(req.provider)
     && typeof req.model === "string" && req.model.length <= (req.provider === "openrouter" ? 256 : 99)
-    && typeof req.document?.name === "string" && typeof req.document.text === "string" && typeof req.document.truncated === "boolean"
+    && req.document?.kind === "pdf" && typeof req.document.name === "string" && typeof req.document.text === "string" && typeof req.document.truncated === "boolean"
     && Array.isArray(req.messages) && req.messages.length > 0 && req.messages.length < 200
     && req.messages.every((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string"
       && (m.context === undefined || (m.role === "user" && typeof m.context?.text === "string" && Number.isSafeInteger(m.context.page) && m.context.page >= 1)))

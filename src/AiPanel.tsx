@@ -3,21 +3,26 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExtern
 import { createPortal } from "react-dom";
 import { Icon } from "./icons";
 import { copyText } from "./clipboard";
-import type { PDFDocumentProxy } from "./pdf";
 import { getAiHistory, saveAiHistory } from "./recent";
 import { ProviderLogo } from "./ProviderLogo";
 import { ModelMenu, type ModelGroup } from "./ModelMenu";
 import { CLAUDE_CODE_URL, PROVIDERS, savedProvider, saveAiPreference, signInChatGPT, subscribeAiPreferences, USAGE_URL, type AiProvider } from "./ai";
 import { Modal } from "./Dialogs";
 import { readSetting } from "./preferences";
-import { readAiDocumentText } from "./aiDocumentText";
-import type { PageText } from "./OcrFindController";
 
 const AiMarkdown = lazy(() => import("./AiMarkdown").then((module) => ({ default: module.AiMarkdown })));
 
 export interface AiContext {
   text: string;
   page: number;
+}
+
+interface AiDocumentContext {
+  kind: AiDocument["kind"];
+  name: string;
+  displayName: string;
+  readText: (signal: AbortSignal) => Promise<Pick<AiDocument, "text" | "truncated">>;
+  selection: AiContext | null;
 }
 
 interface Message extends AiMessage {
@@ -103,13 +108,10 @@ function NewConversationDialog({ onCancel, onConfirm }: { onCancel: () => void; 
 }
 
 interface Props {
-  pdf: PDFDocumentProxy;
-  getPageText: (n: number) => Promise<PageText>;
+  documentContext: AiDocumentContext;
   docId: string;
   /** Save the conversation with the document (off for password-protected documents). */
   persist: boolean;
-  docName: string;
-  context: AiContext | null;
   onClearContext: () => void;
   onGoToPage: (n: number) => void;
   onSettings: () => void;
@@ -117,7 +119,8 @@ interface Props {
   onSaveError?: (failed: boolean) => void;
 }
 
-export function AiPanel({ pdf, getPageText, docId, persist, docName, context, onClearContext, onGoToPage, onSettings, onClose, onSaveError }: Props) {
+export function AiPanel({ documentContext, docId, persist, onClearContext, onGoToPage, onSettings, onClose, onSaveError }: Props) {
+  const { kind, name, displayName, readText, selection: context } = documentContext;
   const ai = window.folioDesktop?.ai;
   const [status, setStatus] = useState<AiStatus | null>(null);
   const provider = useSyncExternalStore(subscribeAiPreferences, savedProvider);
@@ -286,7 +289,7 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
       // The cached conversation survives a failed save and is retried when the panel reopens.
       if (persist) void saveAiHistory(docId, storedMessages(kept), generation).catch(() => {});
     }
-  }, [ai, pdf, docId, persist, generation]);
+  }, [ai, readText, docId, persist, generation]);
   const stop = () => {
     if (!busy) return;
     if (preparing.current?.id !== busy) { void ai?.cancel(busy); return; }
@@ -310,10 +313,10 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
     setInput("");
     onClearContext();
     try {
-      const doc = provider === "openrouter" && context ? { text: "", truncated: true } : await readAiDocumentText(pdf.numPages, getPageText, controller.signal);
+      const doc = provider === "openrouter" && context ? { text: "", truncated: true } : await readText(controller.signal);
       if (preparing.current?.id !== id) return;
       preparing.current = null;
-      await ai.ask({ id, provider, model, document: { name: docName, ...doc },
+      await ai.ask({ id, provider, model, document: { kind, name, ...doc },
         messages: history.map(({ role, content, context }) => ({ role, content, ...(context ? { context } : {}) })) });
     } catch {
       if (busyRef.current !== id) return;
@@ -330,7 +333,7 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
         return next;
       });
     }
-  }, [ai, pdf, getPageText, context, messages, provider, model, docName, onClearContext, ready]);
+  }, [ai, kind, name, readText, context, messages, provider, model, onClearContext, ready]);
 
   const signIn = async () => {
     if (!ai) return;
@@ -411,7 +414,7 @@ export function AiPanel({ pdf, getPageText, docId, persist, docName, context, on
             )}
             {loaded && messages.length === 0 && (
               <div className="ai-empty">
-                <p>Ask anything about <strong>{docName.replace(/\.pdf$/i, "")}</strong>, or select text in the document and choose <em>Ask AI</em>.</p>
+                <p>Ask anything about <strong>{displayName}</strong>, or select text in the document and choose <em>Ask AI</em>.</p>
                 <div className="suggestions">
                   {(context ? ["Explain this in simple terms", "Why does this matter?", "Summarize this passage"]
                     : ["Summarize this document", "What are the key takeaways?", "What questions does this leave open?"]).map((q) => (
