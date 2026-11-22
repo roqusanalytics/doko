@@ -89,4 +89,4 @@ try {
   assert.ok(result.images.every(image => image.name.includes("page-1")));
   await assertHidden(app);
   console.log("PASS document export: PDF forms/annotations, honest no-improvement, PNG/JPEG/WebP, transparency, corrupt/empty/oversize/multiple-page/invalid-page input, abort and unchanged originals");
-} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true }); }
+} finally { await closeHidden(app); rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
