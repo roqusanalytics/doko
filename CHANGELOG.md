@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.22.1
+
+- First published release with the 1.22.0 changes below: Ask AI for Markdown, colored Markdown source, Canvas tools in the Doko toolbar, document type cards and the Open menu.
+- Make two release checks reliable on slower Windows and Linux build machines.
+
 ## 1.22.0
 
 - Ask AI for Markdown: ask about a Markdown document or the selected passage, and ask for changes. Suggested edits appear as a preview, and Apply changes the document in one step that Undo reverts.
