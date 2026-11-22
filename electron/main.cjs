@@ -752,7 +752,7 @@ if (!app.requestSingleInstanceLock()) {
     registerScreenshots(handle, () => win, { hidden: TEST_HIDDEN, devUrl: DEV_URL,
       fixture: TEST_HIDDEN && process.env.FOLIO_TEST_SCREENSHOT === "1" });
     on("folio:file-menu", (_event, state) => {
-      if (!state || !["none", "pdf", "photo", "markdown", "workbook", "html"].includes(state.kind) || typeof state.busy !== "boolean") return;
+      if (!state || !["none", "pdf", "photo", "markdown", "workbook", "html", "canvas"].includes(state.kind) || typeof state.busy !== "boolean") return;
       fileMenuState = { kind: state.kind, busy: state.busy }; updateFileMenu();
     });
     ai.register(handle, (channel, payload) => win?.webContents.send(channel, payload));

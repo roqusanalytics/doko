@@ -12,7 +12,7 @@ export type OpenSource =
   | { kind: "sample" | "converting"; name: string }
   | { kind: "error"; name: string; message: string };
 
-interface Reader {
+export interface Reader {
   open(source: OpenSource): void;
   flush(): Promise<void>;
   suspend?(): Promise<OpenSource | undefined>;
@@ -131,6 +131,10 @@ export class DocumentTabs {
     const blank = this.entries.find(tab => !tab.name && !tab.closing) ?? this.create();
     this.select(blank.key);
   }
+  newCanvasDocument() {
+    const document: CanvasDocument = { kind: "canvas", name: "Untitled Canvas" };
+    this.open([{ kind: "content", name: document.name, document }]);
+  }
   open(sources: OpenSource[]): number {
     if (!sources.length) return this.active;
     let first = 0;
@@ -148,7 +152,8 @@ export class DocumentTabs {
         }
       }
       const current = this.entry(this.active);
-      const tab = !first && current && !current.name && !current.closing ? current : this.create();
+      const newCanvasDocument = source.kind === "content" && source.document.kind === "canvas";
+      const tab = !newCanvasDocument && !first && current && !current.name && !current.closing ? current : this.create();
       if (source.kind === "content") this.resetFrame(tab);
       tab.name = source.name;
       if (source.kind === "content") tab.content = source.document;
@@ -325,6 +330,7 @@ export class DocumentTabs {
     desktop?.onTabCommand(command => {
       if (this.root.inert) return;
       if (command === "new") this.library();
+      else if (command === "new-canvas") this.newCanvasDocument();
       else if (command === "close") void this.close(this.active);
       else this.cycle(command === "next" ? 1 : -1);
     });

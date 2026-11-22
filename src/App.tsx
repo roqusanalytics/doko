@@ -1973,7 +1973,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       {gallery && !focus && <PhotoCarousel doc={gallery} selected={gallery.selected} busy={fileBusy || photoBusy || refreshingPhotos} onAction={(name, action) => void photoAction(name, action)} onSelect={name => void openPhoto(gallery, name)}
         onRefresh={gallery.id ? () => void refreshPhotos() : undefined} refreshing={refreshingPhotos} />}
 
-      {!doc && !gallery && <Welcome active={active} onPick={pickFile} onOpenUrl={() => openUrlDialog()} onOpenRecent={file => tabs.open([{ kind: "blob", name: file.name, blob: file.data, recentId: file.id }])}
+      {!doc && !gallery && <Welcome active={active} onPick={pickFile} onOpenUrl={() => openUrlDialog()} onNewCanvas={() => tabs.newCanvasDocument()} onOpenRecent={file => tabs.open([{ kind: "blob", name: file.name, blob: file.data, recentId: file.id }])}
         onSample={() => tabs.open([{ kind: "sample", name: "Doko sample.pdf" }])} loading={loading} />}
 
       {loading && doc && <div className="loading-bar" />}

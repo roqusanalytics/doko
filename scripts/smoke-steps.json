@@ -48,6 +48,9 @@
     "scripts/smoke-content.mjs"
   ],
   [
+    "scripts/smoke-canvas.mjs"
+  ],
+  [
     "scripts/smoke-workbook.mjs"
   ],
   [
