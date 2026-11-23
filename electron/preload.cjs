@@ -14,7 +14,7 @@ const subscribe = (channel, args = value => [value]) => callback => {
   return () => ipcRenderer.removeListener(channel, listener);
 };
 
-// Typed against src/desktop.d.ts: `npm run build` fails when the two disagree (tsconfig.preload.json).
+// Typed against src/desktop.d.ts: `bun run build` fails when the two disagree (tsconfig.preload.json).
 /** @type {FolioDesktop} */
 const folioDesktop = {
   openFiles: type => ipcRenderer.invoke("folio:open-files", type),

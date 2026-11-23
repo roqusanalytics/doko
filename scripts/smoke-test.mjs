@@ -1,9 +1,9 @@
 import { closeHidden } from "./hidden-window.mjs";
 import { captureSave } from "./capture-save.mjs";
-// End-to-end smoke test, run in CI on Windows, macOS, and Linux (and locally with `npm run smoke`):
+// End-to-end smoke test, run in CI on Windows, macOS, and Linux (and locally with `bun run smoke`):
 // launches the built app in Electron, opens the sample document, and checks that pages render, text is
 // selectable and highlightable, text boxes survive reopening, and the window chrome matches the platform.
-// Run `npm run build` first.
+// Run `bun run build` first.
 import { _electron as electron } from "playwright-core";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";

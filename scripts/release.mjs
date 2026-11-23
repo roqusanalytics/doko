@@ -5,12 +5,12 @@
 //   3. this script downloads them and publishes a release on public roqusanalytics/doko.
 // Installed copies using this repository receive updates automatically.
 //
-//   npm run release                      # 1.0.0 -> 1.0.1
-//   npm run release -- minor             # 1.0.0 -> 1.1.0
-//   npm run release -- patch --notes "Faster search, fixed printing"
+//   bun run release                      # 1.0.0 -> 1.0.1
+//   bun run release -- minor             # 1.0.0 -> 1.1.0
+//   bun run release -- patch --notes "Faster search, fixed printing"
 //
 // After the original tag-push build succeeds (including a rerun), resume publication with:
-//   npm run release -- --publish-only
+//   bun run release -- --publish-only
 import { execFileSync, execSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -57,12 +57,12 @@ if (!publishOnly) {
 
   if (git("rev-parse", "HEAD") !== git("rev-parse", "FETCH_HEAD")) {
     console.error("This checkout isn't at the latest main. Merge your work into main, then release from it, for example:\n"
-      + "  git worktree add ../doko-release origin/main && cd ../doko-release && npm run release");
+      + "  git worktree add ../doko-release origin/main && cd ../doko-release && bun run release");
     process.exit(1);
   }
 
   verifyReleaseNotes(readFileSync("CHANGELOG.md", "utf8"), JSON.parse(readFileSync("package.json", "utf8")).version, bump);
-  run(`npm version ${bump} -m "Release v%s"`);
+  run(`bun pm version ${bump} -m "Release v%s"`);
 }
 
 const { version } = JSON.parse(readFileSync("package.json", "utf8"));
@@ -110,7 +110,7 @@ console.log(`Build: https://github.com/${SOURCE_REPO}/actions/runs/${runId}`);
 try {
   gh(["run", "watch", String(runId), "--repo", SOURCE_REPO, "--exit-status", "--interval", "20"], { stdio: "inherit" });
 } catch {
-  console.error(`\nThe ${tag} build failed. Rerun the failed jobs, then use npm run release -- --publish-only. Source changes need a new tag.`);
+  console.error(`\nThe ${tag} build failed. Rerun the failed jobs, then use bun run release -- --publish-only. Source changes need a new tag.`);
   process.exit(1);
 }
 

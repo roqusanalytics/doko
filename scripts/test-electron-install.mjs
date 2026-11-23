@@ -1,4 +1,4 @@
-// Requiring Electron can download it lazily; verify npm ci prepared offline test execution first.
+// Requiring Electron can download it lazily; verify bun install prepared offline test execution first.
 import assert from "node:assert/strict";
 import { accessSync, constants, existsSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -9,7 +9,7 @@ const folder = path.dirname(require.resolve("electron/package.json"));
 const metadata = JSON.parse(readFileSync(path.join(folder, "package.json"), "utf8"));
 const pathFile = path.join(folder, "path.txt");
 
-assert.ok(existsSync(pathFile), "npm ci must install Electron before the first require; run it online with lifecycle scripts enabled");
+assert.ok(existsSync(pathFile), "bun install must install Electron before the first require; run it online with Electron's postinstall trusted");
 
 const binary = path.join(folder, "dist", readFileSync(pathFile, "utf8").trim());
 

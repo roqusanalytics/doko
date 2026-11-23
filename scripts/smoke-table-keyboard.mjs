@@ -1,6 +1,6 @@
 // The editable CSV table by keyboard, in the real desktop app: the footer control that opens the row/column menu (Mac keyboards
 // have no ContextMenu key), characters typed with AltGr or Option, and shortcuts that must stay shortcuts.
-// Isolated profile, no visible window. Run after npm run build.
+// Isolated profile, no visible window. Run after bun run build.
 import { _electron as electron } from "playwright-core";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";

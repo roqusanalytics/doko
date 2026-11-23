@@ -1,5 +1,5 @@
 // Real updater requests and content-reader controls, without downloads, a visible window or external links.
-// Run after npm run build. FOLIO_UPDATE_APP may point at the packaged app.asar.
+// Run after bun run build. FOLIO_UPDATE_APP may point at the packaged app.asar.
 import assert from "node:assert/strict";
 import http from "node:http";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";

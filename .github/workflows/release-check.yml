@@ -36,7 +36,7 @@ jobs:
           body="$(cat result.txt)
 
           Found by the daily Release check workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}.
-          Releases must be published with \`npm run release\` so every platform ships together (see AGENTS.md)."
+          Releases must be published with \`bun run release\` so every platform ships together (see AGENTS.md)."
           existing=$(gh issue list --repo "${{ github.repository }}" --state open --search "\"$title\" in:title" --json number -q '.[0].number')
           if [ -n "$existing" ]; then gh issue comment "$existing" --repo "${{ github.repository }}" --body "$body"
           else gh issue create --repo "${{ github.repository }}" --title "$title" --body "$body"; fi

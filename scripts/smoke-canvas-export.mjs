@@ -1,4 +1,4 @@
-// Run after npm run build. Stub only the save dialog; Doko writes each file via its real IPC.
+// Run after bun run build. Stub only the save dialog; Doko writes each file via its real IPC.
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

@@ -47,11 +47,14 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
+      # The repository allows only GitHub-owned actions, so install the pinned Bun with npm.
+      - &setup-bun
+        run: npm install --global "$(node --print "require('./package.json').packageManager")"
+        shell: bash
       - &install
-        run: npm ci
+        run: bun install --frozen-lockfile
       - &build
-        run: npm run build
+        run: bun run build
       - name: Package Windows
         shell: bash
         env:
@@ -71,7 +74,7 @@ jobs:
               -c.win.azureSignOptions.certificateProfileName="$AZURE_SIGNING_PROFILE"
               -c.win.azureSignOptions.publisherName="$AZURE_SIGNING_PUBLISHER")
           fi
-          npx electron-builder --win nsis portable "${extra[@]}" --publish never
+          bunx electron-builder --win nsis portable "${extra[@]}" --publish never
       - name: Previous app cannot reopen during a Windows update
         shell: pwsh
         run: |
@@ -108,6 +111,7 @@ jobs:
     steps:
       - *checkout
       - *setup-node
+      - *setup-bun
       - *install
       - *build
       - name: Package macOS
@@ -144,7 +148,7 @@ jobs:
           codesign --verify --strict -R="certificate leaf = H\"$DOKO_MAC_SIGN_IDENTITY\"" "$RUNNER_TEMP/doko-signing-check"
           rm "$RUNNER_TEMP/doko-signing-check"
           rm "$RUNNER_TEMP/doko-signing.p12"
-          npx electron-builder --mac -c.mac.identity=- -c.mac.sign=./scripts/mac-sign.cjs -c.extraMetadata.folioMacSigned=true --publish never
+          bunx electron-builder --mac -c.mac.identity=- -c.mac.sign=./scripts/mac-sign.cjs -c.extraMetadata.folioMacSigned=true --publish never
           codesign --verify --deep --strict -R="certificate leaf = H\"$DOKO_MAC_SIGN_IDENTITY\"" "release/mac-universal/Doko.app"
       - name: Remove temporary signing keychain
         if: always()
@@ -181,11 +185,12 @@ jobs:
     steps:
       - *checkout
       - *setup-node
+      - *setup-bun
       - *install
       - *build
       - name: Package Linux
         run: |
-          npx electron-builder --linux AppImage deb --publish never
+          bunx electron-builder --linux AppImage deb --publish never
           sudo apt-get install -y -qq dpkg-dev apt-utils > /dev/null
       - name: Signed apt repository (Linux)
         env:

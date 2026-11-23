@@ -5,9 +5,10 @@ Doko ships for **Windows, macOS, and Linux from one codebase**. Every change and
 ## Project map and local setup
 
 Doko is a local-first PDF reader with a React/TypeScript renderer, Vite, and an Electron desktop shell.
-Use Node.js 22.12 or newer and npm with the existing `package-lock.json`; CI uses Node.js 22 and `npm ci`.
-Install dependencies with `npm ci`. `npm run dev` starts the browser edition; desktop-only features require Electron.
-The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use the npm scripts to run these hooks.
+Use Bun (version pinned in `packageManager` in `package.json`) with the existing `bun.lock`, and Node.js 22.12 or newer:
+the scripts, tests and Electron tooling still run on Node. CI uses Node.js 22 and `bun install --frozen-lockfile`.
+Install dependencies with `bun install --frozen-lockfile`. `bun run dev` starts the browser edition; desktop-only features require Electron.
+The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use the package scripts to run these hooks.
 
 - `src/main.tsx` starts `src/documentTabs.ts`; document frames render PDF `src/App.tsx`, `src/ContentReader.tsx`, or a Canvas
   `src/canvasDocument/CanvasReader.tsx` (Excalidraw, lazy-loaded; fonts copied by `scripts/copy-excalidraw-assets.mjs`).
@@ -16,17 +17,17 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
   capabilities; keep their file/folder identity separate from PDF content hashes and PDF session persistence.
 - `src/pdf.ts` and `src/viewer.ts` handle PDF loading and viewing. `src/markup.ts` restores and saves annotations;
   `src/recent.ts` owns IndexedDB document data, and `src/session.ts` handles reading-position persistence.
-  Reach localStorage only through `src/preferences.ts` (`npm run test:preferences` checks it).
+  Reach localStorage only through `src/preferences.ts` (`bun run test:preferences` checks it).
 - `src/AiPanel.tsx` and `src/ai.ts` implement the Ask AI UI; `electron/ai.cjs` handles desktop providers.
   On a Canvas, `src/canvasDocument/canvasDocumentAiReply.ts` validates AI drawings before insertion; `.excalidraw`
   files are validated by `electron/canvas-document-file.cjs`. Canvas is the domain term (`GLOSSARY.md`); never name code just `canvas`.
   Keep stored credentials in the main process. Preserve the existing privacy rules for password-protected PDFs
   (see [README.md](README.md#privacy)).
 - Desktop APIs cross `electron/main.cjs` → `electron/preload.cjs` → `src/desktop.d.ts` → renderer callers.
-  Update all affected layers together; `npm run test:ipc-contract` checks that they agree and that every handler checks
+  Update all affected layers together; `bun run test:ipc-contract` checks that they agree and that every handler checks
   its sender. Preserve sandboxing, context isolation, and the shared CSP in `electron/csp.cjs`.
 - `site/` is the doko.lt landing page: a separate Astro (Vite) project with its own `package.json`; it is not part of the
-  Electron build. Work inside `site/`: `npm ci`, `npm run dev` (LAN-reachable), `npm run build` (also runs
+  Electron build. Work inside `site/`: `bun install --frozen-lockfile`, `bun run dev` (LAN-reachable), `bun run build` (also runs
   `scripts/check-seo.mjs` on `dist/`). Page markup is `src/components/Landing.astro`, rendered in English at `/` and
   Lithuanian at `/lt/`; all copy (incl. FAQ, meta and JSON-LD text) lives only in `src/i18n/en.ts` and `lt.ts`
   (same shape; a missing LT key fails the build); the logo is imported from `brand/doko/logos/`. Third-party brand marks
@@ -42,12 +43,12 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
 
 ## Choosing checks
 
-- `npm run build` type-checks and builds; `npx tsc --noEmit` checks types alone. Run the required smoke check below
+- `bun run build` type-checks and builds; `bunx tsc --noEmit` checks types alone. Run the required smoke check below
   against the built app, extending the existing scripts when the changed flow is not covered.
 - Run the affected regression tests from `package.json` and `.github/workflows/ci.yml`.
-  For desktop URL, IPC, or security changes, include `npm run test:reader-security` and `npm run test:ipc-contract`.
-  For Markdown or galleries, include `npm run test:content`; its Electron E2E also runs in `npm run smoke`.
-  There is no generic `npm test` script; use the actual commands in those files. `npm run lint` runs Oxlint with the
+  For desktop URL, IPC, or security changes, include `bun run test:reader-security` and `bun run test:ipc-contract`.
+  For Markdown or galleries, include `bun run test:content`; its Electron E2E also runs in `bun run smoke`.
+  There is no generic `bun test` script; use the actual commands in those files. `bun run lint` runs Oxlint with the
   vendored anti-slop rules (`tools/oxlint/anti-slop/`); new code must not add errors or warnings.
 - Report local results separately from the Windows/macOS/Linux CI matrix; a check on one OS does not prove the others.
 
@@ -56,30 +57,30 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
 - Source, CI, signing environments, public releases and all update feeds live in public `roqusanalytics/doko`. The archived `folio-fork` repository is not an update channel. Publish only against the verified source tag in `doko`; refuse publication if that repository becomes private or is renamed.
 - Copies already using the `doko` update feed update normally. Copies temporarily configured for the retired `doko-fork` feed need one manual install; source changes cannot rewrite an installed updater URL.
 
-- `npm run build:local` prepares a private Apple Silicon Mac app with `electron-builder.local.cjs`, a separate
+- `bun run build:local` prepares a private Apple Silicon Mac app with `electron-builder.local.cjs`, a separate
   identity/profile, the public Doko update feed, and no publication. It builds outside synced folders for codesigning.
   Public releases still use the procedure below.
 - Keep the installed private Mac app only at `/Applications/Doko.app`. Existing `/Applications/Folio.app` installs are
   not renamed by this documentation change. Store rollback copies as verified `.zip`
   archives, never loose `.app` bundles that macOS can index or launch. Unregister archived backup/build bundles
   with `lsregister -u`; register only the installed app. Verify the archive before removing its loose bundle.
-- **Release only with `npm run release`** (`-- minor`, `-- major`, `-- --notes "…"` as needed). It bumps the version,
+- **Release only with `bun run release`** (`-- minor`, `-- major`, `-- --notes "…"` as needed). It bumps the version,
   pushes the tag, waits for `.github/workflows/release-build.yml` to build and check the Windows, macOS, and Linux
   installers, then publishes all of them together and verifies the result with `scripts/check-release.mjs`.
 - **Never publish by hand.** Don't run `gh release create`/`upload`, `electron-builder --publish`, or a
-  single-platform `npm run dist:*` and upload the output. A release missing a platform leaves those users behind; the
+  single-platform `bun run dist:*` and upload the output. A release missing a platform leaves those users behind; the
   daily **Release check** workflow opens an issue when that happens.
 - For a transient build failure, rerun the failed jobs on the original tag-push run. Once it succeeds,
-  `npm run release -- --publish-only` resumes publication. A source fix on `main` needs a new version and tag.
+  `bun run release -- --publish-only` resumes publication. A source fix on `main` needs a new version and tag.
 - The release must start at the latest `main` (the script checks). It pushes to `main` by name, so it works from a
   worktree on any branch, e.g. `git worktree add ../doko-release origin/main`. If the run stops after the tag is
-  pushed (a closed terminal, a restarted session), run `npm run release -- --publish-only` to finish it.
+  pushed (a closed terminal, a restarted session), run `bun run release -- --publish-only` to finish it.
 - **One release at a time.** Releases are built from committed, pushed code. If another session is working in the same
   checkout, coordinate: don't commit or release its uncommitted work, and use a separate `git worktree` for your own.
 
 ## Keeping every platform working
 
-- CI (`.github/workflows/ci.yml`) builds and runs `npm run smoke` on Windows, macOS, and Linux for every push to `main`
+- CI (`.github/workflows/ci.yml`) builds and runs `bun run smoke` on Windows, macOS, and Linux for every push to `main`
   and every pull request. Keep it green on all three before releasing.
 - Platform differences live in a few places; check them when you touch related code:
   - `electron/main.cjs`: window chrome (`titleBarOverlay` on Windows/Linux, traffic lights on macOS), file opening
@@ -115,13 +116,13 @@ All of these files are produced by the release build and published together; `sc
 ## Code style
 
 Match the surrounding code: comments explain why, not what; user-facing text is plain and short. Run
-`npx tsc --noEmit`, `npm run build`, and `npm run smoke` before committing.
+`bunx tsc --noEmit`, `bun run build`, and `bun run smoke` before committing.
 
-To check a change in the running app, use `npm run smoke` (extend it if it doesn't cover your change). It runs Doko
+To check a change in the running app, use `bun run smoke` (extend it if it doesn't cover your change). It runs Doko
 without a visible window (off-screen on Windows and Linux, never shown on macOS) and leaves the clipboard alone, so it
 doesn't interrupt whoever is using the computer. A new script that launches Electron gets the binary from
 `scripts/electron-path.mjs`, which keeps a hidden run out of the Dock on macOS. Don't open a visible window
-(`npm run app`, `electron .`, `FOLIO_SMOKE_SHOW=1`) unless the user asks to see the app.
+(`bun run app`, `electron .`, `FOLIO_SMOKE_SHOW=1`) unless the user asks to see the app.
 
 For hidden Electron test scripts, reuse `scripts/hidden-window.mjs`: Windows/Linux render off-screen, so `isVisible()` alone is not a visibility failure.
 

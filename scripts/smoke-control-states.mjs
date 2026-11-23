@@ -1,5 +1,5 @@
 import { closeHidden } from "./hidden-window.mjs";
-// Run after npm run build; exercise control states in a hidden, disposable Electron profile.
+// Run after bun run build; exercise control states in a hidden, disposable Electron profile.
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

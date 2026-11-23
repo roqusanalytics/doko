@@ -1,4 +1,4 @@
-// Run after npm run build. Exercise the reader, IPC, and streaming with a fixture-only OpenRouter key.
+// Run after bun run build. Exercise the reader, IPC, and streaming with a fixture-only OpenRouter key.
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

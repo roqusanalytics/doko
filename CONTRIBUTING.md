@@ -27,11 +27,12 @@ issues, follow [SECURITY.md](SECURITY.md) instead.
 
 ## Making changes
 
-1. Install [Node.js](https://nodejs.org/) 22.12 or newer, then run `npm install`.
-2. Run `npm run app` to build and launch the desktop app, or `npm run dev` for the browser version with hot reload.
-   To develop the desktop shell against the dev server, start `npm run dev` and then run
-   `FOLIO_DEV_URL=http://localhost:5173 npx electron .` (development builds only).
-3. Run `npm run build` and `npm run smoke` before opening a pull request. CI runs both on Windows, macOS, and Linux.
+1. Install [Node.js](https://nodejs.org/) 22.12 or newer and [Bun](https://bun.sh/) (the version in `packageManager` in
+   `package.json`), then run `bun install`.
+2. Run `bun run app` to build and launch the desktop app, or `bun run dev` for the browser version with hot reload.
+   To develop the desktop shell against the dev server, start `bun run dev` and then run
+   `FOLIO_DEV_URL=http://localhost:5173 bunx electron .` (development builds only).
+3. Run `bun run build` and `bun run smoke` before opening a pull request. CI runs both on Windows, macOS, and Linux.
 
 ### One problem per pull request
 
@@ -70,14 +71,14 @@ Maintainers publish releases with the GitHub CLI logged in to an account that ca
 [roqusanalytics/doko](https://github.com/roqusanalytics/doko). Commit everything, then run:
 
 ```sh
-npm run release                                  # 1.0.0 -> 1.0.1
-npm run release -- minor --notes "What changed"  # 1.0.0 -> 1.1.0
+bun run release                                  # 1.0.0 -> 1.0.1
+bun run release -- minor --notes "What changed"  # 1.0.0 -> 1.1.0
 ```
 
 This bumps the version and pushes the commit and tag. The tag starts the **Release build** workflow
 (`.github/workflows/release-build.yml`), which builds the Windows, macOS, and Linux installers on GitHub Actions and
 checks that each packaged app starts. The script waits for it, downloads the installers, and publishes the release.
-Nothing is published if any platform fails; fix the problem, then run `npm run release -- --publish-only` to publish
+Nothing is published if any platform fails; fix the problem, then run `bun run release -- --publish-only` to publish
 the same tag. After publishing, the script checks the release with `scripts/check-release.mjs`: every platform's files
 are present and every update feed (Windows, macOS, AppImage, apt) offers the new version. The daily **Release check**
 workflow repeats that check and opens an issue if anything is off.
@@ -85,5 +86,5 @@ workflow repeats that check and opens an issue if anything is off.
 **Never publish any other way** (no hand-made `gh release` uploads or single-platform builds); see
 [AGENTS.md](AGENTS.md). Signing certificates are set up as repository secrets; see [SIGNING.md](SIGNING.md).
 
-CI (`.github/workflows/ci.yml`) type-checks, builds, and runs `npm run smoke` on all three platforms for every push to
+CI (`.github/workflows/ci.yml`) type-checks, builds, and runs `bun run smoke` on all three platforms for every push to
 `main` and every pull request.

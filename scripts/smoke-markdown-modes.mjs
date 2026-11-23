@@ -1,4 +1,4 @@
-// Real Markdown mode, editing and section-navigation checks. Run after npm run build.
+// Real Markdown mode, editing and section-navigation checks. Run after bun run build.
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
