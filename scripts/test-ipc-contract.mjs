@@ -16,23 +16,32 @@ function loadPreload(file) {
   const exposed = {};
   const calls = [];
   const listeners = [];
+
   const ipcRenderer = {
-    invoke: (channel) => { calls.push({ kind: "invoke", channel }); return Promise.resolve({ data: [], mime: "", name: "", gallery: null }); },
+    invoke: (channel) => { calls.push({ kind: "invoke", channel });
+
+ return Promise.resolve({ data: [], mime: "", name: "", gallery: null }); },
     send: (channel) => { calls.push({ kind: "send", channel }); },
     on: (channel, listener) => { calls.push({ kind: "on", channel }); listeners.push(listener); },
     removeListener: () => {},
   };
+
   const electron = {
     contextBridge: { exposeInMainWorld: (name, api) => { exposed[name] = api; } },
     ipcRenderer,
     webUtils: { getPathForFile: () => "/file" },
   };
+
   const source = readFileSync(path.join(electronDir, file), "utf8");
+
   const sandboxedRequire = (name) => {
     assert.equal(name, "electron", `${file} requires "${name}": a sandboxed preload can only require electron`);
+
     return electron;
   };
+
   vm.runInNewContext(source, { require: sandboxedRequire, process: { platform: "test" }, Promise, Uint8Array, Error });
+
   return { exposed, calls, listeners, ipcRenderer };
 }
 
@@ -42,20 +51,24 @@ function members(value, prefix = "") {
 }
 
 const preloadChannels = { invoke: new Set(), send: new Set(), on: new Set() };
+
 for (const [file, global] of Object.entries(PRELOADS)) {
   const { exposed, calls, listeners, ipcRenderer } = loadPreload(file);
   assert.deepEqual(Object.keys(exposed), [global], `${file} must expose only window.${global}`);
   const api = exposed[global];
   const bridgeFunctions = new Set(Object.values(ipcRenderer));
   const seen = new Set();
+
   const walk = (value) => {
     if (!value || typeof value !== "object" || seen.has(value)) return;
     seen.add(value);
+
     for (const member of Object.values(value)) {
       assert.ok(member !== ipcRenderer && !bridgeFunctions.has(member), `${file} exposes ipcRenderer itself`);
       walk(member);
     }
   };
+
   walk(api);
 
   // Strings go in where a channel could be smuggled; a generic bridge would then reach "probe:" channels.
@@ -65,6 +78,7 @@ for (const [file, global] of Object.entries(PRELOADS)) {
     const args = name.split(".").at(-1).startsWith("on") ? [callback, callback] : ["probe:a", "probe:b", "probe:c"];
     await Promise.resolve(member(...args)).catch(() => {});
   }
+
   // Fire every listener once, so replies sent from inside one (folio:prepared-close) are recorded too.
   for (const listener of listeners) listener({}, { name: "", data: [], message: "", token: "" });
   await new Promise(resolve => setTimeout(resolve, 0));
@@ -78,13 +92,16 @@ for (const [file, global] of Object.entries(PRELOADS)) {
 // 2. Read what the main process registers and sends.
 const mainFiles = readdirSync(electronDir).filter(file => file.endsWith(".cjs") && !(file in PRELOADS));
 const handled = new Set(), heard = new Set(), mentioned = new Set();
+
 for (const file of mainFiles) {
   const source = readFileSync(path.join(electronDir, file), "utf8");
   const lines = source.split("\n");
+
   for (const [, how, channel] of source.matchAll(/\b(?:ipcMain\.)?(handle|on)\(\s*["']([^"']+)["']/g)) {
     if (!channel.startsWith("folio:")) continue;
     (how === "handle" ? handled : heard).add(channel);
   }
+
   for (const [, channel] of source.matchAll(/["'](folio:[a-z-]+)["']/g)) mentioned.add(channel);
 
   // Every direct ipcMain registration must check its sender: main.cjs's two wrappers, or a handler that calls
@@ -92,8 +109,10 @@ for (const file of mainFiles) {
   lines.forEach((line, index) => {
     if (!/ipcMain\.\w+\(/.test(line)) return;
     const body = lines.slice(index, index + 3).join("\n");
+
     const ok = file === "main.cjs" ? /const (handle|on) = \(channel, listener\) => ipcMain\.(handle|on)\(channel/.test(line) && /isTrustedSender\(event\)/.test(body)
       : /trusted\(event\)/.test(body);
+
     assert.ok(ok, `electron/${file}:${index + 1} registers IPC without checking the sender:\n${line.trim()}`);
   });
 
@@ -109,8 +128,11 @@ for (const file of mainFiles) {
 
 // 3. Both sides agree, in both directions.
 const sorted = set => [...set].sort();
+
 assert.deepEqual(sorted(preloadChannels.invoke), sorted(handled), "preload invoke channels and main handle() channels differ");
+
 assert.deepEqual(sorted(preloadChannels.send), sorted(heard), "preload send channels and main on() channels differ");
+
 for (const channel of preloadChannels.on) assert.ok(mentioned.has(channel), `preload listens to ${channel}, which the main process never sends`);
 
 // 4. src/desktop.d.ts matches the preload's members and signatures.

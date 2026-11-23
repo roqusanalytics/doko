@@ -7,10 +7,14 @@ export function readSetting(key: string): string | null {
 
 /** Returns whether the value was saved. */
 export function writeSetting(key: string, value: string): boolean {
-  try { localStorage.setItem(key, value); return true; } catch { return false; }
+  try { localStorage.setItem(key, value);
+
+ return true; } catch { return false; }
 }
 
 /** Returns whether the value was removed. */
 export function removeSetting(key: string): boolean {
-  try { localStorage.removeItem(key); return true; } catch { return false; }
+  try { localStorage.removeItem(key);
+
+ return true; } catch { return false; }
 }

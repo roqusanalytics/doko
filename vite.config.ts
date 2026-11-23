@@ -31,9 +31,12 @@ const offlineExcalidraw: Plugin = {
         '    [prefix, svgPrefix].some(start => id.startsWith(start) && /^\\d+$/.test(id.slice(start.length))));',
       ].join("\n"));
     }
+
     if (!id.includes("/@excalidraw/excalidraw/dist/") || !id.endsWith(".js")) return;
+
     const rewritten = code.replace(/"ASSETS_FALLBACK_URL",\s*`https:\/\/esm\.sh\/[^\r\n]+?\/dist\/prod\/`/,
       '"ASSETS_FALLBACK_URL", window.EXCALIDRAW_ASSET_PATH');
+
     if (rewritten !== code) return rewritten;
   },
 };

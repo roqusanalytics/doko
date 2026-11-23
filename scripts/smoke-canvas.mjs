@@ -12,15 +12,19 @@ const shots = process.env.FOLIO_CANVAS_TOPBAR_SHOTS;
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "doko-canvas-"));
 const env = { ...process.env, FOLIO_TEST_USER_DATA: temp, FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const app = await electron.launch({ executablePath: electronPath(env), env, args: [root, "--mute-audio",
   ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
+
 try {
   const window = await app.firstWindow();
   window.setDefaultTimeout(10_000);
   const page = readerPage(window);
   const requests = [], pageErrors = [];
   await window.setViewportSize({ width: 1280, height: 800 });
+
   if (shots) mkdirSync(shots, { recursive: true });
   window.on("request", request => requests.push(request.url()));
   window.on("pageerror", error => pageErrors.push(error.message));
@@ -37,6 +41,7 @@ try {
   await app.evaluate(({ Menu, BrowserWindow }) => {
     const item = Menu.getApplicationMenu().items.find(item => item.label === "File").submenu.items
       .find(item => item.label === "New Canvas");
+
     if (item?.accelerator !== "CmdOrCtrl+Shift+N") throw new Error("Missing native New Canvas shortcut");
     item.click(item, BrowserWindow.getAllWindows()[0], {});
   });
@@ -54,14 +59,17 @@ try {
   const moreTools = page.getByRole("menu", { name: "More tools", exact: true });
   const more = page.getByRole("menu", { name: "More", exact: true });
   const action = (menu, name) => menu.getByRole("menuitem", { name, exact: true });
+
   async function select(tool) {
     await button(tool).click();
     await toolbar.locator(`[aria-label="${tool}"][aria-pressed="true"]`).waitFor();
   }
+
   async function openMore() {
     await page.getByRole("button", { name: "More", exact: true }).click();
     await more.waitFor();
   }
+
   const capture = async name => {
     if (shots) {
       await window.mouse.move(1, 1);
@@ -72,9 +80,11 @@ try {
   for (const selector of [".App-toolbar", ".main-menu-trigger", ".default-sidebar-trigger", ".HintViewer"]) {
     await canvasDocumentEditor.locator(selector).first().waitFor({ state: "hidden" });
   }
+
   for (const tool of ["Select", "Hand", "Rectangle", "Diamond", "Ellipse", "Arrow", "Line", "Draw", "Text", "Eraser"]) {
     await select(tool);
   }
+
   await page.keyboard.press("3");
   await toolbar.locator('[aria-label="Diamond"][aria-pressed="true"]').waitFor();
   await page.keyboard.press("h");
@@ -145,6 +155,7 @@ try {
   await background.getByRole("button", { name: "Apply" }).click();
   await page.waitForFunction(() => {
     const context = document.querySelector(".excalidraw__canvas.static")?.getContext("2d");
+
     return context?.getImageData(1, 1, 1, 1).data.join(",") === "244,241,232,255";
   });
   await openMore();
@@ -166,9 +177,11 @@ try {
   await properties.getByRole("button", { name: "Close" }).click();
   await button("Open").click();
   const open = page.getByRole("menu", { name: "Open", exact: true });
+
   for (const name of ["New canvas", "PDF", "Markdown", "Photos", "Excel", "Word", "From URL…"]) {
     await action(open, name).waitFor();
   }
+
   await action(open, "From URL…").click();
   const urlDialog = page.getByRole("dialog", { name: "Open from URL", exact: true });
   await urlDialog.waitFor();
@@ -213,6 +226,7 @@ try {
 
   const layout = () => page.evaluate(() => {
     const center = document.querySelector(".topbar-center .segmented").getBoundingClientRect();
+
     return {
       center: center.left + center.width / 2,
       right: [...document.querySelectorAll(".topbar-right :is(.update-btn, .icon-btn)")].map(button => button.getBoundingClientRect().left),
@@ -220,47 +234,59 @@ try {
       height: document.querySelector(".topbar").getBoundingClientRect().height,
     };
   });
+
   const libraryTab = page.getByRole("tab", { name: "Library", exact: true });
   await libraryTab.click();
   await page.getByRole("button", { name: "Try a sample document" }).click();
   const pdfTab = page.getByRole("tab", { name: "Doko sample.pdf", exact: true });
   await pdfTab.waitFor();
+
   const chooseTheme = async name => {
     await page.keyboard.press(shortcut);
     await settings.getByRole("radio", { name, exact: true }).click();
+
     if (name === "Light") {
       await settings.getByRole("button", { name: "Paper background", exact: true }).click();
       const workArea = page.getByRole("textbox", { name: "Work area", exact: true });
       await settings.locator(".appearance-color", { has: workArea }).getByRole("button", { name: "Auto", exact: true }).click();
     }
+
     await page.keyboard.press("Escape");
     await settings.waitFor({ state: "hidden" });
     await page.waitForFunction(theme => document.documentElement.dataset.theme === theme, name.toLowerCase());
   };
+
   const measure = async (theme, width, takeShots = false) => {
     await window.setViewportSize({ width, height: 800 });
     await pdfTab.click();
     await toolbar.waitFor();
     const pdf = await layout();
+
     if (takeShots) await capture("pdf-" + theme);
     await firstTab.click();
     await button("Rectangle").waitFor();
     const canvas = await layout();
+
     if (takeShots) await capture("canvas-" + theme);
     assert.ok(Math.abs(pdf.center - canvas.center) <= 2, `Toolbar centers at ${width}px: PDF ${pdf.center}, Canvas ${canvas.center}`);
     assert.deepEqual(canvas.right, pdf.right, `Trailing buttons at ${width}px`);
     assert.equal(canvas.focus, pdf.focus, `Focus button at ${width}px`);
     assert.equal(canvas.height, pdf.height, `Topbar height at ${width}px`);
+
     const overlap = await page.evaluate(() => {
       const bar = document.querySelector(".canvas-document-tools").getBoundingClientRect();
+
       return [...document.querySelectorAll(".topbar-left button, .topbar-right button.icon-btn")].some(button => {
         const control = button.getBoundingClientRect();
+
         return bar.right > control.left && bar.left < control.right && bar.top < control.bottom && bar.bottom > control.top;
       });
     });
+
     assert.equal(overlap, false, `Canvas tools overlap adjacent controls at ${width}px`);
     console.log(`${width}px center Δ=${Math.abs(pdf.center - canvas.center).toFixed(2)}px; right x=[${canvas.right}]; focus x=${canvas.focus}`);
   };
+
   await chooseTheme("Light");
   await measure("light", 1280, true);
   await pdfTab.click();
@@ -294,14 +320,17 @@ try {
   await page.keyboard.press("Escape");
   await firstTab.click();
   await page.waitForFunction(() => document.documentElement.hasAttribute("data-window-transparency"));
+
   const alphas = await page.evaluate(() => {
     const sample = document.createElement("canvas").getContext("2d");
     const selected = document.querySelector(".canvas-document-tools button.on");
     sample.fillStyle = getComputedStyle(selected).backgroundColor;
     sample.fillRect(0, 0, 1, 1);
     const scene = document.querySelector("canvas.excalidraw__canvas.static").getContext("2d");
+
     return [sample.getImageData(0, 0, 1, 1).data[3], scene.getImageData(1, 1, 1, 1).data[3]];
   });
+
   assert.deepEqual(alphas, [255, 255], "Selected tool and Scene stay opaque with window transparency");
 
   // Exercise the focus layout without entering native fullscreen in a hidden window.

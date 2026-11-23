@@ -16,34 +16,48 @@ const panels = tabs.map(t => document.getElementById(t.getAttribute('aria-contro
 const videos = panels.map(p => p.querySelector('video'));
 let active = 0, paused = calm, inView = false, frame = 0, fadeOut = 0;
 const running = () => !paused && inView && !document.hidden;
+
 // Only the first video loads metadata up front; the next one starts loading shortly before its turn.
 const warm = v => { if (v.preload !== 'auto') { v.preload = 'auto'; v.load(); } };
+
 const progress = () => {
   const v = videos[active];
   pill.style.setProperty('--p', v.duration ? v.currentTime / v.duration : 0);
+
   if (v.duration - v.currentTime < 2.5) warm(videos[(active + 1) % videos.length]);
 };
+
 const tick = () => { progress(); frame = requestAnimationFrame(tick); };
+
 function movePill(instant) {
   const t = tabs[active];
+
   if (instant) pill.style.transition = 'none';
   pill.style.width = t.offsetWidth + 'px';
   pill.style.transform = `translateX(${t.offsetLeft}px)`;
+
   if (instant) { void pill.offsetWidth; pill.style.transition = ''; }
 }
+
 function sync() {
   const v = videos[active];
   toggle.toggleAttribute('data-paused', paused);
   toggle.setAttribute('aria-label', toggle.dataset[paused ? 'play' : 'pause']);
   cancelAnimationFrame(frame);
-  if (!running()) { v.pause(); progress(); return; }
+
+  if (!running()) { v.pause(); progress();
+
+ return; }
+
   frame = requestAnimationFrame(tick);
   v.play().catch(e => { if (e.name === 'NotAllowedError') { paused = true; sync(); } }); // autoplay blocked (e.g. power saving): wait for the play button
 }
+
 function show(i, focus) {
   const prev = active;
   active = i;
   tabs.forEach((t, j) => { t.setAttribute('aria-selected', i === j); t.tabIndex = i === j ? 0 : -1; });
+
   if (prev !== i) {
     const next = panels[i], old = videos[prev];
     next.classList.add('on', 'enter');
@@ -55,28 +69,43 @@ function show(i, focus) {
     fadeOut = setTimeout(() => { if (active !== prev) old.currentTime = 0; }, 700);
     videos[i].currentTime = 0;
   }
+
   movePill();
+
   if (focus) tabs[i].focus();
   sync();
 }
+
 tabs.forEach((t, i) => {
   t.addEventListener('click', () => show(i));
   t.addEventListener('keydown', e => {
     const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+
     if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); show(e.key === 'Home' ? 0 : tabs.length - 1, true); }
+
     if (step) { e.preventDefault(); show((i + step + tabs.length) % tabs.length, true); }
   });
 });
+
 videos.forEach((v, i) => v.addEventListener('ended', () => { if (i === active) show((i + 1) % videos.length); }));
+
 toggle.addEventListener('click', () => { paused = !paused; sync(); });
+
 document.addEventListener('visibilitychange', sync);
+
 // Posters load once the stage is near; the tour runs while at least a third of it is visible.
 new IntersectionObserver(([e], io) => { if (e.isIntersecting) { videos.forEach(v => { v.poster ||= v.dataset.poster; }); io.disconnect(); } }, { rootMargin: '600px 0px' }).observe(stage);
+
 new IntersectionObserver(([e]) => { inView = e.isIntersecting; sync(); }, { threshold: .35 }).observe(stage.querySelector('.window'));
+
 movePill(true);
+
 tablist.classList.add('ready');
+
 document.fonts?.ready.then(() => movePill(true));
+
 addEventListener('resize', () => movePill(true)); // not a ResizeObserver: the list resizes on every switch on phones, which would cut the glide
+
 sync();
 
 // Hero scene: thin curves from every format to the Doko icon. Positions come from layout (offset*), so
@@ -86,6 +115,7 @@ const wiresSvg = scene.querySelector('.wires');
 const hubEl = scene.querySelector('.hubx');
 const fmts = [...scene.querySelectorAll('.fmt')];
 const centre = el => [el.offsetLeft + el.offsetWidth / 2, el.offsetTop + el.offsetHeight / 2];
+
 function drawWires() {
   const [hx, hy] = centre(hubEl), r = hubEl.offsetWidth / 2;
   let out = '';
@@ -94,27 +124,37 @@ function drawWires() {
     const [tx, ty] = centre(f), cs = getComputedStyle(f), c = (cs.getPropertyValue('--w') || cs.getPropertyValue('--c')).trim(); // --w: wire colour when the tile colour would vanish
     const ex = hx + (tx < hx ? -r : r) * .7;
     const curve = o => `M${tx},${ty} C${tx + (ex - tx) * .55},${ty + o} ${ex - (ex - tx) * .35},${hy + o * .4} ${ex},${hy + o * .2}`;
+
     for (const o of [-10, -5, 0, 5, 10]) out += `<path class="w" data-i="${i}" stroke="${c}" d="${curve(o)}"/>`;
     out += `<path class="spark" data-i="${i}" stroke="${c}" style="color:${c}" d="${curve(0)}"/>`; // color feeds the CSS glow
   });
   wiresSvg.innerHTML = out;
 }
+
 drawWires();
+
 onTheme(() => { drawWires(); window.dispatchEvent(new Event('wires')); });
 
 // Light/dark button: remembers the choice in this browser; without a choice the system setting applies.
 const themeBtn = document.querySelector('[data-theme-toggle]');
 const syncTheme = () => themeBtn.setAttribute('aria-pressed', isDark());
+
 syncTheme();
+
 onTheme(syncTheme);
+
 themeBtn.addEventListener('click', () => {
   const next = isDark() ? 'light' : 'dark';
   document.documentElement.dataset.theme = next;
+
   try { localStorage.setItem('doko-theme', next); } catch {} // private mode: the choice lasts for this page only
+
   dispatchEvent(new Event('themechange'));
 });
+
 let sparkCtx;
 let sceneWidth = scene.clientWidth;
+
 // Redraw only on real width changes; the observer also fires once on observe().
 new ResizeObserver(() => {
   if (scene.clientWidth === sceneWidth) return;
@@ -124,6 +164,7 @@ new ResizeObserver(() => {
 
 // Language dropdown: closes on outside click, Escape and after picking an entry.
 const langMenu = document.querySelector('[data-lang-menu]');
+
 if (langMenu) {
   document.addEventListener('click', e => { if (!langMenu.contains(e.target)) langMenu.open = false; });
   langMenu.addEventListener('keydown', e => { if (e.key === 'Escape' && langMenu.open) { langMenu.open = false; langMenu.querySelector('summary').focus(); } });
@@ -137,15 +178,19 @@ const platform = navigator.userAgentData?.platform || navigator.platform || '';
 const os = /mac/i.test(platform) ? (touch ? null : 'mac') : /win/i.test(platform) ? 'win' : null;
 const get = document.getElementById('get');
 const mine = cards.find(a => a.dataset.os === os);
+
 // The localized label comes from data-mac / data-win on the button.
 if (mine) get.innerHTML = `<svg aria-hidden="true"><use href="#b-${os === 'mac' ? 'apple' : 'windows'}"/></svg>${get.dataset[os]}`;
+
 fetch('https://api.github.com/repos/roqusanalytics/doko/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
   .then(r => r.ok ? r.json() : Promise.reject(new Error('GitHub API ' + r.status)))
   .then(release => {
     for (const a of cards) {
       const file = release.assets.find(f => new RegExp(a.dataset.asset).test(f.name));
+
       if (file) a.href = file.browser_download_url;
     }
+
     if (mine) get.href = mine.href;
     const ver = document.querySelector('[data-version]');
     const date = new Date(release.published_at).toLocaleDateString(document.documentElement.lang, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
@@ -168,7 +213,9 @@ if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (touch && /mac/i.te
 const lock = document.querySelector('.ask-lock');
 const picks = [...lock.querySelectorAll('.pick')];
 const fitPick = (pick, i) => pick.children[i].offsetWidth;
+
 picks.forEach(p => { p.style.width = fitPick(p, 0) + 'px'; });
+
 document.fonts?.ready.then(() => { if (!lock.querySelector('.pick > span[style]')) picks.forEach(p => { p.style.width = fitPick(p, 0) + 'px'; }); }); // re-measure once the web font replaces the fallback
 
 // Spotlight follows the pointer on bento cards (pointer devices only).
@@ -181,6 +228,7 @@ if (matchMedia("(hover: hover)").matches) {
 }
 
 const head = document.querySelector(".masthead");
+
 addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8), { passive: true });
 
 // Motion. Every element's resting CSS is its final state, so with reduced motion the page is complete.
@@ -209,7 +257,10 @@ addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8),
     gsap.fromTo('.stage', { rotateX: 16, rotateY: -12, rotateZ: 2, scale: .9, transformPerspective: 1800 }, { rotateX: 0, rotateY: 0, rotateZ: 0, scale: 1, ease: 'none', scrollTrigger: { trigger: '.stage', start: 'top bottom', end: 'top 18%', scrub: .8 } });
 
     // Formats fly out of Doko, wires draw in, then light keeps travelling into the icon.
-    const delta = f => { const [tx, ty] = centre(f), [hx, hy] = centre(hubEl); return [hx - tx, hy - ty]; };
+    const delta = f => { const [tx, ty] = centre(f), [hx, hy] = centre(hubEl);
+
+ return [hx - tx, hy - ty]; };
+
     gsap.timeline({ scrollTrigger: { trigger: scene, start: 'top 12%', end: 'bottom top', scrub: .8 } })
       .to(fmts, { x: i => delta(fmts[i])[0] * .85, y: i => delta(fmts[i])[1] * .85, scale: .3, opacity: 0, ease: 'power2.in', invalidateOnRefresh: true }, 0)
       .to(wiresSvg, { opacity: 0, ease: 'none' }, 0)
@@ -217,13 +268,19 @@ addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8),
     gsap.from(hubEl, { scale: .4, opacity: 0, duration: 1.2, ease: 'expo.out', delay: .5 });
     gsap.from(fmts.map(f => f.firstElementChild), { x: i => delta(fmts[i])[0], y: i => delta(fmts[i])[1], scale: .2, opacity: 0, duration: 1.5, stagger: .05, ease: 'expo.out', delay: .65 });
     gsap.fromTo(scene.querySelector('.halo'), { scale: 1, opacity: .7 }, { scale: 1.9, opacity: 0, duration: 2.4, ease: 'expo.out', repeat: -1, delay: 2 });
+
     // Everything below runs in clockwise order around the hub, so the scene reads as one sweep, not noise.
-    const angle = i => { const [tx, ty] = centre(fmts[i]), [hx, hy] = centre(hubEl); return (Math.atan2(ty - hy, tx - hx) + Math.PI * 2.5) % (Math.PI * 2); };
+    const angle = i => { const [tx, ty] = centre(fmts[i]), [hx, hy] = centre(hubEl);
+
+ return (Math.atan2(ty - hy, tx - hx) + Math.PI * 2.5) % (Math.PI * 2); };
+
     const hubMark = hubEl.querySelector('svg');
+
     const runWires = (intro) => {
       sparkCtx?.revert();
       sparkCtx = gsap.context(() => {
         const order = i => [...fmts.keys()].filter(j => fmts[j].offsetParent).sort((a, b) => angle(a) - angle(b)).indexOf(i);
+
         if (intro) wiresSvg.querySelectorAll('.w').forEach(p => {
           const len = p.getTotalLength(), k = order(+p.dataset.i);
           gsap.fromTo(p, { strokeDasharray: len, strokeDashoffset: len }, { strokeDashoffset: 0, duration: 1.4, ease: 'expo.inOut', delay: 1 + Math.max(0, k) * .06 });
@@ -243,6 +300,7 @@ addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8),
         loop.to({}, { duration: 1.6 }); // a breath before the next sweep
       });
     };
+
     runWires(true);
     const rerun = () => runWires(false);
     window.addEventListener('wires', rerun);
@@ -258,17 +316,22 @@ addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8),
     // 2. Section transitions: each heading builds word by word, then the section's content follows in its own way.
     $('.head').forEach(head => {
       const h2 = head.querySelector('h2');
+
       if (!h2.dataset.split) { // wrap every word once: outer span is the mask, inner span moves
         h2.dataset.split = 1;
+
         const wrap = node => [...node.childNodes].forEach(n => n.nodeType !== 3 ? wrap(n) : n.replaceWith(...n.textContent.split(/(\s+)/).map(part => {
           if (!part.trim()) return part;
           const w = document.createElement('span');
           w.className = 'w';
           w.append(Object.assign(document.createElement('span'), { textContent: part }));
+
           return w;
         })));
+
         wrap(h2);
       }
+
       gsap.timeline({ scrollTrigger: { trigger: head, start: 'top 82%', once: true } })
         .from(head.querySelector('.idx'), { opacity: 0, scale: .8, duration: .6, ease: 'back.out(2)' })
         .from($('.w > span', h2), { yPercent: 120, rotate: 6, duration: 1.1, stagger: .07, ease: 'expo.out' }, '-=.35')
@@ -323,6 +386,7 @@ addEventListener("scroll", () => head.classList.toggle("scrolled", scrollY > 8),
     lockTl.to({}, { duration: .01 }, 3 * 4.6); // hold the last answer before the loop restarts
     const relock = () => lockTl.invalidate();
     ScrollTrigger.addEventListener('refreshInit', relock);
+
     // matchMedia reverts styles, not classes: restore the resting state.
     return () => { ScrollTrigger.removeEventListener('refreshInit', relock); window.removeEventListener('wires', rerun); sparkCtx?.revert(); stopDemos(); };
   });

@@ -30,13 +30,16 @@ function BasicPrint({ pdf, currentPage, onPrint }: { pdf: PDFDocumentProxy; curr
       const sheet = { ...size, placements: [{ ...clip, clip, page: number, scale: 1 }] };
       // Only the visible thumbnail is rasterized. Print hands off the complete PDF snapshot.
       const canvas = await renderPrintSheet(pdf, sheet, DEFAULT_PRINT, 900 * 72 / Math.max(width, height), signal);
+
       try {
         if (!signal.aborted) setPreview({ number, size, url: canvas.toDataURL() });
       } finally { canvas.width = canvas.height = 0; }
     })().catch(() => { if (!signal.aborted) setFailedPage(number); });
+
     return () => controller.abort();
   }, [pdf, number]);
   const visible = preview?.number === number ? preview : null;
+
   return <div className="print-basic" style={previewStyle(preview?.size)}>
     <div className="print-paper">
       {visible ? <img src={visible.url} alt={`Preview of page ${number}`} /> :
@@ -77,15 +80,22 @@ export function PrintDialog({ pdf, currentPage, name, onPrint, onClose }: {
     const oldFocus = document.activeElement as HTMLElement | null;
     const dialog = root.current!.closest<HTMLElement>(".modal")!;
     dialog.querySelector<HTMLElement>("select,button")?.focus();
+
     const trap = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return;
+
       const controls = [...dialog.querySelectorAll<HTMLElement>("button:not(:disabled),input:not(:disabled),select:not(:disabled),summary,[tabindex='0']")]
         .filter(control => control.checkVisibility() && control.tabIndex >= 0);
+
       const first = controls[0], last = controls[controls.length - 1];
+
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+
       if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     };
+
     dialog.addEventListener("keydown", trap);
+
     return () => { job.current?.abort(); dialog.removeEventListener("keydown", trap); oldFocus?.focus(); };
   }, []);
   useEffect(() => {
@@ -93,13 +103,16 @@ export function PrintDialog({ pdf, currentPage, name, onPrint, onClose }: {
     let cancelled = false;
     void (async () => {
       const result: PageSize[] = [];
+
       for (let n = 1; n <= pdf.numPages; n++) {
         if (cancelled) return;
         const page = await pdf.getPage(n), size = page.getViewport({ scale: 1 });
         result.push({ width: size.width, height: size.height });
       }
+
       if (!cancelled) setSizes(result);
     })().catch(() => { if (!cancelled) setError("Couldn't read page sizes."); });
+
     return () => { cancelled = true; };
   }, [pdf, advanced, sizes.length]);
   useEffect(() => {
@@ -108,29 +121,39 @@ export function PrintDialog({ pdf, currentPage, name, onPrint, onClose }: {
     void window.folioDesktop?.getPrinters().then(result => {
       if (!cancelled) setPrinters(result);
     }).catch(() => { if (!cancelled) setMessage("Printer list unavailable. Choose a printer in the system dialog."); });
+
     return () => { cancelled = true; };
   }, [advanced]);
 
   const layout = useMemo(() => {
     if (!advanced || !sizes.length) return { sheets: [], error: "" };
+
     try {
       const pages = selection === "current" ? [currentPage] : selection === "range" ? parsePages(range, pdf.numPages) : sizes.map((_, i) => i + 1);
+
       return { sheets: planSheets(pages, sizes, settings), error: "" };
     } catch (e) { return { sheets: [], error: (e as Error).message }; }
   }, [advanced, sizes, selection, currentPage, range, pdf.numPages, settings]);
+
   const index = Math.min(sheetIndex, Math.max(0, layout.sheets.length - 1));
   const sheet = layout.sheets[index];
+
   const budgetError = useMemo(() => {
-    try { checkPrintBudget(layout.sheets, settings.dpi); return ""; }
+    try { checkPrintBudget(layout.sheets, settings.dpi);
+
+ return ""; }
     catch (error) { return (error as Error).message; }
   }, [layout.sheets, settings.dpi]);
+
   useEffect(() => {
     const controller = new AbortController();
     setPreview("");
+
     if (sheet) void renderPrintSheet(pdf, sheet, settings, 38, controller.signal).then(canvas => {
       if (!controller.signal.aborted) setPreview(canvas.toDataURL());
       canvas.width = canvas.height = 0;
     }).catch(() => { if (!controller.signal.aborted) setError("Couldn't render the print preview."); });
+
     return () => controller.abort();
   }, [pdf, sheet, settings]);
 
@@ -138,31 +161,44 @@ export function PrintDialog({ pdf, currentPage, name, onPrint, onClose }: {
     if (!window.folioDesktop || busy || budgetError || !layout.sheets.length || copies < 1 || copies > 999 || !Number.isInteger(copies)) return;
     const controller = new AbortController(); job.current = controller;
     setBusy(true); setError(""); setMessage("");
+
     try {
       const images: string[] = []; let bytes = 0;
+
       for (let i = 0; i < layout.sheets.length; i++) {
         setProgress(`Preparing sheet ${i + 1} of ${layout.sheets.length}…`);
+
         const canvas = await renderPrintSheet(pdf, layout.sheets[i], settings, settings.dpi, controller.signal,
           layout.sheets[0].width > layout.sheets[0].height);
+
         let image: string;
+
         try { image = await encodePrintSheet(canvas, controller.signal); }
         finally { canvas.width = canvas.height = 0; }
+
         bytes += image.length;
+
         if (bytes > 64 * 1024 * 1024) throw new Error("This job exceeds 64 MiB of encoded images. Select fewer pages, reduce poster scale/overlap, or choose a lower DPI.");
         images.push(image);
       }
+
       controller.signal.throwIfAborted();
       setProgress("Waiting for the system print dialog…");
+
       const result = await window.folioDesktop.printSheets({ images, paper: settings.paper, dpi: settings.dpi,
         landscape: layout.sheets[0].width > layout.sheets[0].height, copies, printer, booklet: settings.mode === "booklet" });
+
       if (controller.signal.aborted) return;
+
       if (result.ok) { setMessage("Print job accepted by the system."); }
       else if (/cancel/i.test(result.error ?? "")) setMessage("Printing cancelled.");
       else setError(result.error || "Couldn't print. Check the selected printer.");
     } catch (e) { if (!controller.signal.aborted) setError((e as Error).message); }
     finally { if (job.current === controller) { job.current = null; setBusy(false); setProgress(""); } }
   };
+
   const close = () => { if (!busy) onClose(); else if (!progress.startsWith("Waiting")) { job.current?.abort(); setProgress("Cancelling preparation…"); } };
+
   return <Modal title="Print" onClose={close}>
     <div className="print-dialog" ref={root}>
       <div className="print-tabs" role="tablist" aria-label="Print settings">{["Basic", "Advanced"].map(tab =>

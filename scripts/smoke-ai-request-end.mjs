@@ -13,13 +13,19 @@ import { assertHidden, closeHidden } from "./hidden-window.mjs";
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "doko-ai-end-"));
 const shots = path.join(root, "release", "smoke");
+
 mkdirSync(shots, { recursive: true });
+
 const env = { ...process.env, FOLIO_TEST_USER_DATA: temp, FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const app = await electron.launch({ executablePath: electronPath(env), env,
   args: [root, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
+
 const errors = [];
 let page;
+
 try {
   page = readerPage(await app.firstWindow());
   page.on("pageerror", error => errors.push(String(error)));
@@ -30,9 +36,11 @@ try {
   await app.evaluate(({ BrowserWindow, net, safeStorage }, bytes) => {
     const fetch = net.fetch;
     const methods = ["isAsyncEncryptionAvailable", "encryptStringAsync", "decryptStringAsync"];
+
     if (process.platform === "linux") methods.push("getSelectedStorageBackend");
     const original = Object.fromEntries(methods.map(name => [name, safeStorage[name]]));
     safeStorage.isAsyncEncryptionAvailable = async () => true;
+
     if (process.platform === "linux") safeStorage.getSelectedStorageBackend = () => "gnome_libsecret";
     safeStorage.encryptStringAsync = async value => Buffer.from(value).map(b => b ^ 128);
     safeStorage.decryptStringAsync = async bytes => ({ result: Buffer.from(bytes).map(b => b ^ 128).toString() });
@@ -40,17 +48,22 @@ try {
     net.fetch = async (url, options) => {
       if (!String(url).startsWith("https://openrouter.ai/")) return fetch.call(net, url, options);
       const endpoint = new URL(url).pathname;
+
       if (endpoint === "/api/v1/key") return Response.json({ data: { label: "Test" } });
+
       if (endpoint === "/api/v1/models") return Response.json({ data: [
         { id: "sample/reader", name: "Sample Reader", context_length: 131072, architecture: { input_modalities: ["text"], output_modalities: ["text"] } },
       ] });
       state.requests++;
+
       // No word ever arrives; the stream only ends when Doko cancels the answer.
       return new Response(new ReadableStream({ start(controller) {
         options.signal?.addEventListener("abort", () => { state.cancelled++; controller.error(options.signal.reason); }, { once: true });
       } }));
     };
+
     state.restore = () => { net.fetch = fetch; Object.assign(safeStorage, original); };
+
     BrowserWindow.getAllWindows()[0].webContents.send("folio:open-file", { name: "Ending answers.pdf", data: Buffer.from(bytes) });
   }, [...await pdf.save()]);
   await page.window.waitForFunction(() => document.title.startsWith("Ending answers.pdf"));
@@ -70,6 +83,7 @@ try {
   await settings.getByRole("button", { name: "Close" }).click();
 
   const thinking = panel.getByLabel("Thinking");
+
   const ask = async (question, requests) => {
     await panel.getByRole("textbox").fill(question);
     await panel.getByRole("button", { name: "Send", exact: true }).click();
@@ -78,6 +92,7 @@ try {
     }, requests);
     await thinking.waitFor();
   };
+
   const cancelled = count => app.evaluate(async count => {
     while (globalThis.aiEndTest.cancelled < count) await new Promise(resolve => setTimeout(resolve, 50));
   }, count);

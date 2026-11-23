@@ -33,6 +33,7 @@ export function ModelMenu({ groups, provider, model, label, disabled, onChange, 
   const open = useAnchoredPopover(trigger, panel);
   useEffect(() => { if (open) onOpen?.(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const close = () => { panel.current?.hidePopover(); trigger.current?.focus(); };
+
   return <>
     <button ref={trigger} type="button" className="model-trigger" aria-label={`Model: ${label}`} title="Choose model" disabled={disabled}
       aria-haspopup="menu" aria-expanded={open} aria-controls={id} popoverTarget={id}
@@ -45,6 +46,7 @@ export function ModelMenu({ groups, provider, model, label, disabled, onChange, 
         {group.setup ? <button type="button" role="menuitem" className="model-setup" onClick={() => { close(); onSettings(); }}>{group.setup}</button> : <>
           {group.models.map(item => {
             const selected = group.provider === provider && item.id === model;
+
             return <button type="button" key={item.id} role="menuitemradio" aria-checked={selected} title={item.id || undefined}
               onClick={() => { close(); onChange(group.provider, item.id); }}>
               <span>{item.name}</span>{selected && <Icon name="check" size={14} />}

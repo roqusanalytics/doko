@@ -10,20 +10,31 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
     const controls = () => [...panel.current!.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]')].filter(element=>element.checkVisibility());
     const available = controls();
     const first = available.find(element=>element.matches("input,textarea")) ?? available[0];
+
     if (!panel.current?.contains(document.activeElement)) first?.focus();
+
     const trap = (event:KeyboardEvent) => {
       if(event.key !== "Tab") return;
       const available=controls(), first=available[0], last=available.at(-1);
-      if(!available.length) {event.preventDefault();return;}
+
+      if(!available.length) {event.preventDefault();
+
+return;}
+
       if(event.shiftKey && (document.activeElement===first || !panel.current?.contains(document.activeElement))) {event.preventDefault();last?.focus();}
       else if(!event.shiftKey && (document.activeElement===last || !panel.current?.contains(document.activeElement))) {event.preventDefault();first?.focus();}
     };
+
     document.addEventListener('keydown',trap);
-    return()=>{document.removeEventListener('keydown',trap); if(previous?.isConnected)previous.focus();};
+
+    return()=>{document.removeEventListener('keydown',trap);
+
+ if(previous?.isConnected)previous.focus();};
   }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
+
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
@@ -44,7 +55,9 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
 
 export function formatBytes(n: number) {
   if (n < 1024) return `${n} B`;
+
   if (n < 1024 ** 2) return `${(n / 1024).toFixed(0)} KB`;
+
   return `${(n / 1024 ** 2).toFixed(1)} MB`;
 }
 
@@ -64,8 +77,10 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
     desktop?.getAppInfo().then(info => { if (!cancelled) setInfo(info); }).catch(() => {
       if (!cancelled) setError("Couldn't read application details.");
     });
+
     return () => { cancelled = true; };
   }, [desktop]);
+
   return <Modal title="About Doko" onClose={onClose}>
     <dl className="info-list">
       <div><dt>Version</dt><dd>{info?.version ?? (desktop ? "Loading..." : "Browser edition")}</dd></div>
@@ -88,8 +103,10 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
 
 function parsePdfDate(s?: string) {
   const m = s?.match(/D:(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?/);
+
   if (!m) return null;
   const d = new Date(+m[1], +(m[2] ?? 1) - 1, +(m[3] ?? 1), +(m[4] ?? 0), +(m[5] ?? 0));
+
   return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
@@ -183,10 +200,13 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
 /** Returns the http(s) URL in `text`, or null if it isn't a single web link. */
 export function parseWebUrl(text: string | null | undefined) {
   const value = (text ?? "").trim();
+
   if (!value || /\s/.test(value)) return null;
+
   try {
     const explicit = /^[a-z][a-z\d+.-]*:/i.test(value);
     const url = new URL(explicit ? value : "https://" + value);
+
     // Without a scheme, only accept text that looks like a domain ("example.com/a.pdf").
     return (url.protocol === "http:" || url.protocol === "https:") && (explicit || url.hostname.includes(".")) ? url.toString() : null;
   } catch {
@@ -197,12 +217,14 @@ export function parseWebUrl(text: string | null | undefined) {
 export function OpenUrlDialog({ initial = "", onSubmit, onClose }: { initial?: string; onSubmit: (url: string) => void; onClose: () => void }) {
   const [value, setValue] = useState(initial);
   const url = parseWebUrl(value);
+
   return (
     <Modal title="Open from URL" onClose={onClose}>
       <form
         className="password-form"
         onSubmit={(e) => {
           e.preventDefault();
+
           if (url) onSubmit(url);
         }}
       >
@@ -234,6 +256,7 @@ export function PasswordDialog({
   onCancel: () => void;
 }) {
   const [pw, setPw] = useState("");
+
   return (
     <Modal title="Password required" onClose={onCancel}>
       <form

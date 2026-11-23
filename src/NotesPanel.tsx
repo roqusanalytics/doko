@@ -23,6 +23,7 @@ function useDebouncedField(value: string, commit: (v: string) => void) {
   const focused = useRef(false);
   useEffect(() => { if (!focused.current) setDraft(value); }, [value]);
   useEffect(() => () => window.clearTimeout(timer.current), []);
+
   return {
     value: draft,
     onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -35,6 +36,7 @@ function useDebouncedField(value: string, commit: (v: string) => void) {
     onBlur: () => {
       focused.current = false;
       window.clearTimeout(timer.current);
+
       if (draft !== value) commit(draft);
     },
   };
@@ -45,12 +47,14 @@ function fit(el: HTMLTextAreaElement | null) {
   el.style.height = "auto";
   el.style.height = `${el.scrollHeight + 2}px`;
 }
+
 const autoGrow = (e: React.FormEvent<HTMLTextAreaElement>) => fit(e.currentTarget);
 
 /** A textarea that grows with its content, including content set from outside. */
 function GrowingTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => fit(ref.current), [props.value]);
+
   return <textarea ref={ref} {...props} onInput={autoGrow} />;
 }
 
@@ -107,6 +111,7 @@ function MarkCard({ mark, onReveal, onNote, onRemove, onAsk }: {
   onAsk: (mark: Mark) => void;
 }) {
   const note = useDebouncedField(mark.note, (v) => onNote(mark.id, v.trim()));
+
   return (
     <li className="mark-card" style={{ "--mark": mark.color } as React.CSSProperties}>
       <button className="mark-quote" onClick={() => onReveal(mark.id)} title="Show on page">

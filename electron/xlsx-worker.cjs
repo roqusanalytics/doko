@@ -9,6 +9,7 @@ const { MAX_HTML_BYTES, readRegular, tooLarge } = require("./document-files.cjs"
 process.parentPort.on("message", async ({ data: { source, output } }) => {
   try {
     const json = JSON.stringify(await parseWorkbook(await readRegular(source)));
+
     if (Buffer.byteLength(json) > MAX_HTML_BYTES) throw tooLarge(MAX_HTML_BYTES);
     await fs.promises.writeFile(output, json, { flag: "wx", mode: 0o600 });
     process.parentPort.postMessage({});

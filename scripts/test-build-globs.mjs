@@ -13,9 +13,11 @@ const filter = new FileMatcher(root, path.join(root, "unused-package-destination
 for (const name of ["dist/index.html", "dist/.vite/license.md", "dist/assets/App-a.js", "dist/assets/žymė.js", "electron/main.cjs", "electron/preload.cjs", "electron/xlsx-worker.cjs", "electron/xlsx-parts.cjs", "package.json"]) {
   assert.equal(filter(path.join(root, name), { isDirectory: () => false }), true, `Package must retain ${name}`);
 }
+
 for (const name of ["dist/assets/App-a 2.js", "dist/assets 2/App-a.js", "dist/assets/App-a 12.js", "src/App.tsx", "reports/private.html", ".env"]) {
   assert.equal(filter(path.join(root, name), { isDirectory: () => false }), false, `Package must exclude ${name}`);
 }
+
 for (const name of ["dist", "dist/assets", "electron"]) {
   assert.equal(filter(path.join(root, name), { isDirectory: () => true }), true, `Package traversal must reach ${name}`);
 }
@@ -23,6 +25,7 @@ for (const name of ["dist", "dist/assets", "electron"]) {
 // Universal uses matchBase for architecture-specific files and ASAR unpack allowlists.
 const universalRequire = createRequire(require.resolve("@electron/universal"));
 const { minimatch } = universalRequire("minimatch");
+
 for (const [name, pattern, expected] of [
   ["Contents/Frameworks/libonly-x64.dylib", "libonly-x64.dylib", true],
   ["Contents/Frameworks/libother.dylib", "libonly-x64.dylib", false],

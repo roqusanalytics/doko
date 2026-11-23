@@ -10,48 +10,67 @@ import { readerPage } from "./reader-page.mjs";
 import { assertHidden, closeHidden } from "./hidden-window.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
+
 // The installed archive can run in the same hidden harness without opening the user's app.
 const appPath = process.env.FOLIO_CONTENT_APP || root;
 const temp = mkdtempSync(path.join(tmpdir(), "folio-content-"));
 const shots = path.join(root, "release", "smoke");
 const photos = path.join(temp, "Photos");
+
 mkdirSync(photos);
+
 mkdirSync(shots, { recursive: true });
+
 const original = "# Field notes\n\nOriginal **Markdown**.\n";
 const first = path.join(temp, "Notes.md"), second = path.join(temp, "Other.markdown");
+
 writeFileSync(first, "\ufeff" + original.replaceAll("\n", "\r\n"));
+
 writeFileSync(second, original);
+
 writeFileSync(path.join(photos, "notes.txt"), "not an image");
+
 const env = { ...process.env, FOLIO_TEST_USER_DATA: path.join(temp, "profile"), FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const app = await electron.launch({ executablePath: electronPath(env), env,
   args: [appPath, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
+
 const errors = [], svgRequests = [];
+
 try {
   const page = readerPage(await app.firstWindow());
   page.on("pageerror", error => errors.push(error.stack ?? String(error)));
   await page.getByRole("button", { name: /Try a sample/ }).waitFor({ timeout: 30_000 });
+
   if (process.env.FOLIO_CONTENT_APP) {
     assert.equal(await app.evaluate(({ app }) => app.getName()), "Folio Local");
     assert.equal(await page.evaluate(() => window.folioDesktop.getAutoUpdateEnabled()), true);
   }
+
   const editor = () => page.getByRole("textbox", { name: "Markdown source", exact: true });
   const preview = () => page.getByLabel("Markdown preview", { exact: true });
+
   const source = async () => {
     if (!(await editor().isVisible())) await page.getByRole("button", { name: "View source", exact: true }).click();
     await editor().waitFor();
   };
+
   const view = async () => {
     if (!(await preview().isVisible())) await page.getByRole("button", { name: "View", exact: true }).click();
     await preview().waitFor();
   };
+
   const edit = async text => {
     await source();
     await editor().focus();
     await page.keyboard.press("ControlOrMeta+a");
+
     if (text) await page.keyboard.insertText(text);
     else await page.keyboard.press("Backspace");
   };
+
   // Read only short fixtures: CodeMirror deliberately virtualizes long documents.
   const editorText = () => editor().locator(".cm-line").evaluateAll(lines => lines.map(line => line.textContent).join("\n"));
   const docs = page.getByRole("tablist", { name: "Open documents" });
@@ -59,17 +78,23 @@ try {
     window.contentOpened = 0;
     window.folioDesktop.content.onOpen(() => window.contentOpened++);
   });
+
   const open = async (file, expectContent = true) => {
     const before = await page.window.evaluate(() => window.contentOpened);
     await app.evaluate(({ app }, file) => app.emit("open-file", { preventDefault() {} }, file), file);
+
     if (expectContent) await page.window.waitForFunction(before => window.contentOpened > before, before);
   };
+
   const save = async () => { await editor().focus(); await page.keyboard.press("ControlOrMeta+s"); };
+
   const diskIs = async (file, expected) => {
     await assertEventually(() => readFileSync(file, "utf8") === expected, "saved file did not match the editor");
   };
+
   const close = async name => {
     const button = docs.getByRole("button", { name: `Close ${name}`, exact: true });
+
     if (await button.count()) await button.click();
     else await page.keyboard.press("ControlOrMeta+w");
   };
@@ -78,6 +103,7 @@ try {
   const htmlRequests = [];
   const htmlBeacon = createServer((request, response) => { htmlRequests.push(request.url); response.end("unexpected"); });
   await new Promise(resolve => htmlBeacon.listen(0, "127.0.0.1", resolve));
+
   try {
     const remote = `http://127.0.0.1:${htmlBeacon.address().port}`;
     const htmlPath = path.join(temp, "Report.HTML");
@@ -99,24 +125,30 @@ try {
     assert.equal(await page.getByRole("dialog").count(), 0);
     assert.equal(await page.locator(".markdown-source").count(), 0);
     await html.getByRole("heading", { name: "HTML Žinutė", exact: true }).scrollIntoViewIfNeeded();
+
     for (const [width, height] of [[390, 844], [1100, 800]]) {
       await page.window.setViewportSize({ width, height });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       await page.screenshot({ path: path.join(shots, `content-html-${width}.png`) });
     }
+
     await close("Report.HTML");
     await docs.getByRole("tab", { name: /Report.HTML/ }).waitFor({ state: "detached" });
     assert.match(readFileSync(htmlPath, "utf8"), /<script>/, "viewing does not rewrite the original file");
+
     for (const [name, content, message] of [["Empty.htm", "", "This HTML document is empty."], ["Broken.html", "<h1>Unclosed heading", "Unclosed heading"]]) {
       const file = path.join(temp, name); writeFileSync(file, content); await open(file);
+
       if (content) await page.locator("iframe.html-preview").contentFrame().getByRole("heading", { name: message }).waitFor();
       else await page.getByRole("status").filter({ hasText: message }).waitFor();
       await close(name); await docs.getByRole("tab", { name: new RegExp(name) }).waitFor({ state: "detached" });
     }
+
     await app.evaluate(({ dialog }) => {
       globalThis.htmlOpenErrors = []; globalThis.htmlOriginalErrorBox = dialog.showErrorBox;
       dialog.showErrorBox = (title, detail) => globalThis.htmlOpenErrors.push({ title, detail });
     });
+
     try {
       for (const [name, bytes, message] of [["Binary.html", Buffer.from("x\0y"), /isn't plain text/], ["Large.htm", Buffer.alloc(5 * 1024 * 1024 + 1, 65), /HTML is limited to 5 MB/]]) {
         const file = path.join(temp, name); writeFileSync(file, bytes);
@@ -126,6 +158,7 @@ try {
         assert.match(await app.evaluate(() => globalThis.htmlOpenErrors.at(-1).detail), message);
       }
     } finally { await app.evaluate(({ dialog }) => { dialog.showErrorBox = globalThis.htmlOriginalErrorBox; }); }
+
     await page.window.setViewportSize({ width: 1100, height: 800 });
     assert.deepEqual(htmlRequests, [], "HTML makes no network requests");
     console.log("ok  HTML/HTM preview: styled, read-only, empty/malformed/long documents, responsive and no scripts or requests");
@@ -140,10 +173,14 @@ try {
   assert.equal(await page.evaluate(() => {
     const update = [...document.querySelectorAll('.topbar button')].find(button => button.getAttribute("aria-label") === "Updates");
     const a = parent.document.querySelector('.window-drag-area');
+
     if (!update || !a) return false;
     const center = frameElement.getBoundingClientRect().left + update.getBoundingClientRect().left + update.getBoundingClientRect().width / 2;
+
     return parent.getComputedStyle(a).webkitAppRegion === "drag" && [...a.children].some(h => {
-      const b = h.getBoundingClientRect(); return center >= b.left - 1 && center <= b.right + 1;
+      const b = h.getBoundingClientRect();
+
+ return center >= b.left - 1 && center <= b.right + 1;
     });
   }), true, "Markdown Updates button needs a hole in the native drag region");
   // Update settings open from the File menu; the modal (like every modal) suspends the window drag region.
@@ -252,6 +289,7 @@ try {
   await save();
   await diskIs(first, "\ufeff" + preservedText.replaceAll("\n", "\r\n"));
   await assertEventually(async () => await page.locator(".content-save-status").innerText() === "All changes saved", "save after cancelled Save copy did not finish");
+
   for (const [name, bytes] of [["invalid.md", Buffer.from([0xff, 0xfe, 0x61])], ["oversized.md", Buffer.alloc(5 * 1024 * 1024 + 1, 65)]]) {
     const file = path.join(temp, name);
     writeFileSync(file, bytes);
@@ -260,6 +298,7 @@ try {
     await assertEventually(async () => (await app.evaluate(() => globalThis.contentOpenErrors.length)) > count, "invalid Markdown did not report an error");
     assert.ok((await editor().innerText()).startsWith("# Long text"), "invalid open replaced the current editor");
   }
+
   await editor().focus();
   await page.keyboard.press(process.platform === "darwin" ? "Meta+ArrowDown" : "Control+End");
   await page.keyboard.insertText("\nPreserved after rejected opens.\n");
@@ -276,6 +315,7 @@ try {
   await open(plain);
   await textEditor().waitFor();
   assert.equal(await textLines(), "First line\nSecond line\n");
+
   for (const gone of [page.getByRole("button", { name: "View source", exact: true }), page.getByLabel("Markdown preview", { exact: true }),
     page.getByRole("navigation", { name: "Document sections", exact: true })]) assert.equal(await gone.count(), 0, "text opens in the editor only");
   assert.equal(await textStatus(), "All changes saved · UTF-8");
@@ -335,11 +375,14 @@ try {
   const cell = (row, col) => grid().locator(`[data-r="${row}"][data-c="${col}"]`);
   const cellText = async (row, col) => (await cell(row, col).innerText()).trim();
   const footer = () => page.locator(".tv-footer [role=status]").innerText();
+
   const useTheme = async theme => {
     const toggle = page.getByRole("button", { name: `Use ${theme} theme`, exact: true });
+
     if (await toggle.count()) await toggle.click();
     await page.waitForFunction(theme => document.documentElement.dataset.theme === theme, theme);
   };
+
   const csvFile = path.join(temp, "Kontaktai.csv");
   const csvLines = ["Vardas;Miestas;Pastaba", 'Žygimantas;Šiauliai;"Sakė: ""labas""; rytas"', 'Austėja;Kaunas;"Pirma eilutė\r\nantra eilutė"', "Rokas;Vilnius;"];
   const csvOriginal = csvLines.join("\r\n") + "\r\n";
@@ -457,6 +500,7 @@ try {
   await open(emptyCsv);
   await page.getByText("This file is empty. Add a row to start.", { exact: true }).waitFor();
   const csvSourceBox = page.getByRole("textbox", { name: "CSV source", exact: true });
+
   const setCsvSource = async text => {
     await page.getByRole("button", { name: "Source", exact: true }).click();
     await csvSourceBox.waitFor();
@@ -466,6 +510,7 @@ try {
     await page.getByRole("button", { name: "Table", exact: true }).click();
     await grid().waitFor();
   };
+
   await setCsvSource("a");
   assert.equal(await footer(), "1 row × 1 column");
   await setCsvSource("a;b\n1;2\n");
@@ -481,6 +526,7 @@ try {
   const exportedCsv = path.join(temp, "Eksportuota.csv"), exportedTxt = path.join(temp, "Eksportuota.txt");
   writeFileSync(exportCsv, 'Vardas;Miestas\r\nŽygimantas;"Šiauliai\r\nčia"\r\n');
   writeFileSync(exportTxt, "Ąžuolas\r\nantra\r\n");
+
   const exportTo = async (name, dialogName, button, destination) => {
     await app.evaluate(({ dialog }, destination) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: destination }); }, destination);
     await page.getByRole("button", { name: "File", exact: true }).click();
@@ -493,6 +539,7 @@ try {
     await close(name);
     await docs.getByRole("tab", { name: new RegExp(name) }).waitFor({ state: "detached" });
   };
+
   await open(exportCsv); await grid().waitFor();
   await exportTo("Eksportas.csv", "Export CSV", "Save CSV…", exportedCsv);
   assert.ok(readFileSync(exportedCsv).equals(Buffer.from('﻿Vardas;Miestas\r\nŽygimantas;"Šiauliai\r\nčia"\r\n')), "CSV export: UTF-8 BOM, CRLF rows and in-cell CRLF");
@@ -551,9 +598,14 @@ try {
   const svgImage = () => page.locator("img.svg-image");
   const svgNotice = () => page.getByRole("alert").filter({ hasText: "This SVG can't be drawn. Check the source for errors." });
   const svgMode = name => page.getByRole("group", { name: "SVG mode", exact: true }).getByRole("button", { name, exact: true });
-  const svgLoaded = width => page.waitForFunction(width => { const img = document.querySelector("img.svg-image"); return !!img && img.complete && img.naturalWidth === width; }, width);
+
+  const svgLoaded = width => page.waitForFunction(width => { const img = document.querySelector("img.svg-image");
+
+ return !!img && img.complete && img.naturalWidth === width; }, width);
+
   const svgLines = () => svgSource.locator(".cm-line").evaluateAll(lines => lines.map(line => line.textContent).join("\n"));
   const iconFile = path.join(temp, "Icon.svg");
+
   // Short lines (the editor wraps long ones); line 3 holds the width, so the edit below touches only that number.
   const iconLines = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" height="80"`,
     `  onload="window.__svgOnload=1;parent.__svgOnload=1;top.__svgOnload=1"`, `  width="120">`,
@@ -561,14 +613,17 @@ try {
     `  <image href="http://127.0.0.1:${beaconPort}/x.png" width="10" height="10"/>`, `  <image href="http://127.0.0.1:1/x.png" width="10" height="10"/>`,
     `  <rect width="120" height="80" fill="#c5e1cb"/><circle cx="60" cy="40" r="25" fill="#305d40"/>`, `  <path d="M10 70 L110 70" stroke="#000" stroke-width="4" fill="none"/>`,
     `  <title>Žalias ratas</title>`, `</svg>`];
+
   // Records whether the SVG empty message is ever inserted, from the first render of every reader frame. It hooks
   // the DOM insert calls: the init script runs in the frame's initial empty document, whose window the real page keeps.
   await app.context().addInitScript(() => {
     window.__svgEmptySeen = false;
+
     for (const method of ["appendChild", "insertBefore"]) {
       const original = Node.prototype[method];
       Node.prototype[method] = function (node, ...rest) {
         if (node.classList?.contains("content-empty") && /^This SVG is empty/.test(node.textContent)) window.__svgEmptySeen = true;
+
         return original.call(this, node, ...rest);
       };
     }
@@ -586,6 +641,7 @@ try {
   assert.equal(await page.evaluate(() => window.__svgEmptySeen), false, "a non-empty SVG never flashes the empty message on its first render");
   assert.equal(await textStatus(), "All changes saved · UTF-8");
   assert.equal(await svgNotice().count(), 0);
+
   for (const gone of [page.getByLabel("Markdown preview", { exact: true }), page.getByRole("navigation", { name: "Document sections", exact: true }), page.locator(".svg-view object, .svg-view embed, .svg-view iframe, .svg-view svg, .svg-view script")])
     assert.equal(await gone.count(), 0, "no markup from the file reaches the page");
   assert.equal(await page.evaluate(() => window.__svgScript === undefined && window.__svgOnload === undefined), true, "no script ran in the reader");
@@ -604,6 +660,7 @@ try {
   await page.keyboard.press("ArrowDown"); await page.keyboard.press("ArrowDown");
   await page.keyboard.press("End");
   await page.keyboard.press("ArrowLeft"); await page.keyboard.press("ArrowLeft");
+
   for (let i = 0; i < 3; i++) await page.keyboard.press("Backspace");
   await page.keyboard.insertText("240");
   assert.equal(await textStatus(), "Unsaved changes · UTF-8");
@@ -703,14 +760,18 @@ try {
   const unsizedFile = path.join(temp, "Unsized.svg");
   writeFileSync(unsizedFile, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#305d40"/></svg>`);
   await open(unsizedFile);
-  await page.waitForFunction(() => { const img = document.querySelector("img.svg-image"); return !!img && img.complete && img.getBoundingClientRect().width > 20; });
+  await page.waitForFunction(() => { const img = document.querySelector("img.svg-image");
+
+ return !!img && img.complete && img.getBoundingClientRect().width > 20; });
   assert.equal(await svgNotice().count(), 0);
   await page.screenshot({ path: path.join(shots, "content-svg-unsized.png") });
   assert.equal(await page.evaluate(() => window.__svgEmptySeen), false, "an unsized SVG does not flash the empty message either");
   assert.equal(await page.locator(".svg-status").count(), 0, "an unsized SVG shows no invented size");
   // Two Print commands in a row print once, and never report a drawable SVG as unprintable.
   await page.evaluate(() => { window.__printCount = 0; window.print = () => { window.__printCount++; }; });
-  await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; for (let i = 0; i < 2; i++) win.webContents.send("folio:file-command", "print"); });
+  await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0];
+
+ for (let i = 0; i < 2; i++) win.webContents.send("folio:file-command", "print"); });
   await page.waitForFunction(() => window.__printCount > 0);
   await page.waitForTimeout(500);
   assert.equal(await page.evaluate(() => window.__printCount), 1, "a second Print while one is in progress is ignored");
@@ -757,25 +818,35 @@ try {
   writeFileSync(wideFile, `<svg xmlns="http://www.w3.org/2000/svg" width="3000" height="1500" viewBox="0 0 3000 1500"><rect width="3000" height="1500" fill="#305d40"/><circle cx="1500" cy="750" r="600" fill="#c5e1cb"/></svg>`);
   await open(wideFile);
   await svgLoaded(3000);
+
   for (const [width, height] of [[390, 844], [1000, 760]]) {
     await page.window.setViewportSize({ width, height });
+
     for (const theme of ["dark", "light"]) {
       await useTheme(theme);
+
       for (const mode of ["Image", "Source"]) {
         await svgMode(mode).click();
+
         if (mode === "Source") await svgSource.waitFor();
+
         const fit = await page.evaluate(() => {
           const img = document.querySelector("img.svg-image"), stage = document.querySelector(".svg-stage");
           const box = img.getBoundingClientRect(), area = stage.getBoundingClientRect();
+
           return { page: document.documentElement.scrollWidth <= innerWidth, visible: img.checkVisibility(), inside: box.width <= area.width + 1 && box.height <= area.height + 1 && box.left >= area.left - 1 && box.right <= area.right + 1 };
         });
+
         assert.equal(fit.page, true, `SVG ${mode} overflows at ${width}px (${theme})`);
+
         if (mode === "Image") assert.deepEqual([fit.visible, fit.inside], [true, true], `the drawing does not fit at ${width}px (${theme})`);
       }
+
       await svgMode("Image").click();
       await page.screenshot({ path: path.join(shots, `content-svg-${width}-${theme}.png`) });
     }
   }
+
   await close("Wide.svg");
   await docs.getByRole("tab", { name: /Wide.svg/ }).waitFor({ state: "detached" });
   await page.window.setViewportSize({ width: svgSize[0], height: svgSize[1] });
@@ -784,17 +855,22 @@ try {
   console.log("ok  native .svg shows as an image without running scripts or loading anything, edits through Source, saves only the edited bytes, and handles invalid, empty and wide files");
 
   const png = await app.evaluate(({ nativeImage }) => nativeImage.createFromBitmap(Buffer.alloc(800 * 600 * 4, 190), { width: 800, height: 600 }).toPNG().toString("base64"));
+
   for (let i = 1; i <= 20; i++) writeFileSync(path.join(photos, `image${i}.png`), Buffer.from(png, "base64"));
   mkdirSync(path.join(photos, "Nested"));
   writeFileSync(path.join(photos, "Nested", "nested.png"), Buffer.from(png, "base64"));
+
   try { symlinkSync(path.join(photos, "image1.png"), path.join(photos, "linked.png")); }
   catch (error) { if (process.platform !== "win32" || error.code !== "EPERM") throw error; }
+
   await open(path.join(photos, "image10.png"));
   const gallery = page.getByRole("region", { name: "Photo gallery", exact: true });
   const position = page.getByLabel("Image position", { exact: true });
+
   const at = async (number, total = 20) => {
     await page.waitForFunction(({ number, total }) => document.querySelector('[aria-label="Image position"]')?.textContent.replace(/\s/g, "") === `${number}/${total}` && !document.querySelector('.photo-status') && !!document.querySelector('.page canvas'), { number, total });
   };
+
   await gallery.waitFor(); await at(10);
   assert.equal(await gallery.getByRole("button", { name: "View image10.png", exact: true }).getAttribute("aria-current"), "true");
   await page.getByTitle("Zoom", { exact: true }).click();
@@ -829,12 +905,15 @@ try {
   const fixtures = JSON.parse(readFileSync(path.join(root, "scripts", "fixtures", "content-images.json"), "utf8"));
   fixtures.jpg = fixtures.jpeg;
   fixtures.png = png;
+
   for (const [extension, data] of Object.entries(fixtures)) writeFileSync(path.join(varied, `photo.${extension}`), Buffer.from(data, "base64"));
+
   for (const extension of Object.keys(fixtures)) {
     const name = `photo.${extension}`;
     await open(path.join(varied, name));
     await page.waitForFunction(name => document.querySelector(`[aria-label="View ${name}"]`)?.getAttribute("aria-current") === "true" && !document.querySelector('.photo-status') && !!document.querySelector('.page canvas'), name);
   }
+
   await page.screenshot({ path: path.join(shots, "content-image-formats.png") });
   await close("Formats");
   await docs.getByRole("tab", { name: "Photos", exact: true }).click();
@@ -842,6 +921,7 @@ try {
 
   for (const [width, height] of [[390, 844], [1280, 900]]) {
     await page.window.setViewportSize({ width, height });
+
     for (const theme of ["dark", "light"]) {
       await page.keyboard.press("ControlOrMeta+,");
       await page.getByRole("dialog", { name: "Settings", exact: true }).waitFor();
@@ -849,13 +929,16 @@ try {
       await page.keyboard.press("Escape");
       await page.waitForFunction(theme => document.documentElement.dataset.theme === theme, theme);
       assert.ok(await position.isVisible());
+
       const overflow = await page.evaluate(() => ({width:innerWidth,scroll:document.documentElement.scrollWidth,
         elements:[...document.querySelectorAll('body *')].filter(element=>element.checkVisibility() && element.getBoundingClientRect().right>innerWidth+1).slice(0,16).map(element=>({tag:element.tagName,cls:element.className,right:element.getBoundingClientRect().right,width:element.getBoundingClientRect().width}))}));
+
       if(overflow.scroll>overflow.width) await page.screenshot({path:path.join(shots,'content-overflow.png')});
       assert.ok(overflow.scroll <= overflow.width, `gallery overflows the window: ${JSON.stringify(overflow)}`);
       await page.screenshot({ path: path.join(shots, `content-gallery-${width}-${theme}.png`) });
     }
   }
+
   await docs.getByRole("tab", { name: /Notes.md/ }).click();
   await editor().waitFor();
   await page.window.setViewportSize({ width: 390, height: 844 });
@@ -878,6 +961,7 @@ try {
 } catch (error) {
   console.error(error);
   const window = app.windows()[0];
+
   if (window) {
     await window.screenshot({ path: path.join(shots, "content-failure.png") }).catch(() => {});
     console.error(await readerPage(window).evaluate(() => ({ title: document.title,
@@ -887,6 +971,7 @@ try {
       position: document.querySelector('[aria-label="Image position"]')?.textContent,
       scroll: [...document.querySelectorAll('[aria-label="Image gallery"]')].map(element => ({ top: element.scrollTop, height: element.scrollHeight, viewport: element.clientHeight })) })).catch(() => null));
   }
+
   console.error(await app.evaluate(({ Menu }) => Menu.getApplicationMenu()?.items.find(item => item.label === "File")?.submenu?.items
     .filter(item => item.label.startsWith("Save")).map(item => ({ label: item.label, enabled: item.enabled }))).catch(() => null));
   throw error;
@@ -897,9 +982,11 @@ try {
 
 async function assertEventually(check, message) {
   const deadline = Date.now() + 10_000;
+
   while (Date.now() < deadline) {
     if (await check()) return;
     await new Promise(resolve => setTimeout(resolve, 50));
   }
+
   assert.fail(message);
 }

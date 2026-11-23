@@ -17,6 +17,7 @@ function fixtureMain() {
   const { pathToFileURL } = require('node:url');
   const { registerScreenshots } = require('./electron/screenshot.cjs');
   app.setPath('userData', process.env.FOLIO_TEST_USER_DATA);
+
   if (process.platform === 'darwin') app.setActivationPolicy('accessory');
   protocol.registerSchemesAsPrivileged([
     { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
@@ -25,9 +26,11 @@ function fixtureMain() {
     if (process.platform === 'darwin') app.dock.hide();
     protocol.handle('app', request => {
       const { host, pathname } = new URL(request.url);
+
       if (host !== 'folio' || !['/screenshot.html', '/screenshot-overlay.js', '/screenshot-overlay.css'].includes(pathname)) {
         return new Response('Not found', { status: 404 });
       }
+
       return net.fetch(pathToFileURL(path.join(__dirname, 'dist', pathname)).toString());
     });
     const owner = new BrowserWindow({ show: false, webPreferences: { sandbox: true } });
@@ -37,8 +40,10 @@ function fixtureMain() {
     }, () => owner, { hidden: true, fixture: true });
     globalThis.oldFileResult = async () => {
       const probe = new BrowserWindow({ show: false, webPreferences: { sandbox: true } });
+
       try {
         await probe.loadFile(path.join(__dirname, 'dist', 'screenshot.html'));
+
         return 'loaded';
       } catch (error) { return error.message; }
       finally { probe.close(); }
@@ -49,13 +54,19 @@ function fixtureMain() {
 const root = path.resolve(import.meta.dirname, '..');
 const temp = mkdtempSync(path.join(tmpdir(), 'doko-screenshot-protocol-'));
 const env = { ...process.env, FOLIO_TEST_USER_DATA: path.join(temp, 'profile'), FOLIO_TEST_HIDDEN: '1' };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 let app, copiedBundle;
+
 try {
   const executable = electronPath(env);
+
   const source = process.platform === 'darwin'
     ? executable.slice(0, executable.lastIndexOf('.app/') + 4) : path.dirname(executable);
+
   copiedBundle = path.join(temp, path.basename(source));
+
   if (process.platform === 'darwin') {
     execFileSync('/bin/cp', ['-c', '-R', source, copiedBundle]);
     // The cached hidden bundle may carry Finder metadata; codesign rejects it on a private copy.
@@ -72,12 +83,15 @@ try {
   const fixture = path.join(temp, 'fixture');
   mkdirSync(path.join(fixture, 'electron'), { recursive: true });
   mkdirSync(path.join(fixture, 'dist'));
+
   for (const file of ['screenshot.cjs', 'screenshot-preload.cjs']) {
     cpSync(path.join(root, 'electron', file), path.join(fixture, 'electron', file));
   }
+
   for (const file of ['screenshot.html', 'screenshot-overlay.js', 'screenshot-overlay.css']) {
     cpSync(path.join(root, 'dist', file), path.join(fixture, 'dist', file));
   }
+
   writeFileSync(path.join(fixture, 'main.cjs'), `(${fixtureMain.toString()})();`);
   writeFileSync(path.join(fixture, 'package.json'), JSON.stringify({ name: 'screenshot-protocol-fixture', version: '1.0.0', main: 'main.cjs' }));
   const resources = path.join(copiedBundle, process.platform === 'darwin' ? 'Contents/Resources' : 'resources');
@@ -88,6 +102,7 @@ try {
   await assertHidden(app);
   await app.evaluate(async () => {
     for (let i = 0; i < 100 && !globalThis.captureScreenshot; i++) await new Promise(resolve => setTimeout(resolve, 20));
+
     if (!globalThis.captureScreenshot) throw new Error('Screenshot fixture did not initialize');
   });
   const overlayReady = app.waitForEvent('window');
@@ -99,7 +114,9 @@ try {
     && [...document.images].every(image => image.complete && image.naturalWidth > 0)
     && document.activeElement?.id === 'capture');
   assert.equal(new URL(overlay.url()).protocol, 'app:');
+
   try { await overlay.keyboard.press('Enter'); } catch (error) { if (!overlay.isClosed()) throw error; }
+
   const result = await app.evaluate(() => globalThis.captureResult);
   assert.ok(result.length > 100, `packaged screenshot failed: ${JSON.stringify(result)}`);
   const fileResult = await app.evaluate(() => globalThis.oldFileResult());

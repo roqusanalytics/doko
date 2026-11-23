@@ -10,9 +10,11 @@ export function DocumentTabBar({ tabs, tabKey, onEnterFocusMode }: { tabs: Reade
   useLayoutEffect(() => {
     if (tabs.active === tabKey) {
       selected.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+
       if (tabs.keyboardFocus === tabKey) selected.current?.focus({ preventScroll: true });
     }
   }, [tabs.active, tabs.keyboardFocus, tabKey]);
+
   return <nav className="document-tabs" aria-label="Documents">
     <button className="new-document-tab icon-btn" title={keys("New tab (Ctrl+T)")} aria-label="New tab" onClick={() => tabs.library()}>
       <Icon name="plus" size={16} />
@@ -21,6 +23,7 @@ export function DocumentTabBar({ tabs, tabKey, onEnterFocusMode }: { tabs: Reade
       {tabs.all.map(tab => {
         const active = tab.key === tabKey;
         const name = tab.name || "Library";
+
         return <div key={tab.key} className={active ? "document-tab selected" : "document-tab"}>
           <button type="button" role="tab" aria-selected={active} aria-controls={active ? "reader-panel" : undefined}
             id={active ? "selected-document-tab" : undefined} tabIndex={active ? 0 : -1}
@@ -28,6 +31,7 @@ export function DocumentTabBar({ tabs, tabKey, onEnterFocusMode }: { tabs: Reade
             onKeyDown={event => {
               if (event.altKey || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
               event.preventDefault(); event.stopPropagation();
+
               if (event.key === "Home" || event.key === "End") tabs.select(tabs.all[event.key === "Home" ? 0 : tabs.all.length - 1].key, true);
               else tabs.cycle(event.key === "ArrowRight" ? 1 : -1);
             }}>

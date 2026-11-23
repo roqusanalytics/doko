@@ -43,11 +43,14 @@ const CLAUDE_MODELS = [
 // ── Panel ─────────────────────────────────────────────────────────────────────────────────
 // Keep partial replies and provider errors when the panel closes. Protected documents are session-only.
 const closingChats = new Map<string, () => void>();
+
 export function stopAiForClose(id: string) { closingChats.get(id)?.(); }
+
 const conversations = new Map<string, { messages: Message[]; generation: number; persist: boolean }>();
 let lastChatClear = 0;
 const chatClearListeners = new Set<() => void>();
 let listeningForClears = false;
+
 // Starts with the first panel and stays for the window's life, so chats kept for closed panels are dropped too.
 function subscribeChatClear(listener: () => void) {
   if (!listeningForClears) {
@@ -55,13 +58,17 @@ function subscribeChatClear(listener: () => void) {
     onStoredDataCleared((category, generation) => {
       if (category !== "ai") return;
       lastChatClear = Math.max(lastChatClear, generation);
+
       for (const [id, chat] of conversations) {
         if (chat.persist && chat.generation < generation) conversations.delete(id);
       }
+
       for (const notify of chatClearListeners) notify();
     });
   }
+
   chatClearListeners.add(listener);
+
   return () => { chatClearListeners.delete(listener); };
 }
 
@@ -71,6 +78,7 @@ function rememberChat(id: string, persist: boolean, messages: Message[], generat
 
 export async function flushAiHistory(id: string) {
   const chat = conversations.get(id);
+
   if (chat?.persist) await saveAiHistory(id, storedMessages(chat.messages), chat.generation);
 }
 
@@ -79,6 +87,7 @@ function CopyResponse({ text }: { text: string }) {
   useEffect(() => {
     if (label === "Copy response") return;
     const timer = window.setTimeout(() => setLabel("Copy response"), 2200);
+
     return () => window.clearTimeout(timer);
   }, [label]);
 
@@ -99,6 +108,7 @@ function CopyResponse({ text }: { text: string }) {
  */
 export function endedReply<T extends Pick<Message, "role" | "content" | "error" | "markdownReply">>(list: T[], dropIncomplete: boolean) {
   const last = list.at(-1);
+
   return last?.role === "assistant" && (dropIncomplete || (!last.content && !last.error && !last.markdownReply)) ? list.slice(0, -1) : list;
 }
 
@@ -114,22 +124,27 @@ function InsertAgain({ message, apply }: { message: Message; apply: ApplyDrawing
   const [inserting, setInserting] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => () => pending.current?.abort(), []);
+
   const insert = async () => {
     if (pending.current || !message.drawingReply) return;
     const controller = new AbortController();
     pending.current = controller;
     setInserting(true);
     setError("");
+
     try {
       const result = await apply(prepared.current ?? message.drawingReply, () => !controller.signal.aborted, true);
+
       if (result) prepared.current = result.drawing;
     } catch (error) {
       if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "Try again.");
     } finally {
       pending.current = null;
+
       if (!controller.signal.aborted) setInserting(false);
     }
   };
+
   return <>
     <button type="button" className="btn ghost" disabled={inserting} onClick={() => void insert()}>
       {inserting ? "Inserting…" : "Insert again"}
@@ -144,10 +159,13 @@ function NewConversationDialog({ onCancel, onConfirm }: { onCancel: () => void; 
     if (event.target === event.currentTarget.querySelector(".modal-backdrop")) event.preventDefault();
   }} onKeyDown={event => {
     event.stopPropagation();
+
     if (event.key === "Escape") { event.preventDefault(); onCancel(); }
+
     if (event.key !== "Tab") return;
     const buttons = event.currentTarget.querySelectorAll<HTMLButtonElement>("button");
     const first = buttons[0], last = buttons[buttons.length - 1];
+
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   }}>
@@ -183,6 +201,7 @@ interface Props {
 
 export function AiPanel(props: Props) {
   const cleared = useSyncExternalStore(subscribeChatClear, () => lastChatClear);
+
   // Clearing saved chats restarts the panel empty. A protected document's chat was never saved, so it stays.
   return <ChatPanel key={props.persist ? cleared : 0} {...props} />;
 }
@@ -212,6 +231,7 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
   const [confirmNew, setConfirmNew] = useState(false);
   const busyRef = useRef<string | null>(null);
   const preparing = useRef<{ id: string; controller: AbortController } | null>(null);
+
   // Every way an answer ends (finished, failed, Stop, closing, unmount) goes through here.
   const release = () => {
     preparing.current?.controller.abort();
@@ -219,6 +239,7 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
     busyRef.current = null;
     setBusy(null);
   };
+
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const newConversationRef = useRef<HTMLButtonElement>(null);
@@ -239,6 +260,7 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
     }).catch(() => {
       if (!cancelled) setStorageError("read");
     });
+
     return () => { cancelled = true; };
   }, [docId, loaded, storageRetry]);
   useEffect(() => {
@@ -246,16 +268,19 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
     rememberChat(docId, persist, messages, generation);
     // Save once an answer has finished (not on every streamed word).
     let cancelled = false;
+
     if (persist && !busy) void saveAiHistory(docId, storedMessages(messages), generation).then(() => {
       if (!cancelled) setStorageError(null);
     }).catch(() => {
       if (!cancelled) setStorageError("save");
     });
+
     return () => { cancelled = true; };
   }, [docId, messages, busy, generation, persist, storageRetry]);
   useEffect(() => {
     let current = true;
     void ai?.status().then(value => { if (current) setStatus(value); }).catch(() => { if (current) setSetupError("Couldn't check AI connections."); });
+
     return () => { current = false; };
   }, [ai, keyRevision]);
   useEffect(() => { if (context && kind !== "markdown") inputRef.current?.focus(); }, [context, kind]);
@@ -264,17 +289,22 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
   const chatgptConnected = !!status?.chatgpt.connected;
   useEffect(() => {
     setSetupError(null);
+
     if (!ai || !chatgptConnected) return;
     let current = true;
     void ai.chatgptModels().then((result) => {
       if (!current) return;
+
       if (!result.ok) {
         if (result.code === "signed_out") void ai.status().then(setStatus);
         setSetupError(result.error ?? null);
+
         return;
       }
+
       setModels(result.models ?? []);
     });
+
     return () => { current = false; };
   }, [ai, chatgptConnected]);
 
@@ -282,8 +312,10 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
   // The list loads when the menu opens, once per key, so the panel makes no request until it's needed.
   const routerConfigured = !!status?.openrouter?.configured;
   const routerLoadedFor = useRef<string | null>(null);
+
   const loadRouterModels = () => {
     const key = String(keyRevision);
+
     if (!ai || !routerConfigured || routerLoadedFor.current === key) return;
     routerLoadedFor.current = key;
     void ai.openRouterModels().then(result => {
@@ -294,19 +326,26 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
   // Stream answers into the last assistant message.
   useEffect(() => {
     if (!ai) return;
+
     return ai.onEvent((event) => {
       if (event.id !== busyRef.current) return;
+
       if (markdownText) {
         const stream = streamReply.current;
+
         if (event.type === "delta") {
           if (stream.raw.length + (event.text?.length ?? 0) > MAX_MARKDOWN_REPLY) stream.oversized = true;
+
           if (stream.oversized) return;
           stream.raw += event.text ?? "";
           setMessages(list => [...list.slice(0, -1), { ...list[list.length - 1], content: markdownReplyDescription(stream.raw) }]);
+
           return;
         }
+
         if (event.type === "done") {
           let result: Pick<Message, "content" | "error" | "markdownReply">;
+
           try {
             if (stream.oversized) throw new Error("This reply is too large. Ask for fewer changes.");
             const { description, edits } = parseMarkdownReply(stream.raw);
@@ -315,51 +354,69 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
           } catch (error) {
             result = { content: "", error: { message: error instanceof Error ? error.message : "Couldn’t read the suggested edits." } };
           }
+
           release();
           setMessages(list => [...list.slice(0, -1), { ...list[list.length - 1], ...result }]);
+
           return;
         }
       }
+
       if (onDrawingReply) {
         const stream = streamReply.current;
+
         if (event.type === "delta") {
           if (stream.raw.length + (event.text?.length ?? 0) > MAX_DRAWING_REPLY) stream.oversized = true;
+
           if (stream.oversized) return;
           stream.raw += event.text ?? "";
           const { description } = splitDrawingReply(stream.raw, true);
           setMessages(list => [...list.slice(0, -1), { ...list[list.length - 1], content: description }]);
+
           return;
         }
+
         if (event.type === "done") {
           const isCurrent = () => busyRef.current === event.id;
           void (async () => {
             let result: Pick<Message, "content" | "error" | "drawing" | "drawingReply">;
+
             try {
               if (stream.oversized) throw new Error("The drawing reply is too large.");
               const inserted = await onDrawingReply(stream.raw, isCurrent);
+
               if (!inserted) return;
               result = { content: inserted.description, drawing: inserted.drawing, drawingReply: stream.raw };
             } catch (error) {
               const reason = error instanceof Error ? error.message : "Try asking again.";
               result = { content: "", error: { message: `Couldn’t add the drawing. ${reason}` } };
             }
+
             if (!isCurrent()) return;
             release();
             setMessages(list => [...list.slice(0, -1), { ...list[list.length - 1], ...result }]);
           })();
+
           return;
         }
       }
+
       setMessages((list) => {
         const next = list.slice();
         const last = next[next.length - 1];
+
         if (!last || last.role !== "assistant") return list;
+
         if (event.type === "delta") next[next.length - 1] = { ...last, content: last.content + (event.text ?? "") };
+
         if (event.type === "error") next[next.length - 1] = { ...last, error: { message: event.message ?? "Something went wrong.", code: event.code, link: event.link } };
+
         return event.type === "delta" ? next : endedReply(next, false);
       });
+
       if (event.type !== "delta") {
         release();
+
         if (event.code === "signed_out") void ai.status().then(setStatus);
       }
     });
@@ -367,17 +424,21 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
 
   useEffect(() => {
     const el = listRef.current;
+
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   const connected = { chatgpt: chatgptConnected, claude: !!status?.claude.installed && status.claude.loggedIn,
     openrouter: !!status?.openrouter?.configured && !!model };
+
   const ready = loaded && connected[provider];
 
   // Newest first. ChatGPT lists its own order; Claude Code takes family names; OpenRouter is sorted by release date.
   const newestRouter = [...routerModels].sort((a, b) => (b.created ?? 0) - (a.created ?? 0)).slice(0, 6);
+
   const routerList = routerSaved && !newestRouter.some(m => m.id === routerSaved)
     ? [{ id: routerSaved, name: routerModels.find(m => m.id === routerSaved)?.name ?? routerSaved }, ...newestRouter] : newestRouter;
+
   const groups: ModelGroup[] = [
     { provider: "chatgpt", label: "ChatGPT", models: models.length ? models : model && provider === "chatgpt" ? [{ id: model, name: model }] : [],
       setup: chatgptConnected ? undefined : "Sign in to ChatGPT in Settings" },
@@ -386,6 +447,7 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
     { provider: "openrouter", label: "OpenRouter", models: routerList, more: "More models in Settings…",
       setup: routerConfigured ? undefined : "Add an OpenRouter key in Settings" },
   ];
+
   const modelName = (groups.find(group => group.provider === provider)?.models.find(item => item.id === model)?.name) ?? (model.split("/").pop() || "Default");
 
   // Closing the panel, entering focus mode, or opening another document ends an answer in progress the way Stop does.
@@ -396,31 +458,43 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
     closingChats.set(docId, () => {
       const request = busyRef.current;
       release();
+
       if (request) void ai?.cancel(request).catch(() => {});
       const list = messagesRef.current;
       const kept = request ? endedReply(list, cancelIncompleteReply) : list;
+
       if (kept !== list) setMessages(kept);
+
       if (generation !== null) rememberChat(docId, persist, kept, generation);
     });
+
     return () => { closingChats.delete(docId); };
   }, [ai, docId, persist, generation, cancelIncompleteReply]);
   useEffect(() => () => {
     const id = busyRef.current;
     release();
+
     if (!id) return;
     void ai?.cancel(id);
     const kept = endedReply(messagesRef.current, cancelIncompleteReply);
     setMessages(kept);
+
     if (generation !== null) {
       rememberChat(docId, persist, kept, generation);
+
       // The cached conversation survives a failed save and is retried when the panel reopens.
       if (persist) void saveAiHistory(docId, storedMessages(kept), generation).catch(() => {});
     }
   }, [ai, readText, docId, persist, generation, cancelIncompleteReply]);
+
   const stop = () => {
     if (!busy) return;
+
     // A plain answer keeps its words so far: it ends when the main process confirms the cancel.
-    if (preparing.current?.id !== busy && !cancelIncompleteReply) { void ai?.cancel(busy); return; }
+    if (preparing.current?.id !== busy && !cancelIncompleteReply) { void ai?.cancel(busy);
+
+ return; }
+
     if (preparing.current?.id !== busy) void ai?.cancel(busy);
     release();
     setMessages(list => endedReply(list, true));
@@ -433,14 +507,17 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
     const id = crypto.randomUUID();
     const controller = new AbortController();
     preparing.current = { id, controller };
+
     if (cancelIncompleteReply) streamReply.current = { raw: "", oversized: false };
     busyRef.current = id;
     setBusy(id);
     setMessages([...messages, turn, { role: "assistant", content: "", createdAt: Date.now() }]);
     setInput("");
     onClearContext?.();
+
     try {
       const doc = provider === "openrouter" && context && kind !== "markdown" ? { text: "", truncated: true } : await readText(controller.signal);
+
       if (preparing.current?.id !== id) return;
       preparing.current = null;
       await ai.ask({ id, provider, model, document: { kind, name, ...doc },
@@ -449,12 +526,15 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
       if (busyRef.current !== id) return;
       const readingFailed = preparing.current?.id === id;
       release();
+
       if (readingFailed) setInput(question);
       setMessages((list) => {
         const next = list.slice();
+
         // An unread document never sent this turn; keep it as a draft for retry.
         if (readingFailed) next.splice(-2, 1);
         next[next.length - 1] = { role: "assistant", content: "", error: { message: readingFailed ? "Doko couldn’t read this document. Your question is below; send it again to retry." : "Doko couldn't send that question." } };
+
         return next;
       });
     }
@@ -472,9 +552,11 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
 
   const placeholder = !ready ? "Connect an AI provider to ask questions"
     : kind === "canvasDocument" ? "Describe what to draw…" : context ? "Ask about the selected passage…" : "Ask about this document…";
+
   const editStatus = (index: number, status: NonNullable<Message["markdownEditStatus"]>) => {
     setMessages(list => list.map((message, i) => i === index ? { ...message, markdownEditStatus: status } : message));
   };
+
   const documentText = kind === "canvasDocument" ? "a text summary of the Scene" : "the document's text";
 
   return (

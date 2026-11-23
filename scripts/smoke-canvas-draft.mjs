@@ -13,6 +13,7 @@ const temp = mkdtempSync(path.join(tmpdir(), "doko-canvas-draft-"));
 const saved = path.join(temp, "draft-saved.excalidraw");
 const savedOnClose = path.join(temp, "draft-saved-on-close.excalidraw");
 const env = { ...process.env, FOLIO_TEST_USER_DATA: path.join(temp, "profile"), FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
 
 const drafts = async () => {
@@ -21,6 +22,7 @@ const drafts = async () => {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
+
   try {
     return await new Promise((resolve, reject) => {
       const range = IDBKeyRange.bound(["canvas-document-draft", ""], ["canvas-document-draft", "\uffff"]);
@@ -32,6 +34,7 @@ const drafts = async () => {
 };
 
 let app;
+
 try {
   app = await electron.launch({ executablePath: electronPath(env), env, args: [root, "--mute-audio",
     ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
@@ -45,21 +48,28 @@ try {
   const draftTab = page.getByRole("tab", { name: "Untitled Canvas", exact: true });
   const dirtyClose = page.getByRole("button", { name: "Close Untitled Canvas, unsaved changes", exact: true });
   const prompt = page.getByRole("dialog", { name: "Save?", exact: true });
+
   const wait = async (condition, failure) => {
     const deadline = Date.now() + 10_000;
+
     while (Date.now() < deadline) {
       if (await condition()) return;
       await new Promise(resolve => setTimeout(resolve, 50));
     }
+
     throw new Error(failure);
   };
+
   const native = label => wait(() => app.evaluate(({ Menu, BrowserWindow }, label) => {
     const item = Menu.getApplicationMenu().items.find(item => item.label === "File")
       .submenu.items.find(item => item.label === label);
+
     if (!item?.enabled) return false;
     item.click(item, BrowserWindow.getAllWindows()[0], {});
+
     return true;
   }, label), `File/${label} is unavailable`);
+
   const draw = async (tool, offset = 0) => {
     const bounds = await surface.boundingBox();
     const x = bounds.x + bounds.width * 0.38 + offset, y = bounds.y + bounds.height * 0.45;
@@ -69,6 +79,7 @@ try {
     await page.mouse.move(x + 65, y + 55, { steps: 5 });
     await page.mouse.up();
   };
+
   const assertElements = async count => {
     await surface.waitFor();
     const properties = page.getByRole("dialog", { name: "Properties", exact: true });
@@ -76,24 +87,31 @@ try {
     await properties.getByText(String(count), { exact: true }).waitFor();
     await properties.getByRole("button", { name: "Close", exact: true }).click();
   };
+
   const suspendActiveTab = async () => {
     const key = await page.evaluate(() => {
       const { tabs, key } = window.frameElement.readerContext;
       window.parent.canvasDraftTabs = tabs;
+
       return key;
     });
+
     await page.getByRole("button", { name: "New tab", exact: true }).click();
     await welcome.waitFor();
     assert.equal(await window.evaluate(async key => {
       const tabs = window.canvasDraftTabs;
       const tab = tabs.all.find(tab => tab.key === key);
+
       if (tab.suspendTimer === undefined) throw new Error("Canvas tab did not schedule suspension");
       await tabs.suspend(tab);
+
       return !tab.frame && !tab.reader;
     }, key), true, "Canvas reader stayed live");
   };
+
   const waitForDraft = count => wait(async () => {
     const records = await window.evaluate(drafts);
+
     return records.length === 1 && records[0].elements.length === count;
   }, `No draft with ${count} elements`);
 
@@ -102,12 +120,16 @@ try {
     globalThis.canvasDraftDialogPaths = [];
     dialog.showSaveDialog = async (_window, options) => {
       globalThis.canvasDraftDialogPaths.push(options.defaultPath);
+
       if (!destinations.length) throw new Error("Unexpected Save dialog");
       const filePath = destinations.shift();
+
       return filePath ? { canceled: false, filePath } : { canceled: true };
     };
+
     dialog.showMessageBox = async (_window, options) => {
       if (options.buttons[0] !== "Reload Doko") throw new Error("Unexpected message box");
+
       return { response: 0 };
     };
   }, [null, saved, savedOnClose]);

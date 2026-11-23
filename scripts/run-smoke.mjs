@@ -5,14 +5,17 @@ import path from "node:path";
 
 export function runSteps(steps) {
   const results = [];
+
   for (const args of steps) {
     const started = performance.now();
     const result = spawnSync(process.execPath, args, { stdio: "inherit", env: process.env });
     const entry = { command: ["node", ...args].join(" "), seconds: Number(((performance.now() - started) / 1000).toFixed(2)), status: result.status ?? 1 };
     results.push(entry);
     console.log(`${entry.status === 0 ? "PASS" : "FAIL"} ${entry.seconds}s ${entry.command}`);
+
     if (entry.status !== 0) break;
   }
+
   return results;
 }
 

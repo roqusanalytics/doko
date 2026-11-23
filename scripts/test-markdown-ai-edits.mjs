@@ -37,6 +37,7 @@ test("append at the end, allow adjoining edits, and reject multiple appends", ()
 
 test("malformed blocks invalidate the entire reply", () => {
   const valid = block("old", "new");
+
   for (const malformed of [valid.slice(0, -2), valid.replace("=======", "=="), valid.replace("doko-edit", "doko-edit extra"), valid.replace("new", "a\0b"),
     valid.replace("new", "=======\nb"), block("old", "old")]) {
     assert.throws(() => parseMarkdownReply(valid + "\n" + malformed), /incomplete|invalid format|no change/);
@@ -45,9 +46,11 @@ test("malformed blocks invalidate the entire reply", () => {
 
 test("streaming hides partial and complete edit blocks and retains ordinary examples", () => {
   const edit = block("old", "new");
+
   for (let i = 1; i <= edit.length; i++) {
     assert.equal(markdownReplyDescription("Updating.\n" + edit.slice(0, i)), "Updating.");
   }
+
   const example = "````markdown\n" + edit + "\n````";
   assert.deepEqual(parseMarkdownReply(example), { description: example, edits: [] });
   const replacement = "```js\nconst n = 2;\n```";

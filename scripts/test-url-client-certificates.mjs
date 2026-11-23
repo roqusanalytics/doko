@@ -17,12 +17,15 @@ const issuer = "Doko test " + randomUUID();
 const read = name => readFileSync(path.join(dir, name));
 const openssl = (...args) => execFileSync("openssl", args, { cwd: dir, stdio: "pipe", windowsHide: true });
 const password = randomUUID();
+
 // Only disposable hosted Windows runners install the generated leaf identity. Local runs never modify an OS store.
 const installIdentity = process.platform === "win32" && process.env.FOLIO_TEST_CLIENT_IDENTITY === "1"
   && process.env.RUNNER_ENVIRONMENT === "github-hosted";
+
 const certutil = (...args) => execFileSync("certutil.exe", ["-user", ...args], { cwd: dir, stdio: "pipe", windowsHide: true });
 
 let app, server, thumbprint;
+
 try {
   writeFileSync(path.join(dir, "cert.cnf"), [
     "[req]", "distinguished_name=dn", "[dn]", "[server]", "basicConstraints=critical,CA:TRUE",
@@ -36,6 +39,7 @@ try {
   openssl("x509", "-req", "-in", "client.csr", "-CA", "server.pem", "-CAkey", "server.key", "-CAcreateserial",
     "-days", "1", "-extfile", "cert.cnf", "-extensions", "client", "-out", "client.pem");
   const cert = read("server.pem");
+
   if (installIdentity) {
     openssl("pkcs12", "-export", "-in", "client.pem", "-inkey", "client.key", "-out", "client.p12", "-passout", "pass:" + password);
     certutil("-f", "-p", password, "-importPFX", "My", "client.p12", "NoRoot");
@@ -45,12 +49,21 @@ try {
   const requests = [];
   server = https.createServer({ key: read("server.key"), cert, ca: cert, requestCert: true, rejectUnauthorized: false }, (req, res) => {
     requests.push({ path: req.url, peer: req.socket.getPeerCertificate().fingerprint256 ?? null });
-    if (req.url === "/redirect") { res.writeHead(302, { location: "/paper.pdf" }); return res.end(); }
+
+    if (req.url === "/redirect") { res.writeHead(302, { location: "/paper.pdf" });
+
+ return res.end(); }
+
     if (req.url === "/webpage") {
       res.writeHead(200, { "content-type": "text/html" });
+
       return res.end('<title>Anonymous capture</title><img src="/image">');
     }
-    if (req.url === "/image") { res.writeHead(204); return res.end(); }
+
+    if (req.url === "/image") { res.writeHead(204);
+
+ return res.end(); }
+
     res.writeHead(200, { "content-type": "application/pdf" });
     res.end("%PDF-1.4\n%%EOF");
   });
@@ -87,6 +100,7 @@ try {
   assert.ok(captures.some(req => req.path === "/image"), "the captured page loaded its subresource");
   const identified = [...downloads, ...captures].filter(req => req.peer !== null).map(req => req.path);
   assert.deepEqual(identified, [], "URLs that received the generated client identity");
+
   if (installIdentity) {
     const challenges = await app.evaluate(() => globalThis.importChallenges);
     assert.ok(challenges.includes("download") && challenges.includes("capture"), JSON.stringify(challenges));
@@ -97,13 +111,16 @@ try {
     }, origin + "/electron-control");
     assert.equal(requests.find(req => req.path === "/electron-control")?.peer, new X509Certificate(read("client.pem")).fingerprint256);
   }
+
   console.log("ok  PDF redirects and webpage capture complete without sharing a TLS client certificate"
     + (installIdentity ? " with a matching OS identity available in both paths" : ""));
 } finally {
   try { await app?.close(); }
   finally {
     server?.closeAllConnections();
+
     if (server?.listening) await new Promise(resolve => server.close(resolve));
+
     if (thumbprint) certutil("-delstore", "My", thumbprint);
     rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }

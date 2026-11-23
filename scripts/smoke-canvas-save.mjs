@@ -12,19 +12,25 @@ import { readerPage } from "./reader-page.mjs";
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "doko-canvas-save-"));
 const env = { ...process.env, FOLIO_TEST_USER_DATA: path.join(temp, "profile"), FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const lightPath = path.join(temp, "light.excalidraw");
 const darkPath = path.join(temp, "dark.excalidraw");
 const corruptPath = path.join(temp, "corrupt.excalidraw");
 const readScene = file => JSON.parse(readFileSync(file, "utf8"));
+
 const wait = async (condition, failure) => {
   const end = Date.now() + 10_000;
+
   while (Date.now() < end) {
     if (await condition()) return;
     await new Promise(resolve => setTimeout(resolve, 50));
   }
+
   throw new Error(failure);
 };
+
 const sceneContents = scene => scene.elements.map(element => ({
   id: element.id, type: element.type, text: element.text, container: element.containerId,
   start: element.startBinding, end: element.endBinding, bound: element.boundElements ?? [],
@@ -33,6 +39,7 @@ const sceneContents = scene => scene.elements.map(element => ({
 }));
 
 let app;
+
 try {
   app = await electron.launch({ executablePath: electronPath(env), env, args: [root, "--mute-audio",
     ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
@@ -43,11 +50,13 @@ try {
   window.on("pageerror", error => errors.push(error.message));
   const welcome = page.getByRole("button", { name: "New canvas", exact: true });
   await welcome.waitFor({ timeout: 30_000 });
+
   const setTheme = async name => {
     await page.keyboard.press("ControlOrMeta+,");
     await page.getByRole("dialog", { name: "Settings", exact: true }).getByRole("radio", { name, exact: true }).click();
     await page.keyboard.press("Escape");
   };
+
   await setTheme("Light");
 
   await app.evaluate(({ dialog }, paths) => {
@@ -56,18 +65,25 @@ try {
     dialog.showSaveDialog = async (_window, options) => {
       globalThis.canvasDocumentDialogs.saves.push(options);
       const filePath = destinations.shift();
+
       if (!filePath) throw new Error("Unexpected Save dialog");
+
       return { canceled: false, filePath };
     };
+
     dialog.showOpenDialog = async (_window, options) => {
       globalThis.canvasDocumentDialogs.open = options;
+
       return { canceled: false, filePaths: [paths.lightPath] };
     };
+
     dialog.showErrorBox = (title, detail) => globalThis.canvasDocumentDialogs.errors.push({ title, detail });
   }, { lightPath, darkPath });
+
   const menuState = () => app.evaluate(({ Menu }) => Object.fromEntries(
     Menu.getApplicationMenu().items.find(item => item.label === "File").submenu.items
       .filter(item => item.label).map(item => [item.label, item.enabled])));
+
   const native = async label => {
     await wait(async () => (await menuState())[label], `File/${label} is unavailable`);
     await app.evaluate(({ Menu, BrowserWindow }, label) => {
@@ -75,23 +91,31 @@ try {
       item.click(item, BrowserWindow.getAllWindows()[0], {});
     }, label);
   };
+
   const tab = name => page.getByRole("tab", { name, exact: true, selected: true });
   const editor = page.locator(".excalidraw");
   const surface = page.locator("canvas.excalidraw__canvas.interactive");
+
   const waitForImage = () => page.waitForFunction(() => {
     const surface = document.querySelector("canvas.excalidraw__canvas.static");
+
     if (!surface?.width || !surface.height) return false;
     const rgba = surface.getContext("2d").getImageData(0, 0, surface.width, surface.height).data;
+
     for (let offset = 0; offset < rgba.length; offset += 4) {
       if (rgba[offset] === 237 && rgba[offset + 1] === 39 && rgba[offset + 2] === 119 && rgba[offset + 3] === 255) return true;
     }
+
     return false;
   });
+
   await welcome.click();
   await surface.waitFor();
   await wait(async () => (await menuState())["Save"], "Canvas did not activate the native File menu");
   const menu = await menuState();
+
   for (const name of ["Save", "Save As…", "Properties…", "Export / Convert…"]) assert.equal(menu[name], true, name);
+
   for (const name of ["Print…", "Reduce File Size…"]) assert.equal(menu[name], false, name);
   assert.equal(await editor.evaluate(element => element.classList.contains("theme--dark")), false);
 
@@ -146,6 +170,7 @@ try {
     await page.mouse.move(left + 65, top + 55, { steps: 5 });
     await page.mouse.up();
   };
+
   await draw("Diamond", x - 110, y + 40);
   await wait(() => readScene(lightPath).elements.length === 7, "Canvas changes did not autosave");
   assert.ok(readScene(lightPath).elements.some(element => element.type === "diamond"));

@@ -10,14 +10,19 @@ export interface Release {
 // The bundled changelog uses "## version" headings and "- " bullets with indented continuations.
 function parse(text: string): Release[] {
   const releases: Release[] = [];
+
   for (const line of text.split(/\r?\n/)) {
     const heading = line.match(/^##\s+(.+)/);
+
     if (heading) releases.push({ version: heading[1].trim(), items: [] });
     const current = releases[releases.length - 1];
+
     if (!current || heading) continue;
+
     if (line.startsWith("- ")) current.items.push(line.slice(2).trim());
     else if (line.trim() && current.items.length) current.items[current.items.length - 1] += " " + line.trim();
   }
+
   return releases;
 }
 
@@ -26,12 +31,17 @@ export const releases = parse(changelog).filter(r => byVersion.compare(r.version
 
 export function takeUpgradeNotes(): Release[] {
   const key = "folio:last-opened-version";
+
   try {
     const previous = readSetting(key);
+
     if (previous && byVersion.compare(installed, previous) <= 0) return [];
+
     if (!writeSetting(key, installed)) return [];
+
     // Older releases saved the sidebar preference on first launch, before version tracking existed.
     if (!previous) return readSetting("folio:sidebar") === null ? [] : releases.filter(r => r.version === installed);
+
     return releases.filter(r => byVersion.compare(r.version, previous) > 0);
   } catch {
     return []; // If the version can't be saved, don't repeat the popup on every launch.

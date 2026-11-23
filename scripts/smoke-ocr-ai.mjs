@@ -12,22 +12,30 @@ import { assertHidden, closeHidden } from "./hidden-window.mjs";
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "doko-ocr-ai-"));
 const shots = path.join(root, "release", "smoke");
+
 mkdirSync(shots, { recursive: true });
+
 const env = { ...process.env, FOLIO_TEST_USER_DATA: temp, FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const app = await electron.launch({ executablePath: electronPath(env), env,
   args: [root, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
+
 const errors = [];
 let page;
+
 try {
   page = readerPage(await app.firstWindow());
   page.on("pageerror", error => errors.push(String(error)));
   await page.getByRole("button", { name: /Try a sample/ }).waitFor({ timeout: 30_000 });
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
+
   for (const text of ["Embedded project: Baltic delivery", "Embedded city: Kaunas"]) {
     pdf.addPage([700, 1000]).drawText(text, { x: 40, y: 850, size: 24, font });
   }
+
   for (const text of ["AMBER RIVER 8426", "Reference code: 7319"]) {
     const png = await page.evaluate(text => {
       const canvas = Object.assign(document.createElement("canvas"), { width: 1400, height: 2000 });
@@ -36,34 +44,46 @@ try {
       ctx.fillStyle = "black"; ctx.font = "60px sans-serif";
       ctx.fillText(text, 70, 180);
       ctx.fillText("Total: 84.00 EUR", 70, 280);
+
       return canvas.toDataURL("image/png").split(",")[1];
     }, text);
+
     const image = await pdf.embedPng(Buffer.from(png, "base64"));
     pdf.addPage([700, 1000]).drawImage(image, { x: 0, y: 0, width: 700, height: 1000 });
   }
+
   await app.evaluate(({ BrowserWindow, net, safeStorage }, bytes) => {
     const fetch = net.fetch;
     const methods = ["isAsyncEncryptionAvailable", "encryptStringAsync", "decryptStringAsync"];
+
     if (process.platform === "linux") methods.push("getSelectedStorageBackend");
     const original = Object.fromEntries(methods.map(name => [name, safeStorage[name]]));
     safeStorage.isAsyncEncryptionAvailable = async () => true;
+
     if (process.platform === "linux") safeStorage.getSelectedStorageBackend = () => "gnome_libsecret";
     safeStorage.encryptStringAsync = async value => Buffer.from(value).map(b => b ^ 128);
     safeStorage.decryptStringAsync = async bytes => ({ result: Buffer.from(bytes).map(b => b ^ 128).toString() });
     const state = globalThis.ocrAiTest = { requests: [] };
     net.fetch = async (url, options) => {
       if (!String(url).startsWith("https://openrouter.ai/")) return fetch.call(net, url, options);
+
       if (options.headers.Authorization !== "Bearer fixture-only-openrouter-key") throw new Error("Unexpected fixture key");
       const endpoint = new URL(url).pathname;
+
       if (endpoint === "/api/v1/key") return Response.json({ data: { label: "Test" } });
+
       if (endpoint === "/api/v1/models") return Response.json({ data: [
         { id: "sample/reader", name: "Sample Reader", context_length: 131072, architecture: { input_modalities: ["text"], output_modalities: ["text"] } },
       ] });
+
       if (endpoint !== "/api/v1/chat/completions") throw new Error("Unexpected OpenRouter endpoint");
       state.requests.push(JSON.parse(options.body));
+
       return new Response('data: {"choices":[{"delta":{"content":"The reference is 7319 (p. 4)."},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
     };
+
     state.restore = () => { net.fetch = fetch; Object.assign(safeStorage, original); };
+
     BrowserWindow.getAllWindows()[0].webContents.send("folio:open-file", { name: "Mixed OCR AI.pdf", data: Buffer.from(bytes) });
   }, [...await pdf.save()]);
   await page.window.waitForFunction(() => document.title.startsWith("Mixed OCR AI.pdf"));
@@ -154,17 +174,22 @@ try {
       const request = indexedDB.open("folio");
       request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
     });
+
     try {
       const files = await new Promise((resolve, reject) => {
         const request = db.transaction("recent").objectStore("recent").getAll();
         request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
       });
+
       const id = files.find(file => file.name === "OCR retry history.pdf")?.id;
+
       if (!id) return false;
+
       const chat = await new Promise((resolve, reject) => {
         const request = db.transaction("ai").objectStore("ai").get(id);
         request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
       });
+
       return chat?.messages.filter(message => message.role === "user" && message.content === question).length === 1;
     } finally { db.close(); }
   }, question);

@@ -9,20 +9,27 @@ import { updateSummary } from "./updates";
 
 function timeAgo(t: number) {
   const s = (Date.now() - t) / 1000;
+
   if (s < 60) return "Just now";
+
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+
   if (s < 86400 * 7) return `${Math.floor(s / 86400)}d ago`;
+
   return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function UpdateLine({ status }: { status: UpdateStatus }) {
   const desktop = window.folioDesktop!;
+
   const check = (
     <button className="link version-action" onClick={() => desktop.checkForUpdates()}>
       Check for updates
     </button>
   );
+
   switch (status.state) {
     case "ready":
       return (
@@ -72,6 +79,7 @@ function RemoveRecentButton({ files, busy, all = false, onRemove }: {
 }) {
   const trigger = useRef<HTMLButtonElement>(null), panel = useRef<HTMLDivElement>(null);
   const id = useId(), open = useAnchoredPopover(trigger, panel);
+
   return <span onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
     <button ref={trigger} className={all ? "link" : "recent-remove"} title={all ? undefined : "Remove from recent"}
       disabled={busy} popoverTarget={id} aria-expanded={open} aria-haspopup="dialog">
@@ -101,6 +109,7 @@ export function Welcome({ active, onPick, onOpenUrl, onNewCanvas, onOpenRecent, 
 
   useEffect(() => {
     window.folioDesktop?.getAppInfo().then((info) => setVersion(info.version)).catch(() => {});
+
     return window.folioDesktop?.onUpdateStatus?.(setUpdate);
   }, []);
 
@@ -108,12 +117,14 @@ export function Welcome({ active, onPick, onOpenUrl, onNewCanvas, onOpenRecent, 
     if (!active) return;
     let cancelled = false;
     void listRecent().then(files => { if (!cancelled) setRecent(files); });
+
     return () => { cancelled = true; };
   }, [active]);
 
   const forget = async (id?: string) => {
     if (busy) return;
     setBusy(true); setFailure(null);
+
     try {
       if (id) await removeRecent(id); else await clearRecent();
       setRecent(r => id ? r.filter(f => f.id !== id) : []);
@@ -122,11 +133,14 @@ export function Welcome({ active, onPick, onOpenUrl, onNewCanvas, onOpenRecent, 
       setFailure({ message: "Couldn't remove the local copies. Device storage is unavailable. Your files are safe.", retry: () => void forget(id) });
     } finally { setBusy(false); }
   };
+
   const openRecent = async (id: string) => {
     if (busy) return;
     setBusy(true); setFailure(null);
+
     try {
       const file = await getRecent(id);
+
       if (!file) throw new Error("The saved document is unavailable.");
       onOpenRecent(file);
     } catch (error) {

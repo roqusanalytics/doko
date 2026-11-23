@@ -15,20 +15,29 @@ function PhotoThumbnail({ doc, name, near }: { doc: GalleryDocument; name: strin
     let stopped = false;
     let objectUrl = "";
     setUrl(""); setError("");
+
     if (!near) return;
     void (async () => {
       const blob = await readGalleryImage({ id, files, blobs }, name);
+
       if (!blob) throw new Error("Image unavailable");
+
       if (blob.size > MAX_BYTES) throw new Error("Image too large");
+
       if (stopped) return;
       objectUrl = URL.createObjectURL(blob);
       setUrl(objectUrl);
     })().catch(() => { if (!stopped) setError("Image unavailable"); });
-    return () => { stopped = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+
+    return () => { stopped = true;
+
+ if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [id, files, blobs, name, near]);
+
   return url && !error
     ? <img src={url} alt="" onError={() => setError("Image unavailable")} onLoad={event => {
       const image = event.currentTarget;
+
       if (image.naturalWidth * image.naturalHeight > MAX_PIXELS) setError("Image too large");
     }} />
     : <span className="photo-carousel-placeholder" role={error ? "img" : undefined} aria-label={error ? `${name}: ${error}` : undefined}>{name}</span>;
@@ -47,26 +56,37 @@ export function PhotoCarousel({ doc, selected, busy, onSelect, onRefresh, onActi
   const root = useRef<HTMLDivElement>(null);
   const buttons = useRef(new Map<string, HTMLButtonElement>());
   const [near, setNear] = useState<Set<string>>(() => new Set());
+
   const select = (next: number) => {
     const name = doc.files[next];
+
     if (name && !busy) onSelect(name);
   };
 
   useEffect(() => {
-    if (!root.current || !("IntersectionObserver" in window)) { setNear(new Set(selected ? [selected] : [])); return; }
+    if (!root.current || !("IntersectionObserver" in window)) { setNear(new Set(selected ? [selected] : []));
+
+ return; }
+
     const observer = new IntersectionObserver(entries => {
       setNear(previous => {
         const next = new Set(previous);
+
         for (const entry of entries) {
           const name = (entry.target as HTMLElement).dataset.file;
+
           if (!name) continue;
+
           if (entry.isIntersecting) next.add(name);
           else next.delete(name);
         }
+
         return next;
       });
     }, { root: root.current, rootMargin: "0px 400px", threshold: 0 });
+
     root.current.querySelectorAll<HTMLElement>("[data-file]").forEach(button => observer.observe(button));
+
     return () => observer.disconnect();
   }, [doc.files, selected]);
 
@@ -76,7 +96,9 @@ export function PhotoCarousel({ doc, selected, busy, onSelect, onRefresh, onActi
 
   useEffect(() => {
     const strip = root.current;
+
     if (!strip) return;
+
     const wheel = (event: WheelEvent) => {
       if (event.ctrlKey || event.metaKey || strip.scrollWidth <= strip.clientWidth) return;
       event.preventDefault();
@@ -84,12 +106,15 @@ export function PhotoCarousel({ doc, selected, busy, onSelect, onRefresh, onActi
       strip.scrollBy({ left: delta * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? strip.clientWidth : 1),
         behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
     };
+
     strip.addEventListener("wheel", wheel, { passive: false });
+
     return () => strip.removeEventListener("wheel", wheel);
   }, []);
 
   const moveFocus = (from: number, delta: number) => {
     const target = Math.max(0, Math.min(doc.files.length - 1, from + delta));
+
     if (target === from) return;
     select(target);
     buttons.current.get(doc.files[target])?.focus({ preventScroll: true });
@@ -107,8 +132,11 @@ export function PhotoCarousel({ doc, selected, busy, onSelect, onRefresh, onActi
         }} onClick={() => onSelect(name)} onKeyDown={event => {
           if ((event.key === "ContextMenu" || event.key === "F10" && event.shiftKey) && onAction && !busy) {
             event.preventDefault();
-            setMenu({ name, element: event.currentTarget }); return;
+            setMenu({ name, element: event.currentTarget });
+
+ return;
           }
+
           if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
             event.preventDefault(); moveFocus(fileIndex, event.key === "ArrowLeft" ? -1 : 1);
           }

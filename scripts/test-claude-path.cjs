@@ -11,12 +11,14 @@ const GUI_PATH = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"].join(path.delimiter)
 function folder(t) {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "folio-claude-test-")));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
   return dir;
 }
 
 function fakeClaude(dir, name = "claude", contents = "#!/bin/sh\necho 1.0.0\n") {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, name), contents, { mode: 0o755 });
+
   return path.join(dir, name);
 }
 
@@ -65,6 +67,7 @@ test("never looks in the current folder or relative PATH entries", (t) => {
   fakeClaude(root, "claude.exe");
   const cwd = process.cwd();
   process.chdir(root);
+
   try {
     const envPath = [".", "bin", "", GUI_PATH].join(path.delimiter);
     assert.equal(findClaude({ platform: "darwin", home, envPath, extraFolders: [] }), null);
@@ -106,6 +109,7 @@ test("an npm shim in a relative PATH entry is still ignored", (t) => {
   fakeClaude(path.join(root, "npm", "node_modules", "@anthropic-ai", "claude-code", "bin"), "claude.exe");
   const cwd = process.cwd();
   process.chdir(root);
+
   try { assert.equal(findClaude({ platform: "win32", home, envPath: "npm", extraFolders: [] }), null); }
   finally { process.chdir(cwd); }
 });
@@ -125,9 +129,11 @@ test("an npm install's script finds the node beside it", { skip: process.platfor
   const bin = path.join(folder(t), "bin");
   const exe = fakeClaude(bin, "claude", '#!/usr/bin/env node\nconsole.log("1.0.0 (Claude Code)");\n');
   fs.symlinkSync(process.execPath, path.join(bin, "node"));
+
   if (!GUI_PATH.split(path.delimiter).some((d) => fs.existsSync(path.join(d, "node")))) {
     assert.throws(() => execFileSync(exe, ["--version"], { env: { PATH: GUI_PATH }, stdio: "pipe" }));
   }
+
   const out = execFileSync(exe, ["--version"], { env: { PATH: claudeChildPath(GUI_PATH, exe) }, encoding: "utf8" });
   assert.equal(out.trim(), "1.0.0 (Claude Code)");
 });

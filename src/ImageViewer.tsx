@@ -40,6 +40,7 @@ async function renderRegion(pdf: PDFDocumentProxy, target: ImageTarget, signal: 
   out.height = sh;
   out.getContext("2d")!.drawImage(full, sx, sy, sw, sh, 0, 0, sw, sh);
   full.width = full.height = 0;
+
   return out;
 }
 
@@ -54,6 +55,7 @@ export function ImageMenu({ x, y, stageWidth, href, onView, onOpen }: {
 }) {
   const width = href ? 300 : 150;
   const left = Math.min(Math.max(8, x - width / 2), Math.max(8, stageWidth - width - 8));
+
   return (
     <div className="selection-popover" role="toolbar" aria-label="Image" style={{ left, top: Math.max(8, y - 54) }}>
       <div className="pop-row">
@@ -81,11 +83,13 @@ export function ImageViewer({ pdf, target, onClose }: { pdf: PDFDocumentProxy; t
   useEffect(() => {
     const controller = new AbortController();
     renderRegion(pdf, target, controller.signal).then(setImage).catch(() => { if (!controller.signal.aborted) setFailed(true); });
+
     return () => controller.abort();
   }, [pdf, target]);
 
   useEffect(() => {
     const el = holder.current;
+
     if (!el || !image) return;
     image.className = "image-viewer-canvas";
     el.replaceChildren(image);
@@ -99,7 +103,9 @@ export function ImageViewer({ pdf, target, onClose }: { pdf: PDFDocumentProxy; t
         onClose();
       }
     };
+
     window.addEventListener("keydown", onKey, true);
+
     return () => window.removeEventListener("keydown", onKey, true);
   }, [onClose]);
 
@@ -108,8 +114,10 @@ export function ImageViewer({ pdf, target, onClose }: { pdf: PDFDocumentProxy; t
       if (!blob) {
         setCopy("failed");
         setTimeout(() => setCopy("idle"), 2500);
+
         return;
       }
+
       const ok = await copyImage(blob);
       setCopy(ok ? "done" : "failed");
       setTimeout(() => setCopy("idle"), ok ? 1500 : 2500);

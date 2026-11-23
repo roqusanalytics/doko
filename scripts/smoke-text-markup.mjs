@@ -8,12 +8,18 @@ import {electronPath} from './electron-path.mjs';
 import {readerPage} from './reader-page.mjs';
 import {captureSave} from './capture-save.mjs';
 import {assertHidden,closeHidden} from './hidden-window.mjs';
+
 const root=path.resolve(import.meta.dirname,'..'), temp=mkdtempSync(path.join(tmpdir(),'doko-text-markup-'));
-const env={...process.env,FOLIO_TEST_USER_DATA:temp,FOLIO_TEST_HIDDEN:'1'};delete env.ELECTRON_RUN_AS_NODE;
+const env={...process.env,FOLIO_TEST_USER_DATA:temp,FOLIO_TEST_HIDDEN:'1'};
+
+delete env.ELECTRON_RUN_AS_NODE;
+
 const app=await electron.launch({executablePath:electronPath(env),args:[root,'--mute-audio',...(process.platform==='linux'&&process.getuid?.()===0?['--no-sandbox']:[])],env});
+
 try {
  const window=await app.firstWindow(),page=readerPage(window);
  await page.getByRole('button',{name:/Try a sample/}).click();
+
  const select=async()=>{
   await page.locator('.textLayer span:not(.markedContent)').first().waitFor();
   await page.evaluate(()=>{
@@ -23,25 +29,33 @@ try {
   });
   await page.getByRole('dialog',{name:'Selected text',exact:true}).waitFor();
  };
+
  await page.getByRole('button',{name:'Reorder pages',exact:true}).click();
  await page.getByLabel('Move page 1 to').fill('4'); await page.getByRole('button',{name:'Move',exact:true}).click();
+
  for(const style of ['Underline','Strike through']) {
   await select();await page.getByRole('button',{name:'Text marking style',exact:true}).click();
   await page.getByRole('menuitemradio',{name:style,exact:true}).click();
   await page.getByRole('button',{name:'Highlight yellow',exact:true}).click();
   await page.getByRole('button',{name:'Undo document edit',exact:true}).waitFor();
   await page.getByRole('dialog',{name:'Selected text',exact:true}).waitFor({state:'hidden'});
+
   if(style==='Underline') {
    await page.getByRole('button',{name:'Undo document edit',exact:true}).click();
    await page.getByRole('button',{name:'Undo document edit',exact:true}).waitFor({state:'hidden'});
   }
  }
+
  const file=path.join(temp,'marked.pdf');await captureSave(app,file,'markedSaved');
  await page.keyboard.press('ControlOrMeta+s');assert.equal(await app.evaluate(()=>globalThis.markedSaved),'completed');
  const pdf=await PDFDocument.load(readFileSync(file));const annotations=pdf.getPages().flatMap(page=>page.node.Annots()?.asArray().map(ref=>pdf.context.lookup(ref).get(PDFName.of('Subtype')).toString())??[]);
  assert.ok(annotations.includes('/StrikeOut'),'actual saved PDF has true strikeout annotation');
  assert.ok(!annotations.includes('/Underline'),'Undo removed prior underline');
- const text = await page.evaluate(async bytes=>{const pdf=await pdfjsLib.getDocument({data:Uint8Array.from(bytes)}).promise;try{return (await (await pdf.getPage(4)).getTextContent()).items.map(item=>item.str??'').join(' ');}finally{await pdf.loadingTask.destroy();}},[...readFileSync(file)]);
+
+ const text = await page.evaluate(async bytes=>{const pdf=await pdfjsLib.getDocument({data:Uint8Array.from(bytes)}).promise;
+
+try{return (await (await pdf.getPage(4)).getTextContent()).items.map(item=>item.str??'').join(' ');}finally{await pdf.loadingTask.destroy();}},[...readFileSync(file)]);
+
  assert.ok(text.includes('A short tour of Doko'),'pending page reorder survives marking and Undo');
  const input=path.join(temp,'undo-content.pdf'),fixture=await PDFDocument.create();
  fixture.addPage([300,400]).drawText('ORIGINAL SAMPLE TEXT',{x:30,y:300,size:15});writeFileSync(input,await fixture.save());

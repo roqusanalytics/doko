@@ -7,18 +7,35 @@ import { _electron as electron } from "playwright-core";
 import { electronPath } from "./electron-path.mjs";
 import { readerPage } from "./reader-page.mjs";
 import { assertHidden, closeHidden } from "./hidden-window.mjs";
+
 const root=path.resolve(import.meta.dirname,".."),temp=mkdtempSync(path.join(tmpdir(),"doko-security-smoke-"));
-const shots=path.join(root,"release","smoke");mkdirSync(shots,{recursive:true});
-const fixture=await PDFDocument.create();fixture.addPage([300,240]).drawText("PRIVATE SECRET",{x:30,y:180,size:16});
-const source=await fixture.save(),input=path.join(temp,"private.pdf"),output=path.join(temp,"protected.pdf"),redacted=path.join(temp,"redacted.pdf");writeFileSync(input,source);
-const env={...process.env,FOLIO_TEST_USER_DATA:path.join(temp,"profile"),FOLIO_TEST_HIDDEN:"1"};delete env.ELECTRON_RUN_AS_NODE;
+const shots=path.join(root,"release","smoke");
+
+mkdirSync(shots,{recursive:true});
+
+const fixture=await PDFDocument.create();
+
+fixture.addPage([300,240]).drawText("PRIVATE SECRET",{x:30,y:180,size:16});
+
+const source=await fixture.save(),input=path.join(temp,"private.pdf"),output=path.join(temp,"protected.pdf"),redacted=path.join(temp,"redacted.pdf");
+
+writeFileSync(input,source);
+
+const env={...process.env,FOLIO_TEST_USER_DATA:path.join(temp,"profile"),FOLIO_TEST_HIDDEN:"1"};
+
+delete env.ELECTRON_RUN_AS_NODE;
+
 const app=await electron.launch({executablePath:electronPath(env),env,args:[root,"--mute-audio",...(process.platform==="linux"&&process.getuid?.()===0?["--no-sandbox"]:[])],timeout:60000});
+
 try {
   const page=readerPage(await app.firstWindow()),errors=[];page.on("pageerror",error=>errors.push(String(error)));
   await page.getByRole("button",{name:/Try a sample/}).waitFor({timeout:30000});
-  await app.evaluate(({app,dialog},input)=>{app.emit("open-file",{preventDefault(){}},input);globalThis.securitySaves=[];dialog.showSaveDialog=async()=>{const target=globalThis.securitySaves.shift();return{canceled:!target,filePath:target||undefined};};},input);
+  await app.evaluate(({app,dialog},input)=>{app.emit("open-file",{preventDefault(){}},input);globalThis.securitySaves=[];dialog.showSaveDialog=async()=>{const target=globalThis.securitySaves.shift();
+
+return{canceled:!target,filePath:target||undefined};};},input);
   await page.locator(".page canvas").first().waitFor();
   const more=async(name)=>{await page.getByRole("button",{name:"More",exact:true}).click();await page.getByRole("menuitem",{name,exact:true}).click();};
+
   await more("Protect PDF copy…");
   let dialog=page.getByRole("dialog",{name:"Protect a copy"});await dialog.waitFor();
   await dialog.getByRole("button",{name:"Save protected copy…"}).click();await dialog.getByRole("alert").filter({hasText:"Enter a password"}).waitFor();

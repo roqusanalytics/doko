@@ -10,6 +10,7 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 const subscribe = (channel, args = value => [value]) => callback => {
   const listener = (_event, ...values) => callback(...args(...values));
   ipcRenderer.on(channel, listener);
+
   return () => ipcRenderer.removeListener(channel, listener);
 };
 
@@ -41,15 +42,19 @@ const folioDesktop = {
     refresh: (id, selected) => ipcRenderer.invoke("folio:content-refresh", id, selected),
     async image(id, name) {
       const result = await ipcRenderer.invoke("folio:content-image", id, name);
+
       return { data: new Uint8Array(result.data), mime: result.mime };
     },
     async asset(id, relative) {
       const result = await ipcRenderer.invoke("folio:content-asset", id, relative);
+
       return { data: new Uint8Array(result.data), mime: result.mime };
     },
     async trash(id, name) {
       const result = await ipcRenderer.invoke("folio:content-trash", id, name);
+
       if (result.error) throw new Error(result.error);
+
       return result.gallery;
     },
     reveal: (id, name) => ipcRenderer.invoke("folio:content-reveal", id, name),
@@ -65,8 +70,11 @@ const folioDesktop = {
    */
   async fetchPdf(url, id) {
     const file = await ipcRenderer.invoke("folio:fetch-pdf", url, id);
+
     if (file.cancelled) return null;
+
     if (file.error) throw new Error(file.error);
+
     return { name: file.name, data: new Uint8Array(file.data) };
   },
   cancelFetchPdf: (id) => ipcRenderer.invoke("folio:cancel-fetch-pdf", id),
@@ -86,6 +94,7 @@ const folioDesktop = {
   onUpdateStatus(callback) {
     const stop = subscribe("folio:update-status-changed")(callback);
     ipcRenderer.invoke("folio:update-state").then(callback);
+
     return stop;
   },
   checkForUpdates: () => ipcRenderer.send("folio:check-update"),

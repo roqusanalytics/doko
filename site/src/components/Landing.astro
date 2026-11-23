@@ -24,6 +24,7 @@ const formats = [
   { id: "csv", label: "CSV", color: "#2E7D4F" },
   { id: "txt", label: "TXT", color: "#8A8580" },
 ];
+
 // Out-of-focus tiles drifting around the statement (size, blur and scroll speed vary for depth).
 const drift = [
   { id: "pdf", x: "6%", y: "18%", s: 1.1, b: 0, v: 1.2 },
@@ -34,6 +35,7 @@ const drift = [
   { id: "webp", photo: "forest-path", x: "24%", y: "4%", s: .6, b: 5, v: .4 },
   { id: "canvas", x: "5%", y: "47%", s: .75, b: 2, v: .8 },
 ];
+
 const tileBrand: Record<string, string> = { pdf: "#b-acrobat", docx: "#b-word", canvas: "#i-canvas" };
 const tileColor: Record<string, string> = { pdf: logos.acrobat.color, md: "#1A1A1A", docx: logos.word.color, jpg: "#D9A441", png: "#3FA7A0", webp: "#4E9A5B", canvas: "#6965DB" };
 
@@ -41,13 +43,17 @@ const tileColor: Record<string, string> = { pdf: logos.acrobat.color, md: "#1A1A
 const symbol = (svg: string, id: string) => {
   const viewBox = svg.match(/viewBox="([^"]+)"/)?.[1];
   const inner = svg.replace(/^[\s\S]*?<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "").replace(/fill="#[0-9A-Fa-f]{6}"/g, 'fill="currentColor"');
+
   return `<symbol id="${id}" viewBox="${viewBox}">${inner.trim()}</symbol>`;
 };
+
 const logoSymbols = symbol(logoRaw, "logo") + symbol(markRaw, "mark");
 const t = Astro.props.lang === "lt" ? lt : en;
 const { faq } = t;
+
 // Hero tour: real recordings of the app, in the page language (selected at build time, checked by check-seo.mjs).
 const tourPrefix = `/tour/${Astro.props.lang === "lt" ? "lt" : "en"}`;
+
 const tour = [
   { id: "pdf", file: "pdf", icon: "pdf", label: "PDF" },
   { id: "canvas", file: "canvas", icon: "canvas", label: "Canvas" },
@@ -55,9 +61,11 @@ const tour = [
   { id: "md", file: "markdown", icon: "md", label: "Markdown" },
   { id: "table", file: "excel", icon: "table", label: t.hero.tables },
 ] as const;
+
 // Kinetic statement: words reveal on scroll, format icons pop in between them.
 const statement = t.kinetic.statement;
 const softwareLd = { ...software, url: t.url, description: t.software.description, featureList: t.software.featureList };
+
 const faqLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -89,7 +97,9 @@ const faqLd = {
 <meta property="og:image:alt" content={t.meta.ogImageAlt}>
 <meta name="twitter:card" content="summary_large_image">
 <meta name="color-scheme" content="light dark">
-<script is:inline>try { const t = localStorage.getItem("doko-theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}</script>
+<script is:inline>try { const t = localStorage.getItem("doko-theme");
+
+ if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}</script>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <script is:inline type="application/ld+json" set:html={JSON.stringify(softwareLd)} />

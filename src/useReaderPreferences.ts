@@ -22,11 +22,16 @@ export function useReaderPreferences({ active, gallery, initialGallery, flash }:
       if (event.key === "folio:theme" && (event.newValue === "light" || event.newValue === "dark")) {
         document.documentElement.dataset.theme = event.newValue; setTheme(event.newValue);
       }
+
       if (event.key === "folio:night") setNight(event.newValue === "1");
+
       if (event.key === "folio:wheel-paging") setWheelPaging(event.newValue === "1");
+
       if (event.key === "folio:scan-language" || event.key === null) setScanLanguages(scanLanguagesFrom(event.newValue));
     };
+
     window.addEventListener("storage", sync);
+
     return () => window.removeEventListener("storage", sync);
   }, []);
   useEffect(() => { if (active) window.folioDesktop?.setTheme(nativeAppearanceTheme(theme)); }, [active, theme]);
@@ -37,20 +42,26 @@ export function useReaderPreferences({ active, gallery, initialGallery, flash }:
     writeSetting("folio:theme", next);
     setTheme(next);
   };
+
   const setNightTo = (next: boolean) => {
     if (!writeSetting("folio:night", next ? "1" : "0")) flash("PDF dark mode changed, but couldn't save the preference.");
     setNight(next);
   };
+
   const setSpreadTo = (next: boolean) => {
     setSpread(next);
     writeSetting("folio:spread", next ? "1" : "0");
   };
+
   const setScanLanguagesTo = (next: ScanLanguage[]) => {
     setScanLanguages(next);
+
     if (!writeSetting("folio:scan-language", next.join("+"))) flash("Scan languages changed, but couldn't save the preference.");
   };
+
   const setWheelPagingTo = (next: boolean) => {
     setWheelPaging(next);
+
     if (!writeSetting("folio:wheel-paging", next ? "1" : "0")) flash("Page scrolling changed, but couldn't save the preference.");
   };
 

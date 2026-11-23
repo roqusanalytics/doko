@@ -11,9 +11,11 @@ export async function checkOpenRouter(app, page) {
     const target = webContents.getAllWebContents().find(c => c.getURL().startsWith("app://folio/"));
     const fetch = net.fetch;
     const methods = ["isAsyncEncryptionAvailable", "encryptStringAsync", "decryptStringAsync"];
+
     if (process.platform === "linux") methods.push("getSelectedStorageBackend");
     const original = Object.fromEntries(methods.map(name => [name, safeStorage[name]]));
     safeStorage.isAsyncEncryptionAvailable = async () => true;
+
     if (process.platform === "linux") safeStorage.getSelectedStorageBackend = () => "gnome_libsecret";
     safeStorage.encryptStringAsync = async value => Buffer.from(value).map(b => b ^ 128);
     safeStorage.decryptStringAsync = async bytes => ({ result: Buffer.from(bytes).map(b => b ^ 128).toString() });
@@ -22,23 +24,32 @@ export async function checkOpenRouter(app, page) {
       if (!String(url).startsWith("https://openrouter.ai/")) return fetch.call(net, url, options);
       const endpoint = new URL(url).pathname;
       state.calls.push(endpoint);
+
       if (options.headers.Authorization !== "Bearer fixture-only-openrouter-key") return Response.json({ error: {} }, { status: 401 });
+
       if (endpoint === "/api/v1/key") return Response.json({ data: { label: "Test" } });
+
       if (endpoint === "/api/v1/models") return Response.json({ data: [
         { id: "sample/reader", name: "Sample Reader", context_length: 131072, architecture: { input_modalities: ["text"], output_modalities: ["text"] } },
         { id: "sample/small", name: "Sample Small", context_length: 8192, architecture: { input_modalities: ["text"], output_modalities: ["text"] } },
       ] });
+
       if (endpoint !== "/api/v1/chat/completions") throw new Error("Unexpected OpenRouter endpoint");
       state.request = JSON.parse(options.body);
+
       if (state.hold) return new Response(new ReadableStream({ start(controller) {
         options.signal.addEventListener("abort", () => { state.cancelled = true; controller.error(new Error("Stopped")); }, { once: true });
       } }));
+
       return new Response('data: {"choices":[{"delta":{"content":"Terns nest along the coast "}}]}\n\n'
         + 'data: {"choices":[{"delta":{"content":"(p. 2)."},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
     };
+
     state.restore = () => { net.fetch = fetch; Object.assign(safeStorage, original); };
+
     target.send("folio:open-file", { name: "Field notes.pdf", data: Buffer.from(bytes, "base64") });
   }, bytes);
+
   try {
     await page.window.waitForFunction(() => document.title.startsWith("Field notes.pdf"));
     await page.getByRole("button", { name: "Ask AI", exact: true }).click();
@@ -66,6 +77,7 @@ export async function checkOpenRouter(app, page) {
     await app.evaluate(() => { globalThis.routerTest.hold = true; });
     await panel.getByRole("textbox").fill("Continue");
     await panel.getByRole("button", { name: "Send", exact: true }).click();
+
     for (let i = 0; i < 100 && !(await app.evaluate(() => globalThis.routerTest.calls.filter(c => c.endsWith("completions")).length === 2)); i++) await page.waitForTimeout(50);
     await panel.getByRole("button", { name: "Stop" }).click();
     await panel.getByRole("button", { name: "Send", exact: true }).waitFor();
@@ -77,6 +89,7 @@ export async function checkOpenRouter(app, page) {
     const modelMenu = () => panel.getByRole("button", { name: /^Model:/ });
     await modelMenu().click();
     const menu = page.getByRole("menu", { name: "Models" });
+
     for (const group of ["ChatGPT", "Claude", "OpenRouter"]) await menu.getByRole("group", { name: group }).waitFor();
     await menu.getByRole("menuitemradio", { name: "Sample Small", exact: true }).click();
     await panel.getByRole("button", { name: "Model: Sample Small", exact: true }).waitFor();

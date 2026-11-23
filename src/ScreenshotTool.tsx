@@ -6,8 +6,10 @@ import { Icon } from "./icons";
 import "./screenshot.css";
 
 type Shot = { blob: Blob; name: string; url: string; copied: boolean };
+
 function shotName() {
   const d = new Date(), p = (n: number) => String(n).padStart(2, "0");
+
   return `Screenshot ${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} at ${p(d.getHours())}.${p(d.getMinutes())}.${p(d.getSeconds())}.png`;
 }
 
@@ -22,13 +24,16 @@ export function ScreenshotButton({ tabs }: { tabs: ReaderContext["tabs"] }) {
   useEffect(() => () => { void window.folioDesktop?.cancelScreenshot(); }, []);
   const shotUrl = shot?.url;
   useEffect(() => () => { if (shotUrl) URL.revokeObjectURL(shotUrl); }, [shotUrl]);
+
   if (!desktop?.captureDesktop) return null;
 
   const start = async () => {
     if (running.current) return;
     running.current = true; setBusy(true); setError("");
+
     try {
       const png = await desktop.captureDesktop();
+
       if (png) {
         const blob = new Blob([png], { type: "image/png" });
         const copied = await copyImage(blob);
@@ -40,7 +45,9 @@ export function ScreenshotButton({ tabs }: { tabs: ReaderContext["tabs"] }) {
       setError(typeof message === "string" && message ? message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/, "") : "Couldn't capture the screen. Try again.");
     } finally { running.current = false; setBusy(false); }
   };
+
   const close = () => { setShot(null); button.current?.focus({ preventScroll: true }); };
+
   return <>
     <button ref={button} className="icon-btn screenshot-btn" disabled={busy} title="Screenshot" aria-label="Take a screenshot" onClick={() => void start()}>
       <Icon name="screenshot" size={16} />
@@ -65,27 +72,36 @@ function ScreenshotPreview({ shot, setShot, tabs, onClose, onRetry }: {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       event.stopPropagation();
+
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); }
+
       if (event.key === "Tab") {
         const buttons = [...(root.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
         const first = buttons[0], last = buttons.at(-1);
+
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
       }
     };
+
     window.addEventListener("keydown", onKey, true);
+
     return () => window.removeEventListener("keydown", onKey, true);
   }, [onClose]);
+
   const copy = async () => {
     const copied = await copyImage(shot.blob);
     setShot({ ...shot, copied });
     setMessage(copied ? "Copied. Paste it anywhere." : "Couldn't copy to the clipboard. Try again or save the image.");
   };
+
   const save = async () => {
     if (saving) return;
     setSaving(true);
+
     try {
       const result = await window.folioDesktop!.saveFile({ name: shot.name, data: new Uint8Array(await shot.blob.arrayBuffer()), format: "png" });
+
       if (result.ok) onClose();
       else if (result.error) setMessage(result.error);
     } catch (error) {
@@ -93,6 +109,7 @@ function ScreenshotPreview({ shot, setShot, tabs, onClose, onRetry }: {
       setMessage("Couldn't save the screenshot. Your selection is still here. Try again.");
     } finally { setSaving(false); }
   };
+
   const draw = () => {
     // A blank tab is replaced during open; keep the image in the surviving shell realm.
     const blob = new (window.parent as Window & typeof globalThis).Blob([shot.blob], { type: "image/png" });
@@ -100,6 +117,7 @@ function ScreenshotPreview({ shot, setShot, tabs, onClose, onRetry }: {
       document: { kind: "gallery", name: shot.name, files: [shot.name], selected: shot.name, blobs: { [shot.name]: blob } } }]);
     onClose();
   };
+
   return <div ref={root} className="screenshot-overlay" role="dialog" aria-modal="true" aria-label="Screenshot">
     <div className="screenshot-preview"><img src={shot.url} alt="Selected screenshot" draggable={false} />
       <div className="screenshot-bar" role="toolbar" aria-label="Screenshot actions">

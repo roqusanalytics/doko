@@ -10,7 +10,9 @@ export interface RecentFile {
   thumb: string;
   data: Blob;
 }
+
 export type RecentSummary = Omit<RecentFile, "data">;
+
 const summaryOf = ({ data: _data, ...summary }: RecentFile): RecentSummary => summary;
 
 const DB_NAME = "folio";
@@ -21,6 +23,7 @@ const LEGACY = "recentByName";
 const NOTES = "notes";
 const AI = "ai";
 const MAX_RECENT = 8;
+
 /** Bigger files aren't kept in Recent: each entry stores the whole PDF, so a few 300 MB downloads would be gigabytes of copies on disk. */
 export const MAX_RECENT_FILE_BYTES = 50 * 1024 * 1024;
 let connection: Promise<IDBDatabase> | null = null;
@@ -35,45 +38,64 @@ export function openFolioDatabase(): Promise<IDBDatabase> {
       connection = null;
       reject(new Error("Close other Doko windows and retry to update local storage."));
     };
+
     req.onupgradeneeded = event => {
       const database = req.result;
+
       // Older cards can pair one file's preview and position with another file's bytes.
       if (event.oldVersion < 4) {
         if (database.objectStoreNames.contains(STORE)) req.transaction!.objectStore(STORE).name = LEGACY;
         database.createObjectStore(STORE, { keyPath: "id" });
       }
+
       if (!database.objectStoreNames.contains(POSITIONS)) database.createObjectStore(POSITIONS);
+
       if (!database.objectStoreNames.contains(NOTES)) database.createObjectStore(NOTES, { keyPath: "id" });
+
       if (!database.objectStoreNames.contains(AI)) database.createObjectStore(AI, { keyPath: "id" });
+
       if (event.oldVersion < 5) {
         database.createObjectStore("versions", { keyPath: "id" }).createIndex("byFamily", ["family", "number"], { unique: true });
         database.createObjectStore("versionPdfs");
       }
+
       if (!database.objectStoreNames.contains("clearGenerations")) database.createObjectStore("clearGenerations");
+
       if (!database.objectStoreNames.contains(METADATA)) {
         const metadata = database.createObjectStore(METADATA, { keyPath: "id" });
         const cursor = req.transaction!.objectStore(STORE).openCursor();
         cursor.onsuccess = () => {
           const row = cursor.result;
+
           if (row) { metadata.put(summaryOf(row.value)); row.continue(); }
         };
       }
     };
+
     req.onsuccess = () => {
       const database = req.result;
-      if (blocked) { database.close(); return; }
+
+      if (blocked) { database.close();
+
+ return; }
+
       database.onversionchange = () => { database.close(); connection = null; };
+
       database.onclose = () => { connection = null; };
+
       // A migration that runs out of quota can retry next time. Notes and chat still work.
       migrateRecent(database).catch(() => {}).then(() => resolve(database));
     };
+
     req.onerror = () => { connection = null; reject(req.error); };
   });
+
   return connection;
 }
 
 async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>, store = STORE): Promise<T> {
   const db = await openFolioDatabase();
+
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(store, mode);
     const req = fn(transaction.objectStore(store));
@@ -86,17 +108,22 @@ async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBReq
 // The v8 snapshot store uses string keys for PDF versions. Tuple keys keep Canvas drafts
 // outside PDF version lookups and deletion, and outside Recent's eviction and clear operations.
 const draftKey = (id: string) => ["canvas-document-draft", id];
+
 export function getCanvasDocumentDraft(id: string) {
   return tx<string | undefined>("readonly", store => store.get(draftKey(id)), "versionPdfs");
 }
+
 export async function writeCanvasDocumentDraft(id: string, text?: string) {
   const key = draftKey(id);
+
   if (text === undefined) await tx("readwrite", store => store.delete(key), "versionPdfs");
   else await tx("readwrite", store => store.put(text, key), "versionPdfs");
 }
+
 export async function listCanvasDocumentDrafts() {
   const range = IDBKeyRange.bound(draftKey(""), draftKey("\uffff"));
   const keys = await tx("readonly", store => store.getAllKeys(range), "versionPdfs");
+
   return keys.map(key => (key as [string, string])[1]);
 }
 
@@ -105,21 +132,26 @@ export async function contentKey(data: Uint8Array) {
   // which file owns old notes or chat, even if a file with the same sample is still in Recent.
   const prefix = data.byteLength <= 2 * 1024 * 1024 ? "sha256:" : "sha256-full:";
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", data as Uint8Array<ArrayBuffer>));
+
   return prefix + Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("") + ":" + data.byteLength;
 }
 
 async function migrateRecent(database: IDBDatabase) {
   if (!database.objectStoreNames.contains(LEGACY)) return;
+
   const old = await new Promise<RecentFile[]>((resolve, reject) => {
     const request = database.transaction(LEGACY).objectStore(LEGACY).getAll();
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
+
   for (const file of old.sort((a, b) => b.openedAt - a.openedAt)) {
     let id: string | undefined;
+
     if (file.data instanceof Blob && file.data.size <= MAX_RECENT_FILE_BYTES) {
       try { id = await contentKey(new Uint8Array(await file.data.arrayBuffer())); } catch { continue; }
     }
+
     await new Promise<void>((resolve, reject) => {
       const transaction = database.transaction([LEGACY, STORE, METADATA], "readwrite");
       const legacy = transaction.objectStore(LEGACY);
@@ -129,6 +161,7 @@ async function migrateRecent(database: IDBDatabase) {
       source.onsuccess = () => {
         if (source.result === undefined) return;
         legacy.delete(file.id);
+
         if (!id) return;
         const dest = current.getKey(id);
         dest.onsuccess = () => {
@@ -139,6 +172,7 @@ async function migrateRecent(database: IDBDatabase) {
           }
         };
       };
+
       transaction.oncomplete = () => resolve();
       transaction.onabort = () => reject(transaction.error);
     });
@@ -148,6 +182,7 @@ async function migrateRecent(database: IDBDatabase) {
 export async function listRecent(): Promise<RecentSummary[]> {
   try {
     const database = await openFolioDatabase();
+
     return await new Promise((resolve, reject) => {
       const transaction = database.transaction([METADATA, POSITIONS], "readonly");
       const all = transaction.objectStore(METADATA).getAll();
@@ -157,6 +192,7 @@ export async function listRecent(): Promise<RecentSummary[]> {
         const byId = new Map(ids.result.map((id, index) => [id, pages.result[index]]));
         resolve(all.result.map(file => ({ ...file, lastPage: byId.get(file.id) ?? file.lastPage })).sort((a, b) => b.openedAt - a.openedAt));
       };
+
       transaction.onabort = () => reject(transaction.error);
     });
   } catch {
@@ -167,7 +203,9 @@ export async function listRecent(): Promise<RecentSummary[]> {
 export async function getRecent(id: string): Promise<RecentFile | undefined> {
   try {
     const file = await tx<RecentFile | undefined>("readonly", (s) => s.get(id));
+
     if (!file) return undefined;
+
     return { ...file, lastPage: await tx<number | undefined>("readonly", s => s.get(id), POSITIONS) ?? file.lastPage };
   } catch {
     return undefined;
@@ -193,6 +231,7 @@ export async function saveRecent(file: RecentFile) {
           positions.delete(old.id);
         }
       };
+
       transaction.oncomplete = () => resolve();
       transaction.onabort = () => reject(transaction.error);
     });
@@ -203,6 +242,7 @@ export async function saveRecent(file: RecentFile) {
 
 export async function updateLastPage(id: string, lastPage: number) {
   if (!Number.isInteger(lastPage) || lastPage < 1) return;
+
   try {
     const database = await openFolioDatabase();
     await new Promise<void>((resolve, reject) => {
@@ -211,6 +251,7 @@ export async function updateLastPage(id: string, lastPage: number) {
       request.onsuccess = () => {
         if (request.result !== undefined) transaction.objectStore(POSITIONS).put(lastPage, id);
       };
+
       transaction.oncomplete = () => resolve();
       transaction.onabort = () => reject(transaction.error);
     });
@@ -222,6 +263,7 @@ export async function clearRecent() {
   const stores = db.objectStoreNames.contains(LEGACY) ? [STORE, POSITIONS, METADATA, LEGACY] : [STORE, POSITIONS, METADATA];
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(stores, "readwrite");
+
     for (const name of stores) transaction.objectStore(name).clear();
     transaction.oncomplete = () => resolve();
     transaction.onabort = () => reject(transaction.error);
@@ -265,18 +307,22 @@ export interface DocNotes {
 }
 
 export type StoredCategory = typeof NOTES | typeof AI;
+
 const CLEAR_CHANNEL = "folio:stored-data-cleared";
 
 export function onStoredDataCleared(listener: (category: StoredCategory, generation: number) => void) {
   // Without BroadcastChannel (an old browser), other tabs simply aren't told; the generation check still stops their writes.
   if (typeof BroadcastChannel === "undefined") return () => {};
+
   const channel = new BroadcastChannel(CLEAR_CHANNEL);
   channel.onmessage = ({ data }) => listener(data.category, data.generation);
+
   return () => channel.close();
 }
 
 export async function countStoredData() {
   const [notes, ai] = await Promise.all([NOTES, AI].map(store => tx("readonly", s => s.count(), store)));
+
   return { notes, ai };
 }
 
@@ -285,6 +331,7 @@ export async function countStoredData() {
 async function withGeneration<T>(category: StoredCategory, mode: IDBTransactionMode,
   run: (store: IDBObjectStore, generation: number, generations: IDBObjectStore) => IDBRequest<T> | void) {
   const db = await openFolioDatabase();
+
   return new Promise<{ value: T | undefined; generation: number }>((resolve, reject) => {
     const transaction = db.transaction([category, "clearGenerations"], mode);
     const generations = transaction.objectStore("clearGenerations");
@@ -295,6 +342,7 @@ async function withGeneration<T>(category: StoredCategory, mode: IDBTransactionM
       try { result = run(transaction.objectStore(category), read.result ?? 0, generations); }
       catch (error) { failure = error; transaction.abort(); }
     };
+
     transaction.oncomplete = () => resolve({ value: result?.result, generation: read.result ?? 0 });
     transaction.onabort = () => reject(failure ?? transaction.error ?? new Error("Stored data is unavailable."));
   });
@@ -303,8 +351,10 @@ async function withGeneration<T>(category: StoredCategory, mode: IDBTransactionM
 export async function clearStoredData(category: StoredCategory) {
   const { generation } = await withGeneration(category, "readwrite", (store, current, generations) => {
     generations.put(current + 1, category);
+
     return store.clear();
   });
+
   // The data is cleared by now; failing to tell other tabs must not report the clear as failed.
   try {
     const channel = new BroadcastChannel(CLEAR_CHANNEL);
@@ -320,6 +370,7 @@ async function readStored<T>(category: StoredCategory, id: string) {
 async function saveStored(category: StoredCategory, id: string, value: unknown, generation: number) {
   await withGeneration(category, "readwrite", (store, current) => {
     if (generation !== current) return;
+
     if (value) store.put(value);
     else store.delete(id);
   });
@@ -331,6 +382,7 @@ export function getNotes(id: string) {
 
 export function saveNotes(notes: DocNotes, generation: number) {
   const keep = notes.note.trim() || notes.marks.length || notes.bookmarkedPages?.length;
+
   return saveStored(NOTES, notes.id, keep ? notes : undefined, generation);
 }
 
@@ -349,6 +401,7 @@ export interface StoredAiMessage {
 
 export async function getAiHistory(id: string) {
   const { value, generation } = await readStored<{ messages: StoredAiMessage[] }>(AI, id);
+
   return { messages: Array.isArray(value?.messages) ? value.messages : [], generation };
 }
 
@@ -363,6 +416,7 @@ export async function copySavedPdfData(id: string, notes: Pick<DocNotes, "note" 
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction([NOTES, AI, "clearGenerations"], "readwrite");
     let failure: unknown;
+
     const copy = (category: StoredCategory, generation: number, value: unknown) => {
       if (!value) return;
       const store = transaction.objectStore(category);
@@ -376,6 +430,7 @@ export async function copySavedPdfData(id: string, notes: Pick<DocNotes, "note" 
         };
       };
     };
+
     copy(NOTES, notesGeneration, notes.note.trim() || notes.bookmarkedPages?.length ? { ...notes, id, marks: [], updatedAt: Date.now() } : undefined);
     copy(AI, ai.generation, ai.messages.length ? { id, messages: ai.messages, updatedAt: Date.now() } : undefined);
     transaction.oncomplete = () => resolve();

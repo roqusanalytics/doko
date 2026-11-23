@@ -13,15 +13,22 @@ import { assertHidden, closeHidden } from "./hidden-window.mjs";
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "doko-table-keys-"));
 const shots = path.join(root, "release", "smoke");
+
 mkdirSync(shots, { recursive: true });
+
 const csv = path.join(temp, "Table.csv");
+
 writeFileSync(csv, "Vardas;Miestas\r\nAustėja;Kaunas\r\nRokas;Vilnius\r\n");
 
 const env = { ...process.env, FOLIO_TEST_USER_DATA: path.join(temp, "profile"), FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const app = await electron.launch({ executablePath: electronPath(env), env,
   args: [root, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
+
 const errors = [];
+
 try {
   const page = readerPage(await app.firstWindow());
   page.on("pageerror", error => errors.push(error.stack ?? String(error)));
@@ -37,20 +44,28 @@ try {
   const footer = () => page.locator(".tv-footer [role=status]").innerText();
   const field = page.getByRole("textbox", { name: "Cell value", exact: true });
   const rowsMenuButton = page.getByRole("button", { name: "Rows & columns", exact: true });
+
   const focusedCell = () => page.evaluate(() => {
     const el = document.activeElement;
+
     return el?.matches(".tv-cell") ? [Number(el.dataset.r), Number(el.dataset.c)] : null;
   });
+
   const settle = async check => {
     const deadline = Date.now() + 5_000;
+
     while (Date.now() < deadline) { if (await check()) return; await new Promise(resolve => setTimeout(resolve, 50)); }
+
     assert.fail(`condition never held: ${check}`);
   };
+
   const useTheme = async theme => {
     const toggle = page.getByRole("button", { name: `Use ${theme} theme`, exact: true });
+
     if (await toggle.count()) await toggle.click();
     await page.waitForFunction(theme => document.documentElement.dataset.theme === theme, theme);
   };
+
   // A key event as the keyboard layout delivers it, to the focused cell.
   const keydown = init => page.locator(".tv-cell:focus").dispatchEvent("keydown", { bubbles: true, cancelable: true, ...init });
 
@@ -116,6 +131,7 @@ try {
   await field.waitFor({ state: "detached" });
   // Option on a Mac types a character; on Windows/Linux Alt-only is a menu accelerator and must pass through.
   await keydown({ key: "å", code: "KeyA", altKey: true });
+
   if (process.platform === "darwin") {
     await field.waitFor();
     assert.equal(await field.inputValue(), "å", "an Option character did not start editing");
@@ -124,6 +140,7 @@ try {
   } else {
     assert.equal(await field.count(), 0, "an Alt-only key started editing");
   }
+
   // Real shortcuts and composition stay out of the editor.
   await keydown({ key: "a", code: "KeyA", ctrlKey: true });
   await keydown({ key: "a", code: "KeyA", metaKey: true });
@@ -147,6 +164,7 @@ try {
     await page.keyboard.press("Tab");
     await page.screenshot({ path: path.join(shots, `table-keyboard-${theme}.png`) });
   }
+
   await page.window.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "the table footer overflows a phone-width window");
   const boxes = await Promise.all([page.locator(".tv-footer [role=status]"), rowsMenuButton, page.getByRole("button", { name: "Add row", exact: true })].map(item => item.boundingBox()));
@@ -163,6 +181,7 @@ try {
 } catch (error) {
   console.error(error);
   const window = app.windows()[0];
+
   if (window) await window.screenshot({ path: path.join(shots, "table-keyboard-failure.png") }).catch(() => {});
   throw error;
 } finally {

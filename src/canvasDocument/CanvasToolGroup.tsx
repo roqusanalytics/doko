@@ -36,6 +36,7 @@ export function CanvasToolGroup({ tool, ready, onTool, onLock, onMermaid, onNewC
   onMermaid: () => void;
 } & React.ComponentProps<typeof OpenDocumentMenu>) {
   const overflow = tools.filter(item => item.overflow);
+
   return <div className="segmented canvas-document-tools" role="toolbar" aria-label="Tools">
     {tools.map(({ type, label, icon, key, overflow: collapses }) => (
       <button key={type} type="button" disabled={!ready}

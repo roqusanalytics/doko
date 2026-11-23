@@ -49,6 +49,7 @@ import { SettingsDialog } from "./SettingsDialog";
 import { UpdateButton } from "./UpdateButton";
 import { ChangelogDialog } from "./ChangelogDialog";
 import type { TextMarkupStyle } from "./textMarkup";
+
 const PhotoEditDialog = lazy(() => import("./PhotoEditDialog"));
 const PdfPagesDialog = lazy(() => import("./PdfPagesDialog"));
 const PdfProtectDialog = lazy(() => import("./PdfProtectDialog"));
@@ -154,6 +155,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const toastTimer = useRef(0);
+
   const flash = useCallback((msg: string) => {
     setToast(msg);
     window.clearTimeout(toastTimer.current);
@@ -171,9 +173,11 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const backHintButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!backHint) return;
+
     const timer = window.setTimeout(() => {
       if (document.activeElement !== backHintButton.current) setBackHint(null);
     }, 5500);
+
     return () => window.clearTimeout(timer);
   }, [backHint]);
   const findRef = useRef<OcrFindController | null>(null);
@@ -185,8 +189,10 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const docRef = useRef<OpenDoc | null>(null);
   const markupRef = useRef<MarkupController | null>(null);
   const [documentState] = useState(() => new DocumentState(!!initialGallery));
+
   const { dirty, editorDirty, pageDraft, pageOrder, storageError, aiStorageError, photos, currentPhotoDirty, unsaved, copyName, operationUndo, canUndoOperation } =
     useSyncExternalStore(documentState.subscribe, documentState.getState);
+
   const [notesGeneration, setNotesGeneration] = useState(0);
   useEffect(() => onStoredDataCleared((category, generation) => {
     if (category === "ai") {
@@ -194,6 +200,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     } else if (category === "notes") {
       markupRef.current?.clearSaved(generation);
       documentState.forgetPhotoReadings();
+
       if (persistRef.current || galleryRef.current) {
         setNotesGeneration(current => Math.max(current, generation));
         setNoteBox(null);
@@ -205,10 +212,12 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
 
   const [doc, setDoc] = useState<OpenDoc | null>(null);
   const [gallery, setGallery] = useState(initialGallery);
+
   const { theme, setThemeTo, night, setNightTo, sidebar, setSidebar, spread, setSpread, setSpreadTo, spreadRef,
     wheelPaging, wheelPagingRef, setWheelPagingTo, scanLanguages, setScanLanguagesTo } = useReaderPreferences({
       active, gallery: !!gallery, initialGallery: !!initialGallery, flash,
     });
+
   const galleryRef = useRef(initialGallery);
   const photoSwitch = useRef(false);
   const photoAutoFit = useRef(true);
@@ -237,11 +246,13 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const [tool, setTool] = useState<Tool>("select");
   const [penWidth, setPenWidth] = useState(1);
   const [drawTool, setDrawTool] = useState<"Pen" | Shape>("Pen");
+
   const [colors, setColors] = useState<Partial<Record<Tool, string>>>({
     highlight: HIGHLIGHTS[0].hex,
     ink: INKS[0].hex,
     freetext: INKS[0].hex,
   });
+
   const colorsRef = useRef(colors);
   colorsRef.current = colors;
   const pageRef = useRef(1);
@@ -253,13 +264,17 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const contentRef = useRef<ContentEditorHandle>(null);
   const nextSelection = useRef<NextSelection | null>(null);
   const [focus, setFocus] = useState(false);
+
   const { printCopy, setPrintCopy, print, printPdfBytes } = useReaderPrinting({
     prepare: async () => {
       if (contentRef.current && !(await contentRef.current.finish())) return;
       const source = docRef.current;
+
       if (!source) return;
       const copy = await currentBytes(source);
+
       if (!copy || docRef.current !== source) return;
+
       return { bytes: copy.bytes, name: source.name, password: source.password, signal: opening.current!.signal,
         page: pageOrder ? pageOrder.indexOf(page) + 1 : page, isCurrent: () => docRef.current === source };
     },
@@ -268,10 +283,13 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     onError: setError,
     onPrepareError: () => { if (docRef.current === doc) setError("Couldn't print this document."); },
   });
+
   const [dialog, setDialog] = useState<"info" | "shortcuts" | "about" | "url" | "settings" | "ai-settings" | "changelog" | "upgrade" | "close" | null>(
     upgradeNotes.length ? "upgrade" : null);
+
   const closeAnswer = useRef<((answer: boolean) => void) | null>(null);
   const answerClose = (answer: boolean) => { setDialog(null); const resolve = closeAnswer.current; closeAnswer.current = null; resolve?.(answer); };
+
   useEffect(() => () => closeAnswer.current?.(false), []);
   // A pasted or dropped link waits in Open from URL, so the user sees where it goes before Doko contacts it.
   const [linkDraft, setLinkDraft] = useState("");
@@ -294,8 +312,10 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const [historyOpen, setHistoryOpen] = useState(false);
   const [aiContext, setAiContext] = useState<AiContext | null>(null);
   const aiPdf = doc?.pdf;
+
   const readAiText = useCallback(async (signal: AbortSignal) => {
     if (!aiPdf) throw new Error("No document is open.");
+
     return readAiDocumentText(aiPdf.numPages, n => findRef.current!.getPageText(n, aiPdf), signal);
   }, [aiPdf]);
 
@@ -307,13 +327,16 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
 
   useEffect(() => {
     setSigning(false); setSignatureTargets([]); setSignatureDismissed(false);
+
     if (!doc || contentEditing) return;
     let cancelled = false;
+
     const timer = setTimeout(() => {
       void detectSignatureTargets(doc.pdf, page).then(targets => {
         if (!cancelled) setSignatureTargets(targets);
       }).catch(() => {});
     }, 350);
+
     return () => { cancelled = true; clearTimeout(timer); };
   }, [doc, page, contentEditing]);
 
@@ -331,6 +354,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     const linkService = new PDFLinkService({ eventBus, externalLinkTarget: LinkTarget.BLANK });
     const findController = new OcrFindController({ eventBus, linkService });
     findRef.current = findController;
+
     const viewer = new PDFViewer({
       container,
       viewer: innerRef.current!,
@@ -344,15 +368,19 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       // minimum size turns off pdf.js's own right-click image targets, which Doko doesn't use.
       imagesRightClickMinSize: 1e9,
     });
+
     trackPageImages(eventBus);
     const stopDrawingPointer = keepDrawingPointer(container);
     linkService.setViewer(viewer);
+
     const history = new LinkHistory(viewer, (state, followed) => {
       setNavigation(state);
+
       if (followed && tabs.active === tabKey && tabs.takeLinkHint()) {
         setBackHint(followed.from === followed.to ? "Back to previous spot" : `Back to page ${followed.from}`);
       } else setBackHint(null);
     });
+
     linkService.setHistory(history);
     navigationRef.current = history;
     viewerRef.current = viewer;
@@ -363,20 +391,25 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     eventBus.on("pagesinit", () => {
       restoringRef.current = true;
       const saved = restoreRef.current;
+
       if (wheelPagingRef.current && !galleryRef.current) viewer.scrollMode = ScrollMode.PAGE;
       viewer.spreadMode = (saved?.spread ?? spreadRef.current) ? SpreadMode.ODD : SpreadMode.NONE;
       viewer.pagesRotation = saved?.rotation ?? 0;
+
       if (galleryRef.current && photoAutoFit.current) fitPhoto(viewer);
       else viewer.currentScaleValue = saved?.scale ?? (window.innerWidth < 900 ? "page-width" : "auto");
       const restoredPage = Math.min(lastPageRef.current, viewer.pagesCount);
       viewer.currentPageNumber = restoredPage;
+
       if (saved && Number.isFinite(saved.top) && Number.isFinite(saved.left)) {
         viewer.scrollPageIntoView({ pageNumber: restoredPage, destArray: [null, { name: "XYZ" }, saved.left, saved.top, null] });
       }
+
       restoringRef.current = false;
     });
     eventBus.on("updateviewarea", ({ location }: { location: { pageNumber: number; top: number; left: number } }) => {
       const current = docRef.current;
+
       if (!current || restoringRef.current) return;
       writeView(current.id, { page: location.pageNumber, scale: viewer.currentScaleValue,
         rotation: viewer.pagesRotation, ...preferencesRef.current, top: location.top, left: location.left });
@@ -389,6 +422,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     eventBus.on("scalechanging", ({ scale }: { scale: number }) => setScale(scale));
     eventBus.on("rotationchanging", ({ pagesRotation }: { pagesRotation: number }) => {
       setRotation(pagesRotation);
+
       if (galleryRef.current && photoAutoFit.current) fitPhoto(viewer);
     });
     eventBus.on("pagerendered", ({ cssTransform }: { cssTransform: boolean }) => {
@@ -415,6 +449,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       // Apply the remembered colour once the editor layer for this mode is live.
       const param = COLOR_PARAM[next];
       const value = colorsRef.current[next];
+
       if (param && value) eventBus.dispatch("switchannotationeditorparams", { source: null, type: param, value });
     });
 
@@ -422,6 +457,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
+
       if (!viewer.pdfDocument) return;
       photoAutoFit.current = false;
       viewer.updateScale({
@@ -430,7 +466,9 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         origin: [e.clientX, e.clientY],
       });
     };
+
     container.addEventListener("wheel", onWheel, { passive: false });
+
     return () => { stopDrawingPointer(); container.removeEventListener("wheel", onWheel); };
   }, [tabs, tabKey]);
 
@@ -438,21 +476,28 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     const viewer = viewerRef.current!, bus = busRef.current!;
     const events = new AbortController();
     let stop: (() => void) | undefined;
+
     const start = () => {
       const ocr = recognizeScannedPages(bus, viewer, scanLanguages, setTextStatus);
       stop = ocr.stop;
       findRef.current!.setTextReader(viewer.pdfDocument!, ocr.getTextContent);
     };
+
     const end = () => { stop?.(); stop = undefined; };
+
     bus.on("pagesinit", start, { signal: events.signal });
     bus.on("pagesdestroy", end, { signal: events.signal });
+
     if (viewer.pagesCount) start();
+
     return () => { events.abort(); end(); };
   }, [scanLanguages]);
 
   useEffect(() => {
     const viewer = viewerRef.current!;
+
     if (viewer.pagesCount) viewer.scrollMode = wheelPaging && !gallery ? ScrollMode.PAGE : ScrollMode.VERTICAL;
+
     if (wheelPaging && !gallery) return enableWheelPaging(containerRef.current!, viewer);
   }, [wheelPaging, doc, gallery]);
 
@@ -464,6 +509,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     opening.current = new AbortController();
     setPending(null);
     setToast(null);
+
     return opening.current.signal;
   }, []);
 
@@ -475,28 +521,38 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       setLoading(true);
       setError(null);
       let unattached: PDFDocumentProxy | undefined;
+
       try {
         const pdf = await loadPdf(data, signal, password);
         unattached = pdf;
         const id = await contentKey(data);
         signal.throwIfAborted();
         const existing = revision ? undefined : await getRecent(id);
+
         const historyAllowed = !password && data.byteLength <= MAX_RECENT_FILE_BYTES && (revision ? revision.historyAllowed :
           await pdf.getMetadata().then(({ info }) => !(info as { EncryptFilterName?: string }).EncryptFilterName).catch(() => false));
+
         const edits = edit && { original: edit.doc.edits?.original ?? (historyAllowed ? pdfBlob(await edit.doc.pdf.getData()) : undefined),
           changes: [...changesForCopy(edit.doc, edit.doc.pdf.annotationStorage.size > 0), edit.change] };
+
         signal.throwIfAborted();
         const previous = revision ?? exported;
+
         if (previous && docRef.current !== previous) return false;
+
         if (!revision && !galleryRef.current && !tabs.opened(tabKey, id, name)) return false;
+
         const galleryView = galleryRef.current && !revision ? { page: 1, scale: "page-fit", rotation: 0,
           sidebar: preferencesRef.current.sidebar, spread: false } : undefined;
+
         const saved = galleryView ?? edit?.view ?? (previous ? readView(previous.id) ?? { page: pageRef.current, scale: viewer.currentScaleValue,
           rotation: viewer.pagesRotation, ...preferencesRef.current } : readView(id));
+
         if (galleryRef.current && !revision) photoAutoFit.current = true;
         restoreRef.current = galleryView ?? (initialPage && !previous ? null : saved);
         lastPageRef.current = Math.min(initialPage ?? saved?.page ?? existing?.lastPage ?? 1, pdf.numPages);
         pageRef.current = lastPageRef.current;
+
         if (saved) {
           setSidebar(saved.sidebar);
           setSpread(saved.spread);
@@ -508,6 +564,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         const next: OpenDoc = { id, saveKey: previous?.saveKey ?? id, name, size: data.byteLength, pdf, password, sourceId: revision?.sourceId ?? revision?.id, historyAllowed: historyAllowed && !galleryRef.current, edits, photoName: revision?.photoName ?? galleryRef.current?.selected, photoKey: revision?.photoKey ?? photoKeys.current.get(galleryRef.current?.selected ?? "") };
         // Password-protected documents aren't stored by Doko (same rule as Recent).
         const reading = readingOverride ?? (revision || exported && (!window.folioDesktop || exported.password) ? markupRef.current!.state : exported ? undefined : documentState.getState().photos?.drafts.get(galleryRef.current?.selected ?? "")?.reading as Pick<MarkupState, "note" | "bookmarkedPages"> | undefined);
+
         if (reading?.bookmarkedPages && exportedOrder) reading.bookmarkedPages = bookmarksInOrder(reading.bookmarkedPages, exportedOrder);
         const persist = !password && !revision && !galleryRef.current;
         await markupRef.current!.load(next.photoKey ?? id, next.photoKey ? "reading" : persist, reading, signal);
@@ -526,6 +583,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         (pdf.annotationStorage as { onSetModified: unknown }).onSetModified = () => {
           if (docRef.current === next && !persistRef.current) markDirty();
         };
+
         (pdf.annotationStorage as { onResetModified: unknown }).onResetModified = () => {
           // Serializing a subset or printout also resets pdf.js's flag. Only a full save clears ours.
           if (docRef.current === next && exporting.current !== pdf) documentState.clean();
@@ -533,7 +591,9 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
 
         setDoc(next);
         documentState.opened(next, !!revision);
+
         if (!revision) { nextSelection.current = null; setContentEditing(false); }
+
         setNumPages(pdf.numPages);
         setPage(lastPageRef.current);
         setPageInput(String(lastPageRef.current));
@@ -545,10 +605,12 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         document.title = `${name} — Doko`;
 
         setLoading(false);
+
         // Password-protected documents stay out of Recent: it would keep their bytes and a page-1
         // thumbnail unprotected on disk. Very large files are skipped too — see MAX_RECENT_FILE_BYTES.
         if (!revision && !galleryRef.current && !password && data.byteLength <= MAX_RECENT_FILE_BYTES) void (async () => {
           const thumb = existing?.thumb || (await thumbnailDataUrl(pdf).catch(() => ""));
+
           if (signal.aborted) return;
           await saveRecent({
             id,
@@ -561,10 +623,12 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
             data: pdfBlob(data),
           });
         })().catch(() => {});
+
         return true;
       } catch (err) {
         if (signal.aborted) return;
         const e = err as { name?: string; code?: number; message?: string };
+
         if (e?.name === "PasswordException") {
           setPending({ name, data, error: e.code === 2 ? "Incorrect password. Try again." : undefined });
         } else {
@@ -573,6 +637,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         }
       } finally {
         if (unattached) void unattached.loadingTask.destroy().catch(() => {});
+
         if (!signal.aborted) setLoading(false);
       }
     },
@@ -583,17 +648,21 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     const signal = beginOpen();
     setLoading(true);
     setError(null);
+
     try {
       const data = await readPdfBlob(blob, signal);
+
       if (!signal.aborted) await openBytes(name, data, undefined, signal);
     } catch (error) {
       if (!signal.aborted) {
         setLoading(false);
         tabs.failed(tabKey);
         setError(`Couldn't open “${name}”. ${(error as Error).message}`);
+
         return false;
       }
     }
+
     return true;
   }, [beginOpen, openBytes, tabs, tabKey]);
 
@@ -612,15 +681,19 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       setLoading(true);
       setError(null);
       setToast(`Opening ${host}…`);
+
       try {
         let file: { name: string; data: Uint8Array } | null;
+
         if (window.folioDesktop) {
           // Closing the tab or opening something else stops the download in the desktop shell too,
           // which otherwise keeps every other link waiting until it gives up.
           const desktop = window.folioDesktop;
           const request = crypto.randomUUID();
           const stop = () => { void desktop.cancelFetchPdf(request).catch(() => {}); };
+
           signal.addEventListener("abort", stop, { once: true });
+
           try { file = await desktop.fetchPdf(url, request); }
           finally { signal.removeEventListener("abort", stop); }
         } else {
@@ -628,18 +701,27 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
           // A minute to answer, and a minute for any pause after that: not a limit on the whole download.
           const slow = new AbortController();
           const answering = window.setTimeout(() => slow.abort(), 60_000);
+
           const res = await fetch(url, { signal: AbortSignal.any([signal, slow.signal]) }).catch(() => {
             throw new Error(`Couldn't download from ${host}. The site may not allow it.`);
           }).finally(() => window.clearTimeout(answering));
+
           const data = await readPdfResponse(res, signal, undefined, 60_000);
           const rawName = new URL(res.url || url).pathname.split("/").filter(Boolean).pop() || host;
           let name = rawName;
+
           try { name = decodeURIComponent(rawName); } catch {}
+
           file = { name: /\.pdf$/i.test(name) ? name : name + ".pdf", data };
         }
+
         if (signal.aborted) return;
         setToast(null);
-        if (!file) { tabs.failed(tabKey); return setLoading(false); }
+
+        if (!file) { tabs.failed(tabKey);
+
+ return setLoading(false); }
+
         await openBytes(file.name, file.data, undefined, signal);
       } catch (e: any) {
         if (signal.aborted) return;
@@ -654,9 +736,11 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
 
   const openSample = useCallback(async () => {
     const signal = beginOpen();
+
     try {
       const res = await fetch(`${import.meta.env.BASE_URL}sample.pdf`, { signal });
       const data = await readPdfResponse(res, signal);
+
       if (!signal.aborted) await openBytes("Doko sample.pdf", data, undefined, signal);
     } catch {
       if (!signal.aborted) { setLoading(false); tabs.failed(tabKey); setError("Couldn't open the sample document."); }
@@ -667,69 +751,94 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   useEffect(() => {
     if (!doc) return;
     const saved = readView(doc.id);
+
     if (saved) writeView(doc.id, { ...saved, sidebar, spread });
   }, [doc, sidebar, spread]);
   useEffect(() => {
     if (!doc) return;
     const timer = window.setTimeout(() => void updateLastPage(doc.id, page), 600);
+
     return () => window.clearTimeout(timer);
   }, [doc, page]);
 
   // ── Actions ─────────────────────────────────────────────────────────
   const goTo = useCallback((n: number) => {
     const v = viewerRef.current!;
+
     if (!v.pdfDocument) return;
     v.currentPageNumber = Math.min(Math.max(1, n), v.pagesCount);
   }, []);
+
   const zoom = (steps: number) => {
     photoAutoFit.current = false;
     const v = viewerRef.current!;
+
     if (v.pdfDocument) v.updateScale({ steps, drawingDelay: 150, origin: undefined as unknown as number[] });
   };
+
   const setScaleValue = (value: string) => {
     const v = viewerRef.current!;
     photoAutoFit.current = !!gallery && (value === "auto" || value === "page-fit");
+
     if (v.pdfDocument) {
       if (photoAutoFit.current) fitPhoto(v);
       else v.currentScaleValue = value;
     }
   };
+
   const toggleSpread = () => {
     const v = viewerRef.current!;
     const next = !spread;
     setSpreadTo(next);
+
     if (!v.pdfDocument) return;
     const value = v.currentScaleValue;
     v.spreadMode = next ? SpreadMode.ODD : SpreadMode.NONE;
+
     // Re-fit so "fit width/page" accounts for two pages side by side.
     if (FIT_SCALES.includes(value)) v.currentScaleValue = value;
   };
+
   const rotate = () => {
     const v = viewerRef.current!;
+
     if (v.pdfDocument) v.pagesRotation = (v.pagesRotation + 90) % 360;
   };
 
   const chooseTool = async (next: Tool, editContent = false) => {
     setHand(false);
+
     if (contentRef.current && !(await contentRef.current.finish())) return false;
     const v = viewerRef.current!;
+
     if (!v.pdfDocument) return false;
+
     try {
       const owner = v.pdfDocument;
+
       if (next !== "select") await v.firstPagePromise;
+
       if (v.pdfDocument !== owner) return false;
       const current = Number(v.annotationEditorMode);
+
       if (current !== TOOL_MODES[next] && !(next === "select" && current === AnnotationEditorType.DISABLE)) {
         v.annotationEditorMode = { mode: TOOL_MODES[next] };
       }
+
       nextSelection.current = null;
       setPinned(null);
-      setTool(next); setContentEditing(editContent); return true;
-    } catch { flash("Annotations aren’t supported for this document"); return false; }
+      setTool(next); setContentEditing(editContent);
+
+ return true;
+    } catch { flash("Annotations aren’t supported for this document");
+
+ return false; }
   };
+
   const chooseHand = async () => {
     if (await chooseTool("select")) { setHand(true); setImageMenu(null); setHighlightMenu(null); setPinned(null); setNoteBox(null); }
   };
+
   useEffect(() => {
     if (hand && active && doc && !fileBusy && !exportDialog && !dialog && !printCopy && !signing && containerRef.current) return installHandTool(containerRef.current);
   }, [hand, active, doc, fileBusy, exportDialog, dialog, printCopy, signing]);
@@ -738,6 +847,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
 
   useEffect(() => {
     if (!doc || tool !== "ink" || drawTool === "Pen") return;
+
     return drawShapes(containerRef.current!, viewerRef.current!, drawTool, colors.ink!, (page, data) => {
       void markupRef.current!.addShape(page, drawTool, data).catch(() => flash("Couldn't add the shape"));
     });
@@ -748,6 +858,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     if (tool === "highlight") markupRef.current?.clearEditorSelection();
     setColors((c) => ({ ...c, [tool]: hex }));
     const param = COLOR_PARAM[tool];
+
     if (param) busRef.current!.dispatch("switchannotationeditorparams", { source: null, type: param, value: hex });
   };
 
@@ -763,21 +874,28 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
 
   const quickHighlight = async (hex: string, note = "") => {
     const info = selection;
+
     if (!info) return;
     setColors((c) => ({ ...c, highlight: hex }));
+
     if (pinned) {
       const current = document.getSelection();
       current?.removeAllRanges();
       current?.addRange(info.range);
     }
+
     setPinned(null);
     const owner = docRef.current;
     const id = await markupRef.current!.highlightSelection(hex);
+
     if (owner !== docRef.current) return;
+
     if (!id) {
       flash("Couldn't highlight that selection");
+
       return;
     }
+
     if (note) markupRef.current!.setNote(id, note);
   };
 
@@ -790,21 +908,27 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   useEffect(() => {
     if (!container) return;
     const onDown = () => setPinned(null);
+
     const onClick = (e: MouseEvent) => {
       if (handRef.current || toolRef.current !== "select" || e.button !== 0) return;
       const current = document.getSelection();
+
       if (current && !current.isCollapsed) return;
+
       if ((e.target as HTMLElement).closest("a, .annotationCommentButton, .folio-content-layer")) return;
       const hit = markupRef.current?.markAt(e.clientX, e.clientY);
+
       if (!hit) return setHighlightMenu(null);
       const stage = container.parentElement!.getBoundingClientRect();
       setHighlightMenu({ id: hit.id, rect: { left: hit.rect.left - stage.left, right: hit.rect.right - stage.left,
         top: hit.rect.top - stage.top, bottom: hit.rect.bottom - stage.top } });
     };
+
     const onScroll = () => setHighlightMenu(null);
     container.addEventListener("pointerdown", onDown);
     container.addEventListener("click", onClick);
     container.addEventListener("scroll", onScroll, { passive: true });
+
     return () => {
       container.removeEventListener("pointerdown", onDown);
       container.removeEventListener("click", onClick);
@@ -816,41 +940,56 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   // Clicking an image offers "View larger" and, when it has a web address, "Open in browser".
   useEffect(() => {
     if (!container) return;
+
     const onClick = (e: MouseEvent) => {
       setImageMenu(null);
+
       if ((e.target as Element).closest(".folio-content-layer")) return;
+
       if (handRef.current || toolRef.current !== "select" || e.button !== 0) return;
       const current = document.getSelection();
+
       if (current && !current.isCollapsed) return;
+
       if (markupRef.current?.markAt(e.clientX, e.clientY)) return; // highlights take precedence
       const pageEl = (e.target as HTMLElement).closest<HTMLElement>(".page");
       const pageNumber = Number(pageEl?.dataset.pageNumber);
+
       const view = pageNumber ? (viewerRef.current?.getPageView(pageNumber - 1) as unknown as
         { pdfPage?: { imageCoordinates?: ArrayLike<number> | null }; viewport?: { rotation: number } } | undefined) : undefined;
+
       const surface = pageEl?.querySelector(".canvasWrapper");
+
       if (!view?.pdfPage || !view.viewport || !surface) return;
       const box = surface.getBoundingClientRect();
       const x = (e.clientX - box.left) / box.width;
       const y = (e.clientY - box.top) / box.height;
+
       const hits = imageRegions(view.pdfPage, view.viewport.rotation).filter((r) => {
         const w = (r.right - r.left) * box.width;
         const h = (r.bottom - r.top) * box.height;
+
         // Skip tiny icons and full-page images (scanned pages), where a menu would just get in the way.
         return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom && w >= 40 && h >= 40 && (r.right - r.left) * (r.bottom - r.top) < 0.85;
       });
+
       if (!hits.length) return;
       const region = hits.reduce((a, b) => ((a.right - a.left) * (a.bottom - a.top) <= (b.right - b.left) * (b.bottom - b.top) ? a : b));
+
       const link = document.elementsFromPoint(e.clientX, e.clientY)
         .find((el): el is HTMLAnchorElement => el instanceof HTMLAnchorElement && /^https?:/i.test(el.href) && !!el.closest(".annotationLayer"));
+
       e.preventDefault();
       e.stopPropagation();
       setHighlightMenu(null);
       const stage = container.parentElement!.getBoundingClientRect();
       setImageMenu({ target: { pageNumber, region, rotation: view.viewport.rotation, href: link?.href ?? null }, x: e.clientX - stage.left, y: e.clientY - stage.top });
     };
+
     const onScroll = () => setImageMenu(null);
     container.addEventListener("click", onClick, true);
     container.addEventListener("scroll", onScroll, { passive: true });
+
     return () => {
       container.removeEventListener("click", onClick, true);
       container.removeEventListener("scroll", onScroll);
@@ -877,37 +1016,51 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   useEffect(() => {
     const refit = () => {
       const v = viewerRef.current;
+
       if (!v?.pdfDocument) return;
+
       if (!(galleryRef.current && photoAutoFit.current) && !FIT_SCALES.includes(v.currentScaleValue)) return;
+
       // PDF.js hides the ink layer during a refit. Its pointer offsets are invalid until it is visible again.
       if (containerRef.current?.querySelector(".annotationEditorLayer.inkEditing.drawing")) {
         timer = window.setTimeout(refit, 280);
+
         return;
       }
+
       if (galleryRef.current && photoAutoFit.current) fitPhoto(v);
       else v.currentScaleValue = v.currentScaleValue;
     };
+
     let timer = window.setTimeout(refit, 280);
+
     return () => window.clearTimeout(timer);
   }, [aiOpen, sidebar, sidebarTab, focus]);
   useEffect(() => {
     const stage = container?.parentElement;
+
     if (!stage) return;
+
     const observer = new ResizeObserver(() => {
       setStageWidth(stage.clientWidth);
+
       if (galleryRef.current && photoAutoFit.current && viewerRef.current?.pdfDocument) fitPhoto(viewerRef.current);
     });
+
     observer.observe(stage);
+
     return () => observer.disconnect();
   }, [container]);
 
   // pdf.js shows a small note button on highlights that have a note; open Doko's note box from it.
   useEffect(() => {
     if (!container) return;
+
     const onClick = (e: MouseEvent) => {
       const button = (e.target as HTMLElement).closest(".annotationCommentButton");
       const editorDiv = button?.parentElement?.closest<HTMLElement>("[id]");
       const markId = editorDiv && markupRef.current?.markForEditorId(editorDiv.id);
+
       if (!button || !markId) return;
       e.preventDefault();
       e.stopPropagation();
@@ -917,14 +1070,18 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       setNoteBox({ markId, anchor: { x: r.left + r.width / 2 - stage.left, top: r.top - stage.top, bottom: r.bottom - stage.top },
         quote: mark?.text ?? "", initial: mark?.note ?? "" });
     };
+
     container.addEventListener("click", onClick, true);
+
     return () => container.removeEventListener("click", onClick, true);
   }, [container]);
 
   // Save notes and highlights before the window goes away.
   useEffect(() => {
     const flush = () => { markupRef.current?.sync(); void markupRef.current?.flush().catch(() => {}); };
+
     window.addEventListener("pagehide", flush);
+
     return () => window.removeEventListener("pagehide", flush);
   }, []);
 
@@ -936,18 +1093,24 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     // (pdf.js saves only entries keyed with its editor prefix.)
     const storage = doc.pdf.annotationStorage;
     const keys: string[] = [];
+
     try {
       const unrendered = await markupRef.current!.unrenderedMarks(doc.pdf);
+
       for (const data of unrendered) {
         const key = `pdfjs_internal_editor_folio-unrendered-${keys.length}`;
         storage.setValue(key, data);
         keys.push(key);
       }
+
       const annotated = storage.size > 0;
+
       if (pages?.length) return { bytes: await copyPdfPages(doc.pdf, pages, signal, doc.password), annotated };
+
       return { bytes: annotated ? await doc.pdf.saveDocument() : await doc.pdf.getData(), annotated };
     } finally {
       for (const key of keys) storage.remove(key);
+
       if (exporting.current === doc.pdf) exporting.current = null;
     }
   };
@@ -955,27 +1118,35 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const openPhoto = async (next: GalleryDocument, name: string) => {
     if (photoSwitch.current || refreshingPhotos || !next.files.includes(name)) return;
     photoSwitch.current = true; setPhotoBusy(true); setPhotoFailure("");
+
     try {
       if (contentRef.current && !await contentRef.current.finish()) return;
       const previous = docRef.current;
+
       if (previous?.photoName) {
         const copy = await currentBytes(previous);
+
         if (!copy) throw new Error("Another export is in progress. Try again.");
         documentState.leavePhoto(copy.bytes, photoReading());
       }
+
       const selected = { ...next, selected: name };
       galleryRef.current = selected; setGallery(selected); documentState.showGallery();
       const signal = beginOpen(); setLoading(true);
       const draft = documentState.getState().photos?.drafts.get(name);
       let bytes = draft?.bytes;
+
       if (!bytes) {
         const blob = await readGalleryImage(next, name);
+
         if (!blob) throw new Error("This image is no longer available.");
         const { photoPdf } = await import("./documentExport");
         bytes = await photoPdf(blob, signal);
         photoKeys.current.set(name, `photo:${name}:${await contentKey(new Uint8Array(await blob.arrayBuffer()))}`);
       }
+
       signal.throwIfAborted();
+
       if (await openBytes(name, bytes, undefined, signal)) documentState.photoOpened();
       else if (!signal.aborted) throw new Error("Couldn't open this image. Try again.");
     } catch (error) {
@@ -985,36 +1156,52 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
 
   useEffect(() => {
     const surface = containerRef.current?.parentElement;
+
     if (!gallery || !surface) return;
     const gesture = photoWheel.current;
+
     const wheel = (event: WheelEvent) => {
       if (event.ctrlKey || event.metaKey || !photoAutoFit.current || tool !== "select" || contentEditing
         || !(event.target instanceof Element) || !event.target.closest(".viewer-container, .photo-status")) return;
       event.preventDefault();
       const now = performance.now();
+
       if (now - gesture.last > 180) { gesture.amount = 0; gesture.turned = false; }
+
       gesture.last = now;
+
       if (gesture.turned || photoBusy || refreshingPhotos || photoFailure) return;
       const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
       gesture.amount += delta * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? surface.clientHeight : 1);
+
       if (Math.abs(gesture.amount) < 50) return;
       gesture.turned = true;
       const name = gallery.files[gallery.files.indexOf(gallery.selected) + Math.sign(gesture.amount)];
+
       if (name) void openPhoto(gallery, name);
     };
+
     surface.addEventListener("wheel", wheel, { passive: false });
+
     return () => surface.removeEventListener("wheel", wheel);
   }, [gallery, photoBusy, refreshingPhotos, photoFailure, tool, contentEditing]);
 
   const refreshPhotos = async () => {
     const current = galleryRef.current;
+
     if (!current?.id || !window.folioDesktop || refreshingPhotos) return;
-    if (unsaved) { setError("Save your photo changes before refreshing the folder."); return; }
+
+    if (unsaved) { setError("Save your photo changes before refreshing the folder.");
+
+ return; }
+
     setRefreshingPhotos(true);
+
     try {
       const next = await window.folioDesktop.content.refresh(current.id, current.selected);
       photoKeys.current.clear(); documentState.clearPhotos();
       galleryRef.current = next; setGallery(next); documentState.showGallery();
+
       if (next.files.length) {
         setRefreshingPhotos(false);
         await openPhoto(next, next.selected);
@@ -1029,13 +1216,21 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   };
 
   const persistFile = async (blob: Blob, name: string, key: string, saveAs: boolean) => {
-    if (!window.folioDesktop) { saveBlob(blob, name); return true; }
+    if (!window.folioDesktop) { saveBlob(blob, name);
+
+ return true; }
+
     const format = name.split(".").at(-1)?.toLowerCase() as FileSaveFormat;
+
     const result = await window.folioDesktop.saveFile({ name, data: new Uint8Array(await blob.arrayBuffer()), format,
       id: savedTargets.current.get(key), saveAs });
+
     if (result.cancelled) return false;
+
     if (!result.ok) throw new Error(result.error || (result.conflict ? "The saved file changed outside Doko. Use Save As to keep both versions." : "Couldn't save this file."));
+
     if (result.id) savedTargets.current.set(key, result.id);
+
     return true;
   };
 
@@ -1043,27 +1238,35 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
 
   const exportPhoto = async (action: "save" | "save-as" | "copy" = "save") => {
     if (photoBusy || refreshingPhotos || photoFailure || documentState.getState().saving) return;
+
     if (contentRef.current && !await contentRef.current.finish()) return;
     const source = docRef.current;
+
     if (!source?.photoName) return;
     setPhotoBusy(true); setFileBusy(true); setPhotoExportError(null);
+
     try {
       const result = await documentState.save({ format: "png", saveAs: action === "save-as" }, {
         exportBytes: async pages => {
           const copy = await currentBytes(source, pages);
+
           if (!copy) return null;
           const { prepareDocumentExport } = await import("./documentExport");
+
           const { blob } = await prepareDocumentExport({ bytes: copy.bytes, name: source.photoName!, photo: true, page: 1 },
             { format: "png", compress: false, quality: 1, maxEdge: 0 }, opening.current!.signal);
+
           return { ...copy, blob, reading: photoReading() };
         },
         // Copying is not saving: returning false keeps the photo's edits unsaved.
         persist: action === "copy" ? async blob => {
           if (!await copyImage(blob)) throw new Error("Clipboard access was refused. Try Copy image again or use Save PNG.");
           flash("Copied image with your edits. Paste it anywhere.");
+
           return false;
         } : persistFile,
       });
+
       if (result.status === "saved") result.messages.forEach(flash);
       else if (result.status === "failed") {
         console.error("Image export failed", result.error);
@@ -1078,11 +1281,18 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const exportPages = async (pages: number[]) => {
     if (contentRef.current && !(await contentRef.current.finish())) return;
     const source = docRef.current;
+
     if (!source || (source.sourceId ?? source.id) !== (doc?.sourceId ?? doc?.id)) return;
+
     try {
       const copy = await currentBytes(source, pages);
+
       if (docRef.current !== source) return;
-      if (!copy) { flash("Another export is in progress. Try again in a moment."); return; }
+
+      if (!copy) { flash("Another export is in progress. Try again in a moment.");
+
+ return; }
+
       await persistFile(pdfBlob(copy.bytes), source.name.replace(/\.pdf$/i, "") + " (selected pages).pdf", `pages:${crypto.randomUUID()}`, true);
     } catch {
       if (docRef.current === source) flash("Couldn't export the selected pages.");
@@ -1093,12 +1303,15 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     if (!doc) return;
     const controller = markupRef.current!;
     controller.sync();
+
     try {
       if (format === "markdown") {
         const ok = await copyText(notesMarkdown(doc.name, controller.state));
+
         if (docRef.current === doc) flash(ok ? "Markdown copied" : "Copy failed");
       } else {
         const json = await notesJson(doc, controller.state);
+
         if (docRef.current === doc) await persistFile(new Blob([json], { type: "application/json" }), doc.name.replace(/\.pdf$/i, "") + ".notes.json", `notes:${crypto.randomUUID()}`, true);
       }
     } catch {
@@ -1109,12 +1322,15 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const download = async (saveAs = true) => {
     if (contentRef.current && !(await contentRef.current.finish())) return;
     const doc = docRef.current;
+
     if (!doc || documentState.getState().saving) return;
     setFileBusy(true);
+
     try {
       const result = await documentState.save({ format: "pdf", saveAs }, {
         exportBytes: async pages => {
           const copy = await currentBytes(doc, pages);
+
           return copy && { ...copy, blob: pdfBlob(copy.bytes), reading: doc.photoName ? photoReading() : undefined };
         },
         persist: persistFile,
@@ -1124,6 +1340,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
           await openBytes(name, bytes, undefined, beginOpen(), pageOrder ? pageOrder.indexOf(pageRef.current) + 1 : pageRef.current, undefined, doc, pageOrder);
         },
       });
+
       if (result.status === "saved") {
         if (!result.reopened) setError(null);
         result.messages.forEach(flash);
@@ -1141,37 +1358,47 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
             if (!source.document.files.length) { galleryRef.current = source.document; setGallery(source.document); documentState.showGallery(); }
             else await openPhoto(source.document, source.document.selected);
           }
+
           break;
         case "bytes":
           await openBytes(source.name, new Uint8Array(source.data.buffer, source.data.byteOffset, source.data.byteLength), source.password);
+
           if (source.note && docRef.current?.name === source.name) flash(source.note);
           break;
         case "blob":
           if (!await openBlob(source.name, source.blob) && source.recentId) {
             void removeRecent(source.recentId).catch(error => console.warn("Couldn't remove an unavailable recent file", error));
           }
+
           break;
         case "word": {
           const signal = beginOpen();
           setLoading(true); setError(null); setToast(`Converting ${source.name} to PDF…`);
+
           try {
             const file = await window.folioDesktop!.openDocument(source.file);
+
             if (signal.aborted) return;
             setToast(null);
             await openBytes(file.name, new Uint8Array(file.data), undefined, signal);
+
             if (file.note && docRef.current?.name === file.name) flash(file.note);
           } catch (error) {
             if (signal.aborted) return;
             setToast(null); setLoading(false); tabs.failed(tabKey);
             setError(`Couldn't convert “${source.name}” to PDF. ${(error as Error).message}`);
           }
+
           break;
         }
+
         case "workbook": {
           const signal = beginOpen();
           setLoading(true); setError(null); setToast(`Opening ${source.name}…`);
+
           try {
             const document = await window.folioDesktop!.content.open(source.file);
+
             if (signal.aborted) return;
             setToast(null);
             tabs.finishConversion(tabKey, { kind: "content", name: document.name, document });
@@ -1180,32 +1407,41 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
             setToast(null); setLoading(false); tabs.failed(tabKey);
             setError(`Couldn't open “${source.name}”. ${(error as Error).message.replace(IPC_PREFIX, "")}`);
           }
+
           break;
         }
+
         case "sample": await openSample(); break;
         case "url": await openUrl(source.url); break;
         case "converting": setLoading(true); setToast(/\.docx?$/i.test(source.name) ? `Converting ${source.name} to PDF…` : `Opening ${source.name}…`); break;
         case "error": setLoading(false); setToast(null); setError(source.message); tabs.failed(tabKey); break;
       }
     };
+
     const flush = async () => {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
       const current = docRef.current;
+
       if (current) stopAiForClose(current.sourceId ?? current.id);
       markupRef.current?.sync();
       await markupRef.current?.flush();
+
       if (current) await flushAiHistory(current.sourceId ?? current.id);
       documentState.setAiStorageError(false);
     };
+
     tabs.bind(tabKey, { open: source => { void open(source); }, flush, canClose: async () => documentState.getState().unsaved
       ? new Promise<boolean>(resolve => { closeAnswer.current?.(false); closeAnswer.current = resolve; setDialog("close"); }) : true, suspend: async () => {
       const current = docRef.current;
+
       // Reopen only documents whose bytes and reading data are already recoverable.
       // Native save locations belong to this reader; keep it alive until those capabilities can be restored.
       if (!current?.historyAllowed || savedTargets.current.size || current.edits || galleryRef.current || loading || unsaved || aiOpen || contentEditing || operationUndo || dialog || workDialog || signing || pending) return;
       await flush();
+
       if (!flushViews()) return;
       const recent = await getRecent(current.id);
+
       if (recent && docRef.current === current) return { kind: "blob", name: recent.name, blob: recent.data, recentId: recent.id };
     } });
   }, [tabs, tabKey, openBytes, openBlob, openSample, openUrl, beginOpen, flash, openPhoto, loading, unsaved, aiOpen, contentEditing, operationUndo, dialog, workDialog, signing, pending]);
@@ -1216,10 +1452,13 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
 
   const toggleFocus = async () => {
     const next = !focus;
+
     if (next && contentEditing) leaveEditMode();
     setFocus(next);
+
     try {
       if (next && !document.fullscreenElement) await document.documentElement.requestFullscreen();
+
       if (!next && document.fullscreenElement) await document.exitFullscreen();
     } catch {
       /* fullscreen can be refused; focus mode still hides the chrome */
@@ -1229,78 +1468,103 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   useEffect(() => {
     const onFs = () => !document.fullscreenElement && setFocus(false);
     document.addEventListener("fullscreenchange", onFs);
+
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
 
   const prepareExport = async (mode: "export" | "compress") => {
     if (fileBusy || exportDialog || documentState.getState().saving) return;
     setFileBusy(true);
+
     try {
       if (contentRef.current && !await contentRef.current.finish()) return;
       const source = docRef.current;
+
       if (!source) return;
       const copy = await currentBytes(source, pageOrder);
+
       if (!copy || docRef.current !== source) return;
       setExportDialog({ mode, snapshot: { bytes: copy.bytes, name: source.name, password: source.password, photo: !!source.photoName,
         page: pageOrder ? Math.max(1, pageOrder.indexOf(page) + 1) : page } });
     } catch (error) { setError((error as Error).message || "Couldn't prepare the document. Try again."); }
     finally { setFileBusy(false); }
   };
+
   const prepareWork = async (kind:"photo"|"pages"|"protect"|"redact") => {
     if (fileBusy || workDialog || exportDialog) return;
     setFileBusy(true);
+
     try {
       if (contentRef.current && !await contentRef.current.finish()) return;
       const source = docRef.current;
+
       if (!source) return;
+
       if (source.password || await source.pdf.getPermissions() || (await source.pdf.getSignatures())?.length) throw new Error("These edits require an unsigned, unencrypted document.");
       const copy = await currentBytes(source, pageOrder);
+
       if (copy && docRef.current === source) setWorkDialog({kind,bytes:copy.bytes,source});
     } catch(error) { setError((error as Error).message || "Couldn't prepare the document."); }
     finally { setFileBusy(false); }
   };
+
   const applyWorkingCopy = async (bytes:Uint8Array, source:OpenDoc, before:Uint8Array, originalPages?:number[]) => {
     if (docRef.current !== source) throw new Error("The open document changed. Reopen the tool and try again.");
     const state=markupRef.current!.state;
     const view=readView(source.id) ?? {page:pageRef.current,scale:viewerRef.current!.currentScaleValue,rotation:viewerRef.current!.pagesRotation,...preferencesRef.current};
     const autoFit=photoAutoFit.current;
     const nextView=source.photoName ? {...view,page:1,rotation:0,scale:"page-fit",top:undefined,left:undefined} : undefined;
+
     if(source.photoName) photoAutoFit.current=true;
     const reading={note:state.note,bookmarkedPages:state.bookmarkedPages && bookmarksInOrder(state.bookmarkedPages,pageOrder)};
     const mapping=originalPages?.map(page=>page ? pageOrder?.[page-1] ?? page : 0);
+
     if (!await openBytes(source.name, bytes, undefined, beginOpen(), 1, {doc:source,change:mapping ? {kind:"pages",order:mapping} : {kind:"annotations"},view:nextView},undefined,mapping)) throw new Error("Couldn't open the edited copy.");
     setContentEditing(false);
     documentState.operationApplied(before, {reading,view,autoFit,pageMap:originalPages ?? Array.from({length:source.pdf.numPages},(_,i)=>i+1)} satisfies UndoDetails);
     setWorkDialog(null);
   };
+
   const undoOperation = async () => {
     if (!operationUndo || fileBusy) return;
     setFileBusy(true);
+
     try {
       if(contentRef.current && !await contentRef.current.finish()) return;
+
       const result = await documentState.undoOperation(async ({ bytes, details }) => {
         const undo = details as UndoDetails;
         const source=docRef.current!;
+
         if (source.pdf.annotationStorage.size) throw new Error("Undo your newer annotations before undoing this document edit.");
         const current=markupRef.current!.state;
+
         if(current.bookmarkedPages===null) throw new Error("Reading details are still loading. Try again.");
         const retained=undo.reading.bookmarkedPages?.filter(page=>!undo.pageMap.includes(page)) ?? [];
         const mapped=current.bookmarkedPages.flatMap(page=>undo.pageMap[page-1] ? [undo.pageMap[page-1]] : []);
         const reading={note:current.note,bookmarkedPages:[...new Set([...retained,...mapped])].sort((a,b)=>a-b)};
+
         if(source.photoName) photoAutoFit.current=undo.autoFit;
+
         return !!await openBytes(source.name,bytes,undefined,beginOpen(),undo.view.page,{doc:source,change:{kind:"annotations"},view:undo.view},undefined,undefined,reading);
       });
+
       if (result.status === "failed") setError(result.error.message);
     } catch(error) {setError((error as Error).message);} finally {setFileBusy(false);}
   };
+
   const decorateText = async (style:TextMarkupStyle, color:string, note:string) => {
     const source=docRef.current, info=pinned ?? selection;
+
     if (!source || !info || fileBusy) return;
     const quads = textMarkupQuads(info.range, viewerRef.current!, source.pdf.numPages);
     setFileBusy(true);
+
     try {
       if(source.password || await source.pdf.getPermissions() || (await source.pdf.getSignatures())?.length) throw new Error("Text marking requires an unsigned, unencrypted PDF.");
-      const copy=await currentBytes(source,pageOrder); if(!copy) throw new Error("Another export is in progress.");
+      const copy=await currentBytes(source,pageOrder);
+
+ if(!copy) throw new Error("Another export is in progress.");
       const mapped=pageOrder ? quads.map(quad=>({...quad,page:pageOrder.indexOf(quad.page)+1})) : quads;
       const { addTextMarkup } = await import("./textMarkup");
       const bytes=await addTextMarkup(copy.bytes,mapped,style,color,note);
@@ -1314,47 +1578,71 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
 
   const fileCommand = (command: FileCommand) => {
     if (overlayOpen || fileBusy || photoBusy || refreshingPhotos) return;
-    if (command === "recent") { tabs.library(); return; }
+
+    if (command === "recent") { tabs.library();
+
+ return; }
+
     if (!docRef.current) return;
+
     if (command === "save" || command === "save-as") { if (galleryRef.current) void exportPhoto(command); else void download(command === "save-as"); }
     else if (command === "export" || command === "compress") void prepareExport(command);
     else if (command === "print") void print();
     else if (command === "properties") setDialog("info");
     else if (command === "hand") void chooseHand();
   };
+
   useFileCommands(active, doc ? gallery ? "photo" : "pdf" : "none",
     overlayOpen || fileBusy || loading || photoBusy || refreshingPhotos || !!photoFailure, fileCommand);
 
   const photoAction = async (name: string, action: string) => {
     const current = galleryRef.current;
+
     if (!current || fileBusy || photoBusy || refreshingPhotos) return;
+
     try {
       if (action === "reveal") {
         if (current.id && !await window.folioDesktop?.content.reveal(current.id, name)) throw new Error("Couldn't show this image in its folder.");
+
         return;
       }
+
       if (action === "trash") {
         if (!current.id || !window.folioDesktop) return;
+
         if (photos?.dirty.has(name) || name === current.selected && currentPhotoDirty) {
           throw new Error("Save this photo's changes before moving its original to Trash.");
         }
+
         setFileBusy(true);
         const refreshed = await window.folioDesktop.content.trash(current.id, name);
+
         if (!refreshed) return;
         documentState.forgetPhoto(name); photoKeys.current.delete(name);
+
         const selected = refreshed.files.includes(current.selected) ? current.selected
           : refreshed.files[Math.min(current.files.indexOf(name), refreshed.files.length - 1)] ?? "";
+
         const next = { ...refreshed, selected };
         galleryRef.current = next; setGallery(next); documentState.showGallery();
+
         if (name === current.selected) {
           const previous = docRef.current;
           markupRef.current?.unload(); viewerRef.current!.setDocument(null); docRef.current = null; setDoc(null); documentState.closed();
           void previous?.pdf.loadingTask.destroy();
+
           if (selected) await openPhoto(next, selected);
         }
-        flash("Moved the original to Trash."); return;
+
+        flash("Moved the original to Trash.");
+
+ return;
       }
-      if (name !== current.selected) { await openPhoto(current, name); if (docRef.current?.photoName !== name) return; }
+
+      if (name !== current.selected) { await openPhoto(current, name);
+
+ if (docRef.current?.photoName !== name) return; }
+
       if (action === "save" || action === "save-as") await exportPhoto(action);
       else if (action === "print") await print();
       else if (action === "export" || action === "compress") await prepareExport(action);
@@ -1368,68 +1656,101 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       if (tabs.active !== tabKey) return;
       const mod = e.ctrlKey || e.metaKey;
       const target = e.target;
+
       const typing = target instanceof Element && (target.closest("input, textarea, select, .freeTextEditor") ||
         (target instanceof HTMLElement && target.isContentEditable));
+
       if (e.altKey && !mod && !e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
         if (e.defaultPrevented) return;
+
         if (typing || overlayOpen || document.querySelector('[aria-modal="true"]')) {
           // Chromium can leave the web reader here; macOS uses Option+arrow for native text editing.
           if (!IS_MAC && !window.folioDesktop) e.preventDefault();
         } else if (docRef.current) {
           e.preventDefault();
+
           if (e.key === "ArrowLeft") navigationRef.current?.back();
           else navigationRef.current?.forward();
         }
+
         return;
       }
+
       if (fileBusy || workDialog || exportDialog || printCopy) {
         if ((e.ctrlKey || e.metaKey) && ["p", "o", "w", "t", "s", ",", "tab"].includes(e.key.toLowerCase())) e.preventDefault();
+
         return;
       }
+
       if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "t") {
-        e.preventDefault(); tabs.library(); return;
+        e.preventDefault(); tabs.library();
+
+ return;
       }
+
       if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "w") {
-        e.preventDefault(); void tabs.close(tabKey); return;
+        e.preventDefault(); void tabs.close(tabKey);
+
+ return;
       }
+
       if (e.ctrlKey && e.key === "Tab") {
-        e.preventDefault(); tabs.cycle(e.shiftKey ? -1 : 1); return;
+        e.preventDefault(); tabs.cycle(e.shiftKey ? -1 : 1);
+
+ return;
       }
+
       if (signing) return;
 
       if (mod && e.key === ",") {
         e.preventDefault();
         setDialog("settings");
+
         return;
       }
+
       if (mod && e.key.toLowerCase() === "o") {
         e.preventDefault();
+
         if (e.shiftKey) openUrlDialog();
         else pickFile();
+
         return;
       }
+
       if (gallery && !mod && !e.altKey && !e.shiftKey && !typing && !overlayOpen && !contentEditing && !e.defaultPrevented && ["ArrowLeft", "ArrowRight"].includes(e.key)) {
         const index = gallery.files.indexOf(gallery.selected);
         const name = gallery.files[index + (e.key === "ArrowRight" ? 1 : -1)];
+
         if (name) { e.preventDefault(); void openPhoto(gallery, name); }
+
         return;
       }
+
       if (gallery && (photoBusy || refreshingPhotos || photoFailure)) {
         if (mod && ["s", "p", "=", "+", "-"].includes(e.key.toLowerCase())) e.preventDefault();
+
         return;
       }
+
       if (!docRef.current) return;
+
       // A dialog owns the keyboard, and closes itself on Escape. The reader's shortcuts are swallowed
       // rather than left to act on the document behind it (or to fall through to the browser's own).
       if (overlayOpen) {
         const key = e.key.toLowerCase();
+
         if (mod && (["f", "s", "p", "=", "+", "-", "0", "\\"].includes(key) || (!typing && (key === "z" || key === "y")))) e.preventDefault();
+
         return;
       }
 
       if(mod && !typing && !e.shiftKey && e.key.toLowerCase()==="z" && !contentEditing && canUndoOperation && !docRef.current?.pdf.annotationStorage.size) {
-        e.preventDefault();void undoOperation();return;
+        e.preventDefault();void undoOperation();
+
+return;
       }
+
       if (mod && !typing && Number(viewerRef.current?.annotationEditorMode) === AnnotationEditorType.NONE
         && (e.key.toLowerCase() === "z" || e.key.toLowerCase() === "y")) {
         e.preventDefault();
@@ -1440,6 +1761,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         requestAnimationFrame(() => document.getElementById("folio-search")?.focus());
       } else if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
+
         if (gallery) void exportPhoto(e.shiftKey ? "save-as" : "save"); else void download(e.shiftKey);
       } else if (mod && e.key.toLowerCase() === "p") {
         e.preventDefault();
@@ -1485,6 +1807,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         rotate();
       } else {
         const t = TOOLS.find((t) => t.key.toLowerCase() === e.key.toLowerCase());
+
         if (t) {
           if (focus && t.id !== "select") void toggleFocus();
           chooseTool(t.id);
@@ -1493,7 +1816,9 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         else if (e.key === "End") goTo(numPages);
       }
     };
+
     window.addEventListener("keydown", onKey);
+
     return () => window.removeEventListener("keydown", onKey);
   });
 
@@ -1502,13 +1827,16 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const pasteImage = useCallback(async (file: File) => {
     if (!doc || docRef.current !== doc || pastePending.current) return;
     pastePending.current = true; setPastingImage(true); setPasteError(null);
+
     try {
       if (await markupRef.current?.pasteImage(file) && docRef.current === doc) markDirty();
     } catch (error) {
       console.error("Image paste failed", error);
+
       if (docRef.current === doc) setPasteError({ doc, file, detail: (error as Error).message });
     } finally { pastePending.current = false; setPastingImage(false); }
   }, [doc, markDirty]);
+
   useEffect(() => { setPasteError(null); setPhotoExportError(null); }, [doc]);
 
   useEffect(() => {
@@ -1516,13 +1844,17 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       if (!active || !doc || (event.target as HTMLElement | null)?.closest?.("input, textarea, [contenteditable=true], .freeTextEditor")) return;
       const item = Array.from(event.clipboardData?.items ?? []).find(item => item.kind === "file" && /^image\/(png|jpeg|webp)$/.test(item.type));
       const file = item?.getAsFile();
+
       if (!file) return;
       // PDF.js listens only while editing; handle images in Select too, without inserting twice.
       event.preventDefault(); event.stopImmediatePropagation();
+
       if (loading || dialog || workDialog || exportDialog || pending || signing || contentEditing || photoBusy || refreshingPhotos || photoFailure || document.querySelector(".screenshot-overlay")) return;
       void pasteImage(file);
     };
+
     window.addEventListener("paste", paste, true);
+
     return () => window.removeEventListener("paste", paste, true);
   }, [active, doc, loading, dialog, workDialog, exportDialog, pending, signing, contentEditing, photoBusy, refreshingPhotos, photoFailure, pasteImage]);
 
@@ -1719,6 +2051,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
           {gallery && gallery.files.length > 1 && (() => {
             const index = gallery.files.indexOf(gallery.selected);
             const busy = fileBusy || photoBusy || refreshingPhotos;
+
             return <>
               <button className="pill-btn photo-nav prev" type="button" aria-label="Previous image" title="Previous image (←)" disabled={busy || index <= 0} onClick={() => void openPhoto(gallery, gallery.files[index - 1])}><Icon name="chevronLeft" size={20} /></button>
               <button className="pill-btn photo-nav next" type="button" aria-label="Next image" title="Next image (→)" disabled={busy || index < 0 || index >= gallery.files.length - 1} onClick={() => void openPhoto(gallery, gallery.files[index + 1])}><Icon name="chevronRight" size={20} /></button>
@@ -1728,7 +2061,9 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
             onDirty={documentState.setEditorDirty} snapshot={async () => {
               if (doc.password || await doc.pdf.getPermissions() || (await doc.pdf.getSignatures())?.length) throw new Error("Editing requires an unsigned, unencrypted PDF.");
               const copy = await currentBytes(doc, []);
+
               if (!copy || docRef.current !== doc) throw new Error("The document changed. Try again.");
+
               return copy.bytes;
             }} apply={async (bytes, change) => docRef.current === doc && !!await openBytes(doc.name, bytes, undefined, opening.current!.signal, undefined, { doc, change })} />}
           {doc && <div className="page-text-status" role="status">{fileBusy ? "Preparing file…" : textStatus}</div>}
@@ -1783,6 +2118,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
                 onSubmit={(e) => {
                   e.preventDefault();
                   const n = parseInt(pageInput, 10);
+
                   if (Number.isFinite(n)) goTo(n);
                   else setPageInput(String(page));
                   (document.activeElement as HTMLElement)?.blur();
@@ -1932,8 +2268,12 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       {workDialog && <Suspense fallback={<div className="work-loading" role="status">Loading tools…</div>}>
         {workDialog.kind === "photo" && <PhotoEditDialog bytes={workDialog.bytes} name={workDialog.source.photoName ?? workDialog.source.name} onClose={()=>setWorkDialog(null)} onApply={bytes=>applyWorkingCopy(bytes,workDialog.source,workDialog.bytes)} />}
         {workDialog.kind === "pages" && <PdfPagesDialog bytes={workDialog.bytes} name={workDialog.source.name} onClose={()=>setWorkDialog(null)} onApply={(bytes,pages)=>applyWorkingCopy(bytes,workDialog.source,workDialog.bytes,pages)} />}
-        {workDialog.kind === "redact" && <PdfRedactDialog bytes={workDialog.bytes} name={workDialog.source.name} onClose={()=>setWorkDialog(null)} onApply={async bytes=>{const name=workDialog.source.name.replace(/\.pdf$/i,"")+" (redacted).pdf";if(!await persistFile(pdfBlob(bytes),name,`redacted:${crypto.randomUUID()}`,true))throw new Error("Save cancelled. Your redacted copy is ready; choose Apply to try again.");tabs.open([{kind:"bytes",name,data:bytes}]);setWorkDialog(null);}} />}
-        {workDialog.kind === "protect" && <PdfProtectDialog bytes={workDialog.bytes} name={workDialog.source.name} onClose={()=>setWorkDialog(null)} onApply={async bytes=>{const ok=await persistFile(new Blob([bytes.slice()],{type:"application/pdf"}),workDialog.source.name.replace(/\.pdf$/i,"")+" (protected).pdf",`protected:${crypto.randomUUID()}`,true);if(ok)setWorkDialog(null);else throw new Error("Save cancelled. Your protected copy is ready; choose Save to try again.");}} />}
+        {workDialog.kind === "redact" && <PdfRedactDialog bytes={workDialog.bytes} name={workDialog.source.name} onClose={()=>setWorkDialog(null)} onApply={async bytes=>{const name=workDialog.source.name.replace(/\.pdf$/i,"")+" (redacted).pdf";
+
+if(!await persistFile(pdfBlob(bytes),name,`redacted:${crypto.randomUUID()}`,true))throw new Error("Save cancelled. Your redacted copy is ready; choose Apply to try again.");tabs.open([{kind:"bytes",name,data:bytes}]);setWorkDialog(null);}} />}
+        {workDialog.kind === "protect" && <PdfProtectDialog bytes={workDialog.bytes} name={workDialog.source.name} onClose={()=>setWorkDialog(null)} onApply={async bytes=>{const ok=await persistFile(new Blob([bytes.slice()],{type:"application/pdf"}),workDialog.source.name.replace(/\.pdf$/i,"")+" (protected).pdf",`protected:${crypto.randomUUID()}`,true);
+
+if(ok)setWorkDialog(null);else throw new Error("Save cancelled. Your protected copy is ready; choose Save to try again.");}} />}
       </Suspense>}
       {printCopy && <PrintDialog pdf={printCopy.pdf} currentPage={printCopy.page} name={printCopy.name}
         onPrint={() => { printPdfBytes(printCopy.bytes); setPrintCopy(null); }} onClose={() => setPrintCopy(null)} />}

@@ -64,6 +64,7 @@ function libreOffice() {
     : process.platform === "darwin"
       ? ["/Applications/LibreOffice.app/Contents/MacOS/soffice", path.join(os.homedir(), "Applications/LibreOffice.app/Contents/MacOS/soffice")]
       : ["/usr/bin/soffice", "/usr/bin/libreoffice", "/usr/local/bin/soffice", "/usr/lib/libreoffice/program/soffice", "/opt/libreoffice/program/soffice", "/snap/bin/libreoffice"];
+
   return candidates.find((file) => fs.existsSync(file));
 }
 
@@ -83,6 +84,7 @@ async function withLibreOffice(soffice, source, dir) {
   fs.mkdirSync(path.join(profile, "user"), { recursive: true });
   fs.writeFileSync(path.join(profile, "user", "registrymodifications.xcu"), LIBREOFFICE_SETTINGS);
   await run(soffice, ["--headless", "--norestore", "--nolockcheck", `-env:UserInstallation=${pathToFileURL(profile).href}`, "--convert-to", "pdf", "--outdir", dir, source]);
+
   return path.join(dir, path.basename(source).replace(/\.[^.]+$/, ".pdf"));
 }
 
@@ -93,20 +95,26 @@ const WORKER_MEMORY_LIMIT = 768 * 1024 ** 2;
 function runWorker(script, serviceName, data) {
   return new Promise((resolve, reject) => {
     const worker = utilityProcess.fork(path.join(__dirname, script), [], { serviceName });
+
     const stop = (error, result) => {
       clearTimeout(timer);
       clearInterval(watch);
       worker.removeAllListeners("exit");
       worker.removeAllListeners("message");
       worker.kill();
+
       if (error) reject(error);
       else resolve(result);
     };
+
     const timer = setTimeout(() => stop(new Error("timed out")), CONVERT_TIMEOUT_MS);
+
     const watch = setInterval(() => {
       const memory = app.getAppMetrics().find((metric) => metric.pid === worker.pid)?.memory.workingSetSize ?? 0; // KB
+
       if (memory * 1024 > WORKER_MEMORY_LIMIT) stop(Object.assign(new Error("ran out of memory"), { userMessage: "It's too large to convert." }));
     }, 250);
+
     worker.once("message", (result) => stop(result.error ? Object.assign(new Error(result.error), { userMessage: result.userMessage }) : null, result));
     worker.once("exit", (code) => stop(new Error(`stopped (exit code ${code})`)));
     worker.postMessage(data);
@@ -121,35 +129,45 @@ async function printHtml(htmlFile) {
   // Compared as real paths: the URL Chromium asks for can spell the folder differently (a short name like
   // C:\Users\RUNNER~1 written out in full, other letter case, percent-encoding).
   const folder = fs.realpathSync.native(path.dirname(htmlFile));
+
   const inFolder = (url) => {
     try {
       const relative = path.relative(folder, fs.realpathSync.native(fileURLToPath(url)));
+
       return !!relative && !relative.startsWith("..") && !path.isAbsolute(relative);
     } catch { return false; }
   };
+
   const ses = session.fromPartition(`folio-convert-${crypto.randomUUID()}`); // in-memory only
   ses.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   ses.setPermissionCheckHandler(() => false);
   ses.on("will-download", (event) => event.preventDefault());
   // A document can point at web images or other files on disk; nothing outside its own folder is loaded.
   ses.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !(details.url.startsWith("data:") || (details.url.startsWith("file:") && inFolder(details.url))) }));
+
   const win = new BrowserWindow({
     show: false,
     webPreferences: { session: ses, javascript: false, sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false, backgroundThrottling: false },
   });
+
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", (event) => event.preventDefault());
   const timer = setTimeout(() => win.destroy(), CONVERT_TIMEOUT_MS);
+
   try {
     await win.loadFile(htmlFile);
+
     const data = await win.webContents.printToPDF({
       pageSize: LETTER_COUNTRIES.has(app.getLocaleCountryCode()) ? "Letter" : "A4",
       preferCSSPageSize: true, printBackground: true, generateDocumentOutline: true, generateTaggedPDF: true,
     });
+
     if (data.length > MAX_DOCUMENT_BYTES) throw tooLarge();
+
     return data;
   } finally {
     clearTimeout(timer);
+
     if (!win.isDestroyed()) win.destroy();
     void ses.clearStorageData().catch(() => {});
   }
@@ -159,17 +177,20 @@ async function builtIn(source, dir, title) {
   const htmlDir = path.join(dir, "html");
   await fs.promises.mkdir(htmlDir);
   const htmlFile = path.join(htmlDir, "document.html");
+
   if (/\.docx$/i.test(source)) {
     await runWorker("docx-worker.cjs", "Doko Word converter", { source, output: htmlFile, title });
   } else if (process.platform === "darwin") {
     await run("/usr/bin/textutil", ["-format", "doc", "-convert", "html", "-output", htmlFile, source]);
     const text = (await readRegular(htmlFile, MAX_HTML_BYTES)).toString("utf8");
     const html = text.replace(/<head[^>]*>/i, (head) => `${head}<style>@page { margin: 1in; }</style>`);
+
     if (Buffer.byteLength(html) > MAX_HTML_BYTES) throw tooLarge(MAX_HTML_BYTES);
     await fs.promises.writeFile(htmlFile, html);
   } else {
     throw Object.assign(new Error("no converter"), { userMessage: "Converting .doc files needs Microsoft Word or LibreOffice. Install either one, or save the document as .docx." });
   }
+
   return printHtml(htmlFile);
 }
 
@@ -178,53 +199,67 @@ async function convertStaged(source, dir, title, log) {
   const only = !app.isPackaged ? process.env.FOLIO_TEST_CONVERTER : undefined;
   const failures = [];
   const started = Date.now();
+
   const fail = (converter, error) => {
     if (error.userMessage) throw error;
     failures.push(`${converter}: ${error.stderr || error.message}`);
     log(`${converter} failed after ${Date.now() - started} ms: ${error.stderr || error.message}`);
   };
+
   if (process.platform === "win32" && (!only || only === "word")) {
     const target = path.join(dir, "word.pdf");
+
     try {
       await withWord(source, target);
+
       return await readRegular(target);
     } catch (error) { fail("Word", error); }
   }
+
   const soffice = (!only || only === "libreoffice") && libreOffice();
+
   if (soffice) {
     try { return await readRegular(await withLibreOffice(soffice, source, dir)); }
     catch (error) { fail("LibreOffice", error); }
   }
+
   if (!only || only === "builtin") {
     try { return await builtIn(source, dir, title); }
     catch (error) { fail("Doko", error); }
   }
+
   throw Object.assign(new Error(failures.join("\n")), { userMessage: "The document may be damaged or protected with a password." });
 }
 
 async function convertDocument(file, log) {
   const profile = app.getPath("userData");
   const dir = await fs.promises.mkdtemp(path.join(profile, "word-tmp-"));
+
   try {
     if (process.platform === "darwin") await run("/bin/chmod", ["-N", dir]);
     const source = path.join(dir, "source" + path.extname(file).toLowerCase());
     const staged = await stageWord(file, source);
     const cached = await cachedPdf(profile, staged);
+
     if (cached) return cached;
     const original = path.basename(file);
     const data = await convertStaged(source, dir, path.parse(original).name, log);
+
     if (staged.location) {
       try {
         const ready = path.join(dir, "publish.pdf");
         await fs.promises.writeFile(ready, data, { flag: "wx", mode: 0o600 });
         const { index } = await runWorker("word-publish.cjs", "Doko Word export", { location: staged.location, ready });
+
         if (index) {
           const name = pdfName(staged.location.name, index);
           await rememberPdf(profile, staged, index, data).catch((error) => log(error.message));
+
           return { name, data, note: `Saved ${name} next to ${original}.` };
         }
       } catch (error) { log(error.message); }
     }
+
     return { name: pdfName(original), data };
   } finally {
     await fs.promises.rm(dir, { recursive: true, force: true }).catch((error) => log(error.message));
@@ -233,9 +268,11 @@ async function convertDocument(file, log) {
 
 // Native Office and Chromium can both be expensive. A second open waits for the first export and its receipt.
 let queue = Promise.resolve();
+
 function openWord(file, log = () => {}) {
   const result = queue.then(() => convertDocument(file, log));
   queue = result.then(() => {}, () => {});
+
   return result;
 }
 
@@ -243,11 +280,13 @@ function openWord(file, log = () => {}) {
 // tables. Reads wait in line, so selecting many workbooks does not start as many memory-hungry workers at once.
 async function readWorkbook(file, log) {
   const dir = await fs.promises.mkdtemp(path.join(app.getPath("userData"), "xlsx-tmp-"));
+
   try {
     if (process.platform === "darwin") await run("/bin/chmod", ["-N", dir]);
     const source = path.join(dir, "source.xlsx"), output = path.join(dir, "sheets.json");
     await stageWord(file, source);
     await runWorker("xlsx-worker.cjs", "Doko Excel reader", { source, output });
+
     return JSON.parse(await readRegular(output, MAX_HTML_BYTES));
   } catch (error) {
     if (!error.userMessage) log(error.stack || String(error));
@@ -258,9 +297,11 @@ async function readWorkbook(file, log) {
 }
 
 let workbookQueue = Promise.resolve();
+
 function openWorkbook(file, log = () => {}) {
   const result = workbookQueue.then(() => readWorkbook(file, log));
   workbookQueue = result.then(() => {}, () => {});
+
   return result;
 }
 

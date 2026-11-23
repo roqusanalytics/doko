@@ -10,5 +10,6 @@ const MARKS: Record<AiProvider, { d: string; color: string }> = {
 
 export function ProviderLogo({ provider, size = 14 }: { provider: AiProvider; size?: number }) {
   const { d, color } = MARKS[provider];
+
   return <svg className="provider-logo" viewBox="0 0 24 24" width={size} height={size} fill={color} aria-hidden="true"><path d={d} /></svg>;
 }

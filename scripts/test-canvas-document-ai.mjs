@@ -24,6 +24,7 @@ test("accepts editable Elements from Mermaid and rejects invalid syntax or resul
   assert.deepEqual(await readMermaidDrawing(definition, async (source, limits) => {
     assert.equal(source, "flowchart LR\nA --> B");
     assert.equal(limits.maxEdges, 80);
+
     return [node];
   }), [node]);
   await assert.rejects(readMermaidDrawing("flowchart LR\nA -->", async () => {
@@ -38,8 +39,10 @@ test("accepts editable Elements from Mermaid and rejects invalid syntax or resul
 
 test("Insert again gives a fresh set of IDs and lays out the copy in free space", () => {
   const node = { ...rectangle, id: "step", frameId: null, groupIds: ["group"], boundElements: [{ id: "connector", type: "arrow" }] };
+
   const connector = { ...arrow, id: "connector", frameId: null, groupIds: ["group"], boundElements: null,
     startBinding: { elementId: "step" }, endBinding: null };
+
   const first = copyMermaidElements([node, connector]);
   const second = copyMermaidElements([node, connector]);
   assert.equal(new Set([...first, ...second].map(element => element.id)).size, 4);
@@ -63,9 +66,11 @@ test("reads the last drawing block and returns only the surrounding text", () =>
 
 test("hides drawing JSON during streaming, including a split fence", () => {
   const full = "I drew a box.\n" + reply(rectangle);
+
   for (let i = "I drew a box.".length; i <= full.length; i++) {
     assert.equal(splitDrawingReply(full.slice(0, i), true).description, "I drew a box.");
   }
+
   assert.throws(() => parseDrawingReply(full + "\n```excalidraw\n[", []), /complete excalidraw block/);
 });
 
@@ -84,6 +89,7 @@ test("keeps safe style fields and rejects unsafe style values", () => {
   const [element] = parseDrawingReply(reply({ ...rectangle, ...style }), []).elements;
   assert.deepEqual({ ...element }, { ...rectangle, ...style });
   assert.equal(parseDrawingReply(reply({ ...arrow, strokeColor: "#e03131" }), []).elements[0].strokeColor, "#e03131");
+
   for (const bad of [{ strokeColor: "red" }, { backgroundColor: "url(x)" }, { fillStyle: "image" }, { strokeStyle: "wavy" }, { strokeWidth: 0 }, { strokeWidth: 5 }]) {
     assert.throws(() => parseDrawingReply(reply({ ...rectangle, ...bad }), []), /invalid style/);
   }
@@ -127,6 +133,7 @@ test("the Scene summary preserves selected Elements within its cap and omits pri
   assert.equal(rows.pop(), "truncated");
   const ids = rows.map(row => JSON.parse(row)).filter(row => row.selected).map(row => row.id);
   assert.deepEqual(ids, Object.keys(selected));
+
   const details = summarizeScene([
     { ...rectangle, id: "image", type: "image", fileId: "sensitive-image-id", link: "https://example.test" },
     { ...rectangle, id: "stroke", type: "freedraw", points: [[437, 362]] },
@@ -134,6 +141,7 @@ test("the Scene summary preserves selected Elements within its cap and omits pri
     { ...rectangle, id: "label", type: "text", text: "Label", containerId: "shape" },
     { ...arrow, id: "arrow", startBinding: { elementId: "shape" }, endBinding: { elementId: "label" } },
   ], {}).text;
+
   const [image, stroke, shape, , connection] = details.split("\n").map(row => JSON.parse(row));
   assert.deepEqual(image, { id: "image", type: "image", bounds: [0, 0, 100, 60], selected: false });
   assert.deepEqual(stroke, { ...image, id: "stroke", type: "freedraw" });

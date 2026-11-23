@@ -7,11 +7,13 @@ const oracle = ({ storageError, aiStorageError, photos, doc, dirty, editorDirty,
   const gallery = !!photos, photoSavedId = photos?.savedId ?? "", photoDirty = photos?.dirty ?? new Set();
   const pageOrder = pageDraft?.order.some((n, i) => n !== i + 1) ? pageDraft.order : undefined;
   const currentPhotoDirty = dirty || editorDirty || (!!doc && doc.id !== photoSavedId);
+
   return !!storageError || aiStorageError || (gallery ? currentPhotoDirty || photoDirty.size > 0
     : !!doc?.sourceId || dirty || editorDirty || (!!pageOrder && !pageDraft?.copy));
 };
 
 const server = await createServer({ root: path.resolve(import.meta.dirname, ".."), server: { middlewareMode: true }, appType: "custom" });
+
 try {
   const { DocumentState, bookmarksInOrder } = await server.ssrLoadModule("/src/documentState.ts");
 
@@ -31,10 +33,12 @@ try {
   const docs = [null, { id: "a", name: "a.pdf", saveKey: "a" }, { id: "a", name: "a.pdf", saveKey: "a", sourceId: "s" }];
   const drafts = ["none", "same", "reordered", "reorderedCopy"];
   let cases = 0;
+
   for (const gallery of bools) for (const storageError of bools) for (const aiStorageError of bools)
   for (const doc of docs) for (const dirty of bools) for (const editorDirty of bools) for (const draft of drafts)
   for (const photoSaved of bools) for (const otherPhotoDirty of bools) {
     const state = new DocumentState(gallery);
+
     if (otherPhotoDirty) {
       state.opened({ id: "o", name: "other.jpg", saveKey: "o", photoName: "other.jpg" }, false);
       state.edited();
@@ -42,20 +46,28 @@ try {
       state.closed();
       state.clean();
     }
+
     const opening = doc && gallery ? { ...doc, photoName: "photo.jpg" } : doc;
+
     if (opening) state.opened(opening, false);
+
     if (photoSaved && opening) state.photoOpened();
+
     if (storageError) state.setStorageError("Couldn't save notes");
     state.setAiStorageError(aiStorageError);
+
     if (dirty) state.edited();
     state.setEditorDirty(editorDirty);
+
     if (draft !== "none") state.setPageOrder(draft === "same" ? [1, 2, 3] : [2, 1, 3]);
+
     if (draft === "reorderedCopy") state.savedPageCopy(state.getState().pageOrder, new Uint8Array([1]));
     const snapshot = state.getState();
     assert.equal(snapshot.unsaved, oracle(snapshot),
       `unsaved mismatch: ${JSON.stringify({ gallery, storageError, aiStorageError, doc, dirty, editorDirty, draft, photoSaved, otherPhotoDirty })}`);
     cases++;
   }
+
   assert.equal(cases, 2 * 2 * 2 * 3 * 2 * 2 * 4 * 2 * 2);
 
   // A save clears dirty only if no edit happened while it ran.
@@ -111,18 +123,32 @@ try {
 
   // Save sequence, through fake adapters.
   const pdfDoc = { id: "a", name: "Report.pdf", saveKey: "report" };
+
   const fakes = (overrides = {}) => {
     const log = [];
+
     const adapters = {
-      exportBytes: async pageOrder => { log.push(["export", pageOrder]); return { bytes: new Uint8Array([1]), annotated: false, blob: new Blob(["x"]) }; },
-      persist: async (blob, name, key, saveAs) => { log.push(["persist", name, key, saveAs]); return true; },
-      recordSave: async () => { log.push(["prepare"]); return async saved => { log.push(["record", saved.name]); return { dataFailed: false, messages: [] }; }; },
+      exportBytes: async pageOrder => { log.push(["export", pageOrder]);
+
+ return { bytes: new Uint8Array([1]), annotated: false, blob: new Blob(["x"]) }; },
+      persist: async (blob, name, key, saveAs) => { log.push(["persist", name, key, saveAs]);
+
+ return true; },
+      recordSave: async () => { log.push(["prepare"]);
+
+ return async saved => { log.push(["record", saved.name]);
+
+ return { dataFailed: false, messages: [] }; }; },
       reopen: async (name, bytes, pageOrder) => { log.push(["reopen", name, pageOrder]); },
       ...overrides,
     };
+
     return { log, adapters };
   };
-  const opened = (doc, gallery = false) => { const state = new DocumentState(gallery); state.opened(doc, false); return state; };
+
+  const opened = (doc, gallery = false) => { const state = new DocumentState(gallery); state.opened(doc, false);
+
+ return state; };
 
   {
     const state = opened(pdfDoc);
@@ -135,6 +161,7 @@ try {
     assert.equal(state.getState().dirty, false);
     assert.equal(state.getState().saving, false);
   }
+
   {
     // An edited document gets " (edited)" and is reopened from its copy; a reordered one gets " (reordered)".
     const state = opened({ ...pdfDoc, sourceId: "s" });
@@ -145,6 +172,7 @@ try {
     assert.equal(log.find(entry => entry[0] === "persist")[1], "Report (reordered) (edited).pdf");
     assert.deepEqual(log.at(-1), ["reopen", "Report (reordered) (edited).pdf", [2, 1]]);
   }
+
   {
     // A failed notes copy keeps the edited document open instead of reopening it.
     const state = opened({ ...pdfDoc, sourceId: "s" });
@@ -153,6 +181,7 @@ try {
     assert.deepEqual(result, { status: "saved", reopened: false, messages: ["File saved", "notes lost"] });
     assert.ok(!log.some(entry => entry[0] === "reopen"));
   }
+
   {
     // A reordered copy is remembered so it can be opened; the order stays pending.
     const state = opened(pdfDoc);
@@ -162,21 +191,31 @@ try {
     assert.deepEqual(state.getState().pageDraft.copy, new Uint8Array([7]));
     assert.equal(state.getState().unsaved, false);
   }
+
   {
     // An edit while the file is being written keeps the document dirty.
     const state = opened(pdfDoc);
     state.edited();
-    const { adapters } = fakes({ persist: async () => { state.edited(); return true; } });
+
+    const { adapters } = fakes({ persist: async () => { state.edited();
+
+ return true; } });
+
     await state.save({ format: "pdf", saveAs: true }, adapters);
     assert.equal(state.getState().dirty, true);
   }
+
   {
     // Cancel keeps everything; a second save while one runs is skipped.
     const state = opened(pdfDoc);
     state.edited();
     let release;
     const gate = new Promise(resolve => { release = resolve; });
-    const slow = state.save({ format: "pdf", saveAs: true }, fakes({ persist: async () => { await gate; return false; } }).adapters);
+
+    const slow = state.save({ format: "pdf", saveAs: true }, fakes({ persist: async () => { await gate;
+
+ return false; } }).adapters);
+
     assert.equal(state.getState().saving, true);
     assert.deepEqual(await state.save({ format: "pdf", saveAs: true }, fakes().adapters), { status: "skipped" });
     release();
@@ -184,6 +223,7 @@ try {
     assert.equal(state.getState().dirty, true);
     assert.equal(state.getState().saving, false);
   }
+
   {
     // Another export holding the PDF: a PDF save is skipped quietly, a photo save reports it.
     const busy = fakes({ exportBytes: async () => null }).adapters;
@@ -192,13 +232,19 @@ try {
     assert.equal(photo.status, "failed");
     assert.match(photo.error.message, /Another export is in progress/);
   }
+
   {
     // A document replaced while saving is not written, and its failure is not reported.
     const state = opened(pdfDoc);
-    const { log, adapters } = fakes({ exportBytes: async () => { state.opened({ id: "b", name: "Other.pdf", saveKey: "other" }, false); return { bytes: new Uint8Array(), annotated: false, blob: new Blob() }; } });
+
+    const { log, adapters } = fakes({ exportBytes: async () => { state.opened({ id: "b", name: "Other.pdf", saveKey: "other" }, false);
+
+ return { bytes: new Uint8Array(), annotated: false, blob: new Blob() }; } });
+
     assert.deepEqual(await state.save({ format: "pdf", saveAs: true }, adapters), { status: "skipped" });
     assert.ok(!log.some(entry => entry[0] === "persist"));
   }
+
   {
     // A failure after the file was written puts dirty back for a PDF.
     const state = opened({ ...pdfDoc, sourceId: "s" });
@@ -207,6 +253,7 @@ try {
     assert.equal(result.status, "failed");
     assert.equal(state.getState().dirty, true);
   }
+
   {
     // A photo saves as PNG next to its name and marks only that photo saved.
     const state = opened({ id: "s1", name: "sea.jpg", saveKey: "k", photoName: "sea.jpg" }, true);
@@ -295,7 +342,9 @@ try {
 
     // Success opens the earlier bytes, leaves the document dirty, and uses up the undo.
     let reopened;
-    result = await state.undoOperation(async undo => { reopened = undo.bytes; state.opened({ id: "restored", name: "Report.pdf", saveKey: "report" }, false); return true; });
+    result = await state.undoOperation(async undo => { reopened = undo.bytes; state.opened({ id: "restored", name: "Report.pdf", saveKey: "report" }, false);
+
+ return true; });
     assert.deepEqual(result, { status: "undone" });
     assert.equal(reopened, before);
     snapshot = state.getState();
@@ -304,6 +353,7 @@ try {
     assert.equal(snapshot.dirty, true);
     assert.deepEqual(await state.undoOperation(async () => true), { status: "skipped" });
   }
+
   {
     // Another document opening makes the undo inapplicable, but it stays recorded (it still blocks tab suspension).
     const state = opened(pdfDoc);

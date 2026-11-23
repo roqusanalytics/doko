@@ -11,7 +11,9 @@ import { readerPage } from "./reader-page.mjs";
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "doko-canvas-ai-"));
 const env = { ...process.env, FOLIO_TEST_USER_DATA: temp, FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const app = await electron.launch({ executablePath: electronPath(env), env, args: [root, "--mute-audio",
   ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
 
@@ -24,6 +26,7 @@ try {
   const externalRequests = [];
   await window.context().route(/^https?:\/\//i, route => {
     externalRequests.push(route.request().url());
+
     return route.abort("internetdisconnected");
   });
   await window.addInitScript(() => {
@@ -40,18 +43,22 @@ try {
     globalThis.readCanvasAiScene = () => {
       const node = document.querySelector(".excalidraw");
       const fiberKey = Object.keys(node).find(key => key.startsWith("__reactFiber$"));
+
       for (let fiber = node[fiberKey]; fiber; fiber = fiber.return) {
         const editor = fiber.stateNode;
+
         if (typeof editor?.getSceneElements === "function") {
           return { elements: editor.getSceneElements(), selected: Object.keys(editor.state.selectedElementIds) };
         }
       }
+
       throw new Error("Canvas editor unavailable");
     };
   });
   const scene = () => page.evaluate(() => globalThis.readCanvasAiScene());
   await app.evaluate(({ net, safeStorage }) => {
     safeStorage.isAsyncEncryptionAvailable = async () => true;
+
     if (process.platform === "linux") safeStorage.getSelectedStorageBackend = () => "gnome_libsecret";
     safeStorage.encryptStringAsync = async value => Buffer.from(value);
     safeStorage.decryptStringAsync = async bytes => ({ result: Buffer.from(bytes).toString() });
@@ -59,49 +66,65 @@ try {
     const state = globalThis.canvasDocumentRouterTest = { requests: [], cancelled: false };
     net.fetch = async (url, options) => {
       if (!String(url).startsWith("https://openrouter.ai/")) return originalFetch.call(net, url, options);
+
       if (options.headers.Authorization !== "Bearer fixture-only-canvas-key") return new Response(null, { status: 401 });
       const endpoint = new URL(url).pathname;
+
       if (endpoint === "/api/v1/key") return Response.json({ data: { label: "Test" } });
+
       if (endpoint === "/api/v1/models") return Response.json({ data: [
         { id: "sample/draw", name: "Sample Draw", context_length: 131072, architecture: { input_modalities: ["text"], output_modalities: ["text"] } },
       ] });
+
       if (endpoint !== "/api/v1/chat/completions") throw new Error("Unexpected OpenRouter endpoint");
       const request = JSON.parse(options.body);
       state.requests.push(request);
       const question = request.messages.at(-1).content;
       const document = JSON.parse(request.messages[1].content).document;
       const existing = document.text.split("\n").map(line => JSON.parse(line)).find(row => row.selected)?.id;
+
       const elements = [
         { type: "rectangle", id: "new-box", x: 0, y: 0, width: 120, height: 50, label: { text: "Review" } },
         { type: "arrow", x: -90, y: 25, points: [[0, 0], [90, 0]], start: { id: existing }, end: { id: "new-box" } },
       ];
+
       const broken = question === "Draw a broken reply";
+
       const diagrams = {
         "Draw a flowchart": ["Added a flowchart.", "flowchart LR\nA[Plan] --> B[Ship]"],
         "Draw a sequence": ["Added a sequence.", "sequenceDiagram\nAlice->>Bob: Request\nBob-->>Alice: Response"],
         "Draw a class diagram": ["Added a class diagram.", "classDiagram\nAnimal <|-- Duck\nAnimal : +eat()"],
         "Draw broken Mermaid": ["Added a broken flowchart.", "flowchart LR\nA -->"],
       };
+
       const diagram = diagrams[question];
+
       if (question === "Draw a framed note") {
         const framed = [
           { type: "frame", id: "ai-frame", x: 0, y: 0, width: 220, height: 140, children: ["ai-note"], name: "AI" },
           { type: "rectangle", id: "ai-note", x: 30, y: 30, width: 120, height: 60, strokeColor: "#e03131", fillStyle: "solid" },
         ];
+
         const reply = "Added a framed note.\n```excalidraw\n" + JSON.stringify(framed) + "\n```";
+
         return new Response(new ReadableStream({ start(controller) {
           controller.enqueue(new TextEncoder().encode("data: " + JSON.stringify({ choices: [{ delta: { content: reply } }] }) + "\n\ndata: [DONE]\n\n"));
           controller.close();
         } }));
       }
+
       const text = diagram ? diagram[0] + "\n```mermaid\n" + diagram[1] + "\n```"
         : (broken ? "Drawing a bad reply." : question === "Draw and cancel" ? "Cancelled drawing." : "Added a review step.")
         + "\n```excalidraw\n" + (broken ? "[broken" : JSON.stringify(elements)) + "\n```";
+
       const sse = value => new TextEncoder().encode("data: " + value + "\n\n");
+
       return new Response(new ReadableStream({ start(controller) {
         controller.enqueue(sse(JSON.stringify({ choices: [{ delta: { content: text } }] })));
         state.finish = () => { controller.enqueue(sse("[DONE]")); controller.close(); };
+
         options.signal.addEventListener("abort", () => { state.cancelled = true; controller.error(new Error("Stopped")); }, { once: true });
+
         if (broken || diagram) state.finish();
       } }));
     };
@@ -136,6 +159,7 @@ try {
     await panel.getByRole("textbox").fill(question);
     await panel.getByRole("button", { name: "Send", exact: true }).click();
   };
+
   await send("Add a review step");
   await panel.getByText("Added a review step.", { exact: true }).waitFor();
   assert.deepEqual(await scene(), before, "A partial answer changed the Scene");
@@ -178,16 +202,20 @@ try {
   await panel.getByText("Cancelled drawing.", { exact: true }).waitFor();
   await panel.getByRole("button", { name: "Stop", exact: true }).click();
   await panel.getByRole("button", { name: "Send", exact: true }).waitFor();
+
   for (let i = 0; i < 100 && !(await app.evaluate(() => globalThis.canvasDocumentRouterTest.cancelled)); i++) {
     await page.waitForTimeout(25);
   }
+
   assert.ok(await app.evaluate(() => globalThis.canvasDocumentRouterTest.cancelled), "Stop did not abort the provider");
   assert.deepEqual((await scene()).elements, before.elements);
 
   await page.waitForFunction(async () => {
     const databases = await indexedDB.databases();
     const name = databases.find(db => db.name === "folio")?.name;
+
     if (!name) return false;
+
     const stored = await new Promise((resolve, reject) => {
       const open = indexedDB.open(name);
       open.onerror = () => reject(open.error);
@@ -195,9 +223,11 @@ try {
         const db = open.result;
         const read = db.transaction("ai", "readonly").objectStore("ai").getAll();
         read.onerror = () => { db.close(); reject(read.error); };
+
         read.onsuccess = () => { db.close(); resolve(read.result); };
       };
     });
+
     return stored.some(chat => chat.messages.some(message => message.content === "Added a review step."
       && message.drawingReply?.includes("```excalidraw")));
   });
@@ -223,8 +253,10 @@ try {
   await panel.getByRole("button", { name: "Send", exact: true }).waitFor();
   assert.equal(await panel.locator(".msg.assistant").last().getByRole("alert").count(), 0,
     await panel.locator(".msg.assistant").last().innerText());
+
   const again = panel.locator(".msg.assistant").filter({ hasText: "Added a flowchart." })
     .getByRole("button", { name: "Insert again", exact: true });
+
   await again.waitFor();
   assert.ok(rendererRequests.some(url => url.includes("/flowDiagram-")), "Mermaid did not load for the flowchart");
   const flowchart = await scene();
@@ -265,6 +297,7 @@ try {
     await undo.click();
     await page.waitForFunction(() => globalThis.readCanvasAiScene().elements.length === 1);
   }
+
   await send("Draw broken Mermaid");
   await panel.getByRole("alert").filter({ hasText: "invalid syntax" }).waitFor();
   assert.deepEqual((await scene()).elements, before.elements);
@@ -280,6 +313,7 @@ try {
   await page.mouse.up();
   await page.waitForFunction(() => {
     const { elements, selected } = globalThis.readCanvasAiScene();
+
     return elements.some(element => element.type === "frame" && selected.includes(element.id));
   });
   const userFrame = (await scene()).elements.find(element => element.type === "frame");

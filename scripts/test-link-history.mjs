@@ -4,6 +4,7 @@ import { LinkHistory } from "../src/linkHistory.ts";
 
 function fixture() {
   const states = [], visits = [];
+
   const viewer = { pdfDocument: {}, pagesCount: 1000, currentPageNumber: 1, currentScaleValue: "1.25", pagesRotation: 0,
     x: 10, y: 20, container: { clientLeft: 2, clientTop: 3, getBoundingClientRect: () => ({ left: 100, top: 200 }) },
     getPageView() { return { pdfPage: {}, div: { clientLeft: 1, clientTop: 1,
@@ -11,11 +12,14 @@ function fixture() {
     scrollPageIntoView(value) { visits.push(value); viewer.currentPageNumber = value.pageNumber;
       viewer.x = value.destArray?.[2] ?? 0; viewer.y = value.destArray?.[3] ?? 0; },
   };
+
   const history = new LinkHistory(viewer, state => states.push(state));
+
   const follow = (page, destination = [null, { name: "XYZ" }, 30, 40, null]) => {
     history.pushCurrentPosition(); history.push({ pageNumber: page, explicitDest: destination });
     viewer.scrollPageIntoView({ pageNumber: page, destArray: destination });
   };
+
   return { viewer, history, follow, states, visits };
 }
 
@@ -44,7 +48,9 @@ test("a different link after Back discards the old forward branch", () => {
 
 test("reset, invalid targets and unavailable documents do not replay locations", () => {
   const f = fixture();
+
   for (const page of [0, -1, 1.5, Infinity, 1001]) { f.history.pushCurrentPosition(); f.history.push({ pageNumber: page }); }
+
   assert.equal(f.states.length, 0);
   f.history.back(); f.history.forward(); assert.equal(f.visits.length, 0);
   f.follow(2); f.history.reset(); f.history.back(); f.history.forward();
@@ -55,7 +61,9 @@ test("reset, invalid targets and unavailable documents do not replay locations",
 
 test("history is bounded and separate readers never share entries", () => {
   const a = fixture(), b = fixture();
+
   for (let page = 2; page <= 120; page++) a.follow(page);
+
   for (let i = 0; i < 200; i++) a.history.back();
   assert.equal(a.viewer.currentPageNumber, 21);
   assert.equal(b.viewer.currentPageNumber, 1); assert.equal(b.visits.length, 0);

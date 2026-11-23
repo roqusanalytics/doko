@@ -6,16 +6,24 @@ const path = require('node:path');
 const { createSaveFiles } = require('../electron/save-files.cjs');
 const { createContentFiles } = require('../electron/content-files.cjs');
 const { fileMenuTemplate } = require('../electron/file-menu.cjs');
+
 async function temporary(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'folio-native-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
+
   return fs.realpath(root);
 }
+
 const request = (extra = {}) => ({ name: 'copy.pdf', format: 'pdf', data: new Uint8Array([1, 2, 3]), ...extra });
+
 test('binary saves need a native choice, preserve capabilities, and refuse external changes', async t => {
   const root = await temporary(t), file = path.join(root, 'copy.pdf');
   let calls = 0;
-  const files = createSaveFiles({ chooseSavePath: async () => { calls++; return file; } });
+
+  const files = createSaveFiles({ chooseSavePath: async () => { calls++;
+
+ return file; } });
+
   const first = await files.save(request());
   assert.equal(first.ok, true); assert.ok(first.id); assert.equal(calls, 1);
   assert.deepEqual(await fs.readFile(file), Buffer.from([1, 2, 3]));
@@ -27,22 +35,29 @@ test('binary saves need a native choice, preserve capabilities, and refuse exter
   files.clear(); assert.ok((await files.save(request({ id: first.id }))).error);
   assert.deepEqual((await fs.readdir(root)).filter(name => name.endsWith('.tmp')), []);
 });
+
 test('binary validation, cancel, wrong extension, symlink, Save As and write failure', async t => {
   const root = await temporary(t), file = path.join(root, 'copy.pdf');
   let chosen = null, calls = 0;
-  const files = createSaveFiles({ chooseSavePath: async () => { calls++; return chosen; } });
+
+  const files = createSaveFiles({ chooseSavePath: async () => { calls++;
+
+ return chosen; } });
+
   for (const bad of [request({ name: '../copy.pdf' }), request({ data: [] }), request({ data: new Uint8Array() }), request({ format: 'exe' }), request({ id: 'unknown' }), request({ saveAs: 'yes' })]) assert.ok((await files.save(bad)).error);
   assert.equal(calls, 0);
   assert.deepEqual(await files.save(request()), { cancelled: true });
   chosen = path.join(root, 'copy.exe'); assert.ok((await files.save(request())).error);
   chosen = file;
   await fs.writeFile(path.join(root, 'original.pdf'), 'original');
+
   if (process.platform !== 'win32') {
     await fs.symlink(path.join(root, 'original.pdf'), file);
     assert.ok((await files.save(request())).error);
     assert.equal(await fs.readFile(path.join(root, 'original.pdf'), 'utf8'), 'original');
     await fs.unlink(file);
   }
+
   const saved = await files.save(request()); assert.equal(saved.ok, true);
   chosen = path.join(root, 'other.pdf');
   const copied = await files.save(request({ id: saved.id, saveAs: true }));
@@ -50,14 +65,20 @@ test('binary validation, cancel, wrong extension, symlink, Save As and write fai
   chosen = root; assert.ok((await files.save(request())).error);
   chosen = path.join(root, 'absent', 'copy.pdf'); assert.ok((await files.save(request())).error);
 });
+
 test('gallery Trash requires membership and confirmation; failure and symlinks preserve files', async t => {
   const root = await temporary(t), file = path.join(root, 'photo.png');
   await fs.writeFile(file, 'image');
   let confirmed = false, fail = false, attempts = 0, revealed;
+
   const content = createContentFiles({ confirmTrash: async () => confirmed,
-    trashItem: async selected => { attempts++; assert.equal(selected, file); if (fail) throw new Error('Trash unavailable'); await fs.unlink(selected); },
+    trashItem: async selected => { attempts++; assert.equal(selected, file);
+
+ if (fail) throw new Error('Trash unavailable'); await fs.unlink(selected); },
     showItemInFolder: selected => { revealed = selected; } });
+
   const gallery = await content.open(file);
+
   for (const name of ['../photo.png', 'photo.png/../photo.png', 'missing.png', null]) await assert.rejects(content.trash(gallery.id, name));
   await assert.rejects(content.trash('wrong', 'photo.png'));
   assert.equal(attempts, 0);
@@ -68,6 +89,7 @@ test('gallery Trash requires membership and confirmation; failure and symlinks p
   await assert.rejects(content.trash(gallery.id, 'photo.png'), /Trash unavailable/);
   assert.equal(await fs.readFile(file, 'utf8'), 'image');
   fail = false;
+
   if (process.platform !== 'win32') {
     await fs.rename(file, path.join(root, 'target.png'));
     await fs.symlink(path.join(root, 'target.png'), file);
@@ -75,43 +97,60 @@ test('gallery Trash requires membership and confirmation; failure and symlinks p
     await assert.rejects(content.reveal(gallery.id, 'photo.png'));
     await fs.unlink(file); await fs.rename(path.join(root, 'target.png'), file);
   }
+
   const updated = await content.trash(gallery.id, 'photo.png');
   assert.deepEqual(updated.files, []); assert.equal(updated.selected, '');
 });
+
 test('gallery file/root replacement during confirmation cannot be trashed', async t => {
   const root = await temporary(t), folder = path.join(root, 'gallery'); await fs.mkdir(folder);
   const file = path.join(folder, 'photo.png'); await fs.writeFile(file, 'old');
   let trashCalls = 0;
-  const content = createContentFiles({ confirmTrash: async () => { await fs.rename(folder, path.join(root, 'old')); await fs.mkdir(folder); await fs.writeFile(file, 'replacement'); return true; }, trashItem: async () => trashCalls++ });
+
+  const content = createContentFiles({ confirmTrash: async () => { await fs.rename(folder, path.join(root, 'old')); await fs.mkdir(folder); await fs.writeFile(file, 'replacement');
+
+ return true; }, trashItem: async () => trashCalls++ });
+
   const gallery = await content.open(file);
   await assert.rejects(content.trash(gallery.id, 'photo.png'), /folder changed/);
   assert.equal(trashCalls, 0); assert.equal(await fs.readFile(file, 'utf8'), 'replacement');
 });
+
 test('gallery permission recovery accepts only the same unchanged image and retries once', async t => {
   for (const scenario of ['cancel', 'wrong file', 'same file', 'replaced', 'changed', 'metadata only', 'repeated denial']) {
     await t.test(scenario, async t => {
       const root = await temporary(t), file = path.join(root, 'photo.png'), other = path.join(root, 'other.png');
       await fs.writeFile(file, 'image'); await fs.writeFile(other, 'other');
       let attempts = 0, prompts = 0;
+
       const content = createContentFiles({ confirmTrash: async () => true,
         trashItem: async selected => {
           assert.equal(selected, file); attempts++;
+
           if (attempts === 1 || scenario === 'repeated denial') throw Object.assign(new Error('denied'), { code: 'EACCES' });
           await fs.unlink(selected);
         },
         requestTrashAccess: async selected => {
           prompts++; assert.equal(selected, file);
+
           if (scenario === 'cancel') return null;
+
           if (scenario === 'wrong file') return other;
+
           if (scenario === 'replaced') { await fs.rename(file, path.join(root, 'original.png')); await fs.writeFile(file, 'image'); }
+
           if (scenario === 'changed') {
             const stat = await fs.stat(file);
             await fs.writeFile(file, 'other'); await fs.utimes(file, stat.atime, stat.mtime);
           }
+
           if (scenario === 'metadata only') await fs.utimes(file, new Date(0), new Date(0));
+
           return file;
         } });
+
       const gallery = await content.open(file);
+
       if (scenario === 'cancel') assert.equal(await content.trash(gallery.id, 'photo.png'), null);
       else if (scenario === 'wrong file') await assert.rejects(content.trash(gallery.id, 'photo.png'), /same image/);
       else if (['replaced', 'changed'].includes(scenario)) await assert.rejects(content.trash(gallery.id, 'photo.png'), /image changed/);
@@ -120,45 +159,71 @@ test('gallery permission recovery accepts only the same unchanged image and retr
       assert.equal(prompts, 1);
       assert.equal(attempts, ['same file', 'metadata only', 'repeated denial'].includes(scenario) ? 2 : 1);
       assert.equal(await fs.readFile(other, 'utf8'), 'other');
+
       if (!['same file', 'metadata only'].includes(scenario)) assert.equal(await fs.readFile(file, 'utf8'), scenario === 'changed' ? 'other' : 'image');
     });
   }
 });
+
 test('gallery changes during a failed Trash attempt cannot become the permission snapshot', async t => {
   const root = await temporary(t), file = path.join(root, 'photo.png'); await fs.writeFile(file, 'image');
   let prompts = 0, attempts = 0;
+
   const content = createContentFiles({ confirmTrash: async () => true,
     trashItem: async () => { attempts++; await fs.writeFile(file, 'other'); throw Object.assign(new Error('denied'), { code: 'EACCES' }); },
-    requestTrashAccess: async () => { prompts++; return file; } });
+    requestTrashAccess: async () => { prompts++;
+
+ return file; } });
+
   const gallery = await content.open(file);
   const lstat = fs.lstat;
   // Exercise unchanged/coarse Windows ctime even on filesystems with fine timestamps.
-  fs.lstat = async (...args) => { const stat = await lstat(...args); if (args[0] === file && args[1]?.bigint) stat.ctimeNs = 0n; return stat; };
+  fs.lstat = async (...args) => { const stat = await lstat(...args);
+
+ if (args[0] === file && args[1]?.bigint) stat.ctimeNs = 0n;
+
+ return stat; };
+
   try { await assert.rejects(content.trash(gallery.id, 'photo.png'), /image changed/); }
   finally { fs.lstat = lstat; }
+
   assert.equal(attempts, 1); assert.equal(prompts, 0);
   assert.equal(await fs.readFile(file, 'utf8'), 'other');
 });
+
 test('ordinary Trash needs no readable snapshot, but recovery cannot proceed without one', async t => {
   for (const unreadable of [false, true]) for (const denied of [false, true]) {
     await t.test(`${unreadable ? 'unreadable' : 'oversized'}; ${denied ? 'denied' : 'ordinary move'}`, async t => {
       const root = await temporary(t), file = path.join(root, 'photo.png');
       await fs.writeFile(file, 'image');
+
       if (!unreadable) await fs.truncate(file, 101 * 1024 * 1024);
       let attempts = 0, prompts = 0;
+
       const content = createContentFiles({ confirmTrash: async () => true,
-        trashItem: async () => { attempts++; if (denied) throw Object.assign(new Error('denied'), { code: 'EACCES' }); },
-        requestTrashAccess: async () => { prompts++; return file; } });
+        trashItem: async () => { attempts++;
+
+ if (denied) throw Object.assign(new Error('denied'), { code: 'EACCES' }); },
+        requestTrashAccess: async () => { prompts++;
+
+ return file; } });
+
       const gallery = await content.open(file), open = fs.open;
-      if (unreadable) fs.open = async (...args) => { if (args[0] === file) throw Object.assign(new Error('unreadable'), { code: 'EACCES' }); return open(...args); };
+
+      if (unreadable) fs.open = async (...args) => { if (args[0] === file) throw Object.assign(new Error('unreadable'), { code: 'EACCES' });
+
+ return open(...args); };
+
       try {
         if (denied) await assert.rejects(content.trash(gallery.id, 'photo.png'), /verify.*unchanged/);
         else await content.trash(gallery.id, 'photo.png');
       } finally { fs.open = open; }
+
       assert.equal(attempts, 1); assert.equal(prompts, 0);
     });
   }
 });
+
 test('file replacement while reading the permission snapshot cannot be trashed', async t => {
   const root = await temporary(t), file = path.join(root, 'photo.png'); await fs.writeFile(file, 'image');
   let attempts = 0;
@@ -167,50 +232,68 @@ test('file replacement while reading the permission snapshot cannot be trashed',
   let replaced = false;
   fs.open = async (...args) => {
     const handle = await open(...args);
+
     if (args[0] === file && !replaced) {
       const close = handle.close.bind(handle);
-      handle.close = async () => { await close(); if (!replaced) { replaced = true; await fs.rename(file, file + '.old'); await fs.writeFile(file, 'replacement'); } };
+      handle.close = async () => { await close();
+
+ if (!replaced) { replaced = true; await fs.rename(file, file + '.old'); await fs.writeFile(file, 'replacement'); } };
     }
+
     return handle;
   };
+
   try { await assert.rejects(content.trash(gallery.id, 'photo.png'), /image changed/); }
   finally { fs.open = open; }
+
   assert.equal(attempts, 0); assert.equal(await fs.readFile(file, 'utf8'), 'replacement');
 });
+
 test('gallery access recovery recognizes native permission errors without prompting for unrelated failures', async t => {
   for (const error of [Object.assign(new Error('denied'), { code: 'EPERM' }), new Error('You do not have permission'), new Error('Operation not permitted'), new Error('Access denied'), new Error('Trash unavailable')]) {
     const root = await temporary(t), file = path.join(root, 'photo.png'); await fs.writeFile(file, 'image');
     let attempts = 0, prompts = 0;
+
     const content = createContentFiles({ confirmTrash: async () => true, trashItem: async () => { attempts++; throw error; },
-      requestTrashAccess: async () => { prompts++; return null; } });
+      requestTrashAccess: async () => { prompts++;
+
+ return null; } });
+
     const gallery = await content.open(file);
+
     if (error.message === 'Trash unavailable') await assert.rejects(content.trash(gallery.id, 'photo.png'), /Trash unavailable/);
     else assert.equal(await content.trash(gallery.id, 'photo.png'), null);
     assert.equal(attempts, 1); assert.equal(prompts, error.message === 'Trash unavailable' ? 0 : 1);
     assert.equal(await fs.readFile(file, 'utf8'), 'image');
   }
 });
+
 test('native menus dispatch commands and enable only applicable actions on every platform', () => {
   for (const platform of ['darwin', 'win32', 'linux']) {
     const events = []; let opens = 0;
     const build = state => fileMenuTemplate({ platform, state, send: (...args) => events.push(args), open: () => opens++ });
     const template = build({ kind: 'pdf', busy: false }), menu = template.find(item => item.label === 'File').submenu;
+
     for (const label of ['Save', 'Save As…', 'Export / Convert…', 'Reduce File Size…', 'Print…', 'Properties…']) assert.equal(menu.find(item => item.label === label).enabled, true);
     menu.find(item => item.label === 'Save').click(); assert.deepEqual(events.pop(), ['folio:file-command', 'save']);
     menu.find(item => item.label === 'New Tab').click(); assert.deepEqual(events.pop(), ['folio:tab-command', 'new']);
     menu.find(item => item.label === 'Open…').click(); assert.equal(opens, 1);
     assert.ok(template.some(item => item.role === 'editMenu')); assert.ok(template.some(item => item.role === 'windowMenu'));
+
     for (const state of [{ kind: 'none', busy: false }, { kind: 'pdf', busy: true }]) {
       const disabled = build(state).find(item => item.label === 'File').submenu;
       assert.equal(disabled.find(item => item.label === 'Save').enabled, false);
       assert.equal(disabled.find(item => item.label === 'Open Recent…').enabled, true);
     }
+
     assert.equal(build({ kind: 'markdown', busy: false }).find(item => item.label === 'File').submenu.find(item => item.label === 'Reduce File Size…').enabled, false);
     // A read-only workbook can only be printed.
     const workbook = build({ kind: 'workbook', busy: false }).find(item => item.label === 'File').submenu;
+
     for (const [label, enabled] of [['Print…', true], ['Open Recent…', true], ['Save', false], ['Save As…', false], ['Export / Convert…', false], ['Properties…', false]])
       assert.equal(workbook.find(item => item.label === label).enabled, enabled, label);
     const html = build({ kind: 'html', busy: false }).find(item => item.label === 'File').submenu;
+
     for (const label of ['Save', 'Save As…', 'Export / Convert…', 'Reduce File Size…', 'Print…', 'Properties…'])
       assert.equal(html.find(item => item.label === label).enabled, false, `HTML ${label}`);
     assert.equal(html.find(item => item.label === 'Open Recent…').enabled, true);
@@ -242,8 +325,10 @@ test('Markdown copies work without hard links and preserve racing destinations',
   await fs.writeFile(original, '\ufeff# Original\r\n');
   const content = createContentFiles({ chooseSavePath: async () => file });
   const opened = await content.open(original), link = fs.link;
+
   try {
     fs.link = async () => { throw Object.assign(new Error('unsupported'), { code: 'ENOTSUP' }); };
+
     assert.equal((await content.save(opened.id, '# Copy\n', true)).ok, true);
     assert.equal(await fs.readFile(file, 'utf8'), '\ufeff# Copy\r\n');
     assert.equal(await fs.readFile(original, 'utf8'), '\ufeff# Original\r\n');
@@ -251,10 +336,12 @@ test('Markdown copies work without hard links and preserve racing destinations',
     const second = createContentFiles({ chooseSavePath: async () => file });
     const source = await second.open(original);
     fs.link = async () => { await fs.writeFile(file, 'external'); throw Object.assign(new Error('unsupported'), { code: 'ENOTSUP' }); };
+
     assert.ok((await second.save(source.id, 'copy', true)).error);
     assert.equal(await fs.readFile(file, 'utf8'), 'external');
     assert.equal((await second.open(original)).id, source.id, 'failed copy retains its original capability');
   } finally { fs.link = link; }
+
   assert.equal((await fs.readdir(root)).some(name => name.startsWith('.folio-')), false);
 });
 
@@ -262,20 +349,26 @@ test('saves do not report success or advance their baseline after a post-commit 
   for (const markdown of [false, true]) {
     const root = await temporary(t), file = path.join(root, markdown ? 'notes.md' : 'copy.pdf');
     const files = markdown ? createContentFiles() : createSaveFiles({ chooseSavePath: async () => file });
+
     if (markdown) await fs.writeFile(file, 'original');
     const opened = markdown ? await files.open(file) : await files.save(request());
     assert.ok(opened.id);
     const save = () => markdown ? files.save(opened.id, 'submitted') : files.save(request({ id: opened.id }));
     const rename = fs.rename;
+
     try {
       fs.rename = async (source, destination) => {
         await rename(source, destination);
+
         if (destination === file) await fs.writeFile(file, 'external');
       };
+
       assert.deepEqual(await save(), { conflict: true });
     } finally { fs.rename = rename; }
+
     assert.equal(await fs.readFile(file, 'utf8'), 'external');
     assert.deepEqual(await save(), { conflict: true }, 'the unexpected bytes must not become a trusted save baseline');
+
     if (markdown) assert.equal((await files.open(file)).text, 'original');
     assert.equal((await fs.readdir(root)).some(name => name.startsWith('.folio-')), false);
   }
@@ -286,28 +379,36 @@ test('new saves also verify final bytes after link and exclusive-copy publicatio
     for (const fallback of [false, true]) {
       const root = await temporary(t), file = path.join(root, markdown ? 'copy.md' : 'copy.pdf');
       const original = path.join(root, 'original.md');
+
       if (markdown) await fs.writeFile(original, 'original');
       const files = markdown ? createContentFiles({ chooseSavePath: async () => file }) : createSaveFiles({ chooseSavePath: async () => file });
       const opened = markdown ? await files.open(original) : null;
       const link = fs.link, open = fs.open;
+
       try {
         fs.link = async (source, destination) => {
           if (fallback) throw Object.assign(new Error('unsupported'), { code: 'ENOTSUP' });
           await link(source, destination); await fs.writeFile(destination, 'external');
         };
+
         fs.open = async (...args) => {
           const handle = await open(...args);
+
           if (args[0] === file && args[1] === 'wx') {
             const sync = handle.sync.bind(handle);
             handle.sync = async () => { await sync(); await fs.writeFile(file, 'external'); };
           }
+
           return handle;
         };
+
         const result = markdown ? await files.save(opened.id, 'submitted', true) : await files.save(request());
         assert.deepEqual(result, { conflict: true });
         assert.equal(await fs.readFile(file, 'utf8'), 'external');
+
         if (markdown) assert.equal((await files.open(original)).id, opened.id);
       } finally { fs.link = link; fs.open = open; }
+
       assert.equal((await fs.readdir(root)).some(name => name.startsWith('.folio-')), false);
     }
   }
@@ -316,19 +417,25 @@ test('new saves also verify final bytes after link and exclusive-copy publicatio
 test('metadata-only changes between saves preserve content-based conflict protection', async t => {
   for (const markdown of [false, true]) {
     const root = await temporary(t), file = path.join(root, markdown ? 'notes.md' : 'copy.pdf');
+
     if (markdown) await fs.writeFile(file, 'original');
     const files = markdown ? createContentFiles() : createSaveFiles({ chooseSavePath: async () => file });
     const opened = markdown ? await files.open(file) : await files.save(request());
     const lstat = fs.lstat;
+
     try {
       fs.lstat = async (...args) => {
         const stat = await lstat(...args);
+
         if (args[0] === file && args[1]?.bigint) stat.ctimeNs += 1n;
+
         return stat;
       };
+
       const result = markdown ? await files.save(opened.id, 'submitted') : await files.save(request({ id: opened.id }));
       assert.equal(result.ok, true);
     } finally { fs.lstat = lstat; }
+
     assert.deepEqual(await fs.readFile(file), markdown ? Buffer.from('submitted') : Buffer.from([1, 2, 3]));
   }
 });
@@ -336,6 +443,7 @@ test('metadata-only changes between saves preserve content-based conflict protec
 test('save accepts timestamp-only updates but refuses same-byte inode replacements', async t => {
   for (const markdown of [false, true]) {
     const root = await temporary(t), file = path.join(root, markdown ? 'notes.md' : 'copy.pdf');
+
     if (markdown) await fs.writeFile(file, 'original');
     const files = markdown ? createContentFiles() : createSaveFiles({ chooseSavePath: async () => file });
     const opened = markdown ? await files.open(file) : await files.save(request());
@@ -353,28 +461,37 @@ test('save accepts timestamp-only updates but refuses same-byte inode replacemen
 test('metadata changed during save still blocks publishing stale access metadata', async t => {
   for (const markdown of [false, true]) {
     const root = await temporary(t), file = path.join(root, markdown ? 'notes.md' : 'copy.pdf');
+
     if (markdown) await fs.writeFile(file, 'original');
     const files = markdown ? createContentFiles() : createSaveFiles({ chooseSavePath: async () => file });
     const opened = markdown ? await files.open(file) : await files.save(request());
     const bytes = await fs.readFile(file), lstat = fs.lstat, open = fs.open;
     let writing = false;
+
     try {
       fs.open = async (...args) => {
         const handle = await open(...args);
+
         if (String(args[0]).includes('.folio-')) {
           const sync = handle.sync.bind(handle);
           handle.sync = async () => { await sync(); writing = true; };
         }
+
         return handle;
       };
+
       fs.lstat = async (...args) => {
         const stat = await lstat(...args);
+
         if (writing && args[0] === file && args[1]?.bigint) stat.ctimeNs += 1n;
+
         return stat;
       };
+
       const result = markdown ? await files.save(opened.id, 'submitted') : await files.save(request({ id: opened.id }));
       assert.deepEqual(result, { conflict: true });
     } finally { fs.lstat = lstat; fs.open = open; }
+
     assert.deepEqual(await fs.readFile(file), bytes);
   }
 });
@@ -383,12 +500,15 @@ test('new saves work without hard links and never overwrite a racing destination
   const root = await temporary(t), file = path.join(root, 'copy.pdf');
   const files = createSaveFiles({ chooseSavePath: async () => file });
   const link = fs.link;
+
   try {
     fs.link = async () => { throw Object.assign(new Error('unsupported'), { code: 'ENOTSUP' }); };
+
     assert.equal((await files.save(request())).ok, true);
     assert.deepEqual(await fs.readFile(file), Buffer.from([1, 2, 3]));
     await fs.unlink(file);
     fs.link = async () => { await fs.writeFile(file, 'external'); throw Object.assign(new Error('unsupported'), { code: 'ENOTSUP' }); };
+
     assert.ok((await files.save(request())).error);
     assert.equal(await fs.readFile(file, 'utf8'), 'external');
   } finally { fs.link = link; }
@@ -399,13 +519,16 @@ test('macOS replacement keeps file ACLs and excludes the staging folder ACL', { 
   const acl = file => execFileSync('/bin/ls', ['-ldebn', file], { encoding: 'utf8' }).split('\n').slice(1).join('\n');
   const root = await temporary(t);
   execFileSync('/bin/chmod', ['+a', 'user:nobody allow read,file_inherit,directory_inherit', root]);
+
   for (const markdown of [false, true]) {
     for (const restricted of [false, true]) {
       const file = path.join(root, `${markdown}-${restricted}.${markdown ? 'md' : 'pdf'}`);
       await fs.writeFile(file, 'original', { mode: 0o644 });
       execFileSync('/bin/chmod', ['-N', file]);
+
       if (restricted) execFileSync('/bin/chmod', ['+a', 'user:nobody deny read', file]);
       const before = await fs.stat(file), access = acl(file);
+
       if (markdown) {
         const content = createContentFiles(); const opened = await content.open(file);
         assert.equal((await content.save(opened.id, 'changed')).ok, true);
@@ -413,6 +536,7 @@ test('macOS replacement keeps file ACLs and excludes the staging folder ACL', { 
         const files = createSaveFiles({ chooseSavePath: async () => file });
         assert.equal((await files.save(request())).ok, true);
       }
+
       const after = await fs.stat(file);
       assert.equal(acl(file), access, 'preserve exact file ACL, without inherited grants');
       assert.equal(after.mode & 0o777, 0o644);
@@ -420,17 +544,21 @@ test('macOS replacement keeps file ACLs and excludes the staging folder ACL', { 
       assert.notEqual(after.ino, before.ino, 'replacement remains atomic, not an in-place write');
     }
   }
+
   const newFile = path.join(root, 'private.pdf');
   assert.equal((await createSaveFiles({ chooseSavePath: async () => newFile }).save(request())).ok, true);
   assert.equal((await fs.stat(newFile)).mode & 0o777, 0o600);
   assert.equal(acl(newFile), '', 'new saves do not inherit grants that bypass mode 0600');
   const fallback = path.join(root, 'fallback.pdf'), link = fs.link;
+
   try {
     fs.link = async () => { throw Object.assign(new Error('unsupported'), { code: 'ENOTSUP' }); };
+
     assert.equal((await createSaveFiles({ chooseSavePath: async () => fallback }).save(request())).ok, true);
     assert.equal(acl(fallback), '', 'copy fallback removes inherited grants before writing');
     assert.equal((await fs.stat(fallback)).mode & 0o777, 0o600);
   } finally { fs.link = link; }
+
   assert.equal((await fs.readdir(root)).some(name => name.startsWith('.folio-')), false);
 });
 
@@ -439,6 +567,7 @@ test('permission preservation errors keep originals and clean up staging files',
   await fs.writeFile(file, 'original');
   const mkdir = fs.mkdtemp;
   fs.mkdtemp = async () => { throw new Error('Cannot prepare permissions'); };
+
   try {
     const result = await createSaveFiles({ chooseSavePath: async () => file }).save(request());
     assert.match(result.error, /access permissions.*Save As/);
@@ -448,32 +577,42 @@ test('permission preservation errors keep originals and clean up staging files',
     assert.match((await content.save(opened.id, 'changed')).error, /access permissions.*Save As/);
     assert.equal(await fs.readFile(markdown, 'utf8'), 'markdown');
   } finally { fs.mkdtemp = mkdir; }
+
   assert.equal((await fs.readdir(root)).some(name => name.startsWith('.folio-')), false);
 });
 
 test('metadata helpers use native preservation and fail closed on unsupported tools or ownership', async () => {
   const vm = require('node:vm');
   const source = await fs.readFile(path.join(__dirname, '../electron/save-metadata.cjs'), 'utf8');
+
   for (const platform of ['darwin', 'linux', 'win32']) {
     for (const failure of [null, 'command', 'ownership']) {
       if (platform === 'win32' && failure === 'ownership') continue;
       const commands = [], removed = [], stat = { uid: 12n, gid: 34n, mode: 0o100640n };
       let closed = false;
+
       const handle = { close: async () => { closed = true; }, truncate: async () => {},
         stat: async () => ({ ...stat, uid: failure === 'ownership' ? 99n : stat.uid }) };
+
       const fakeFs = { mkdtemp: async () => '/folder/.folio-private', chmod: async () => {}, open: async () => handle,
         rm: async folder => removed.push(folder) };
+
       const loaded = { exports: {} };
       vm.runInNewContext(source, { module: loaded, process: { platform, env: {} }, require: name => {
         if (name === 'node:fs/promises') return fakeFs;
+
         if (name === 'node:path') return platform === 'win32' ? path.win32 : path.posix;
+
         if (name === './windows-powershell.cjs') return { systemPowerShell: () => 'system-powershell.exe' };
+
         if (name === 'node:child_process') return { execFile: (program, args, options, done) => {
           commands.push({ program, args, options });
           done(failure === 'command' ? new Error('unsupported') : null, '', '');
         } };
+
         return require(name);
       } });
+
       if (failure) {
         await assert.rejects(loaded.exports.createSaveTemp('/folder', { file: '/folder/source', stat }), /access permissions.*Save As/);
         assert.equal(closed, !(platform === 'darwin' && failure === 'command'));
@@ -481,8 +620,11 @@ test('metadata helpers use native preservation and fail closed on unsupported to
       } else {
         const pending = await loaded.exports.createSaveTemp('/folder', { file: '/folder/source', stat });
         await pending.verify(); await handle.close(); await pending.cleanup();
+
         if (platform === 'linux') assert.deepEqual(Array.from(commands[0].args), ['--attributes-only', '--preserve=mode,ownership', '--', '/folder/source', '/folder/.folio-private/save.tmp']);
+
         if (platform === 'darwin') assert.equal(commands.find(command => command.program === '/bin/cp').args[0], '-pX');
+
         if (platform === 'win32') {
           assert.equal(commands[0].options.env.FOLIO_SAVE_SOURCE, '/folder/source');
           assert.equal(commands[0].args.at(-1).includes('/folder/source'), false, 'paths are data, never PowerShell source');
@@ -498,10 +640,13 @@ test('Windows saves preserve inherited and protected DACLs and refuse unsupporte
   const { execFileSync } = require('node:child_process');
   const { systemPowerShell } = require('../electron/windows-powershell.cjs');
   const root = await temporary(t);
+
   const powershell = (script, file) => execFileSync(systemPowerShell(), ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', "$ErrorActionPreference='Stop'; $env:PSModulePath=\"$PSHOME\\Modules\";" + script], {
     encoding: 'utf8', windowsHide: true, env: { ...process.env, FOLIO_TEST_FILE: file },
   }).trim();
+
   const access = file => powershell('(Get-Acl -LiteralPath $env:FOLIO_TEST_FILE).Sddl', file);
+
   for (const markdown of [false, true]) {
     const inherited = path.join(root, markdown ? 'inherited.md' : 'inherited.pdf'); await fs.writeFile(inherited, 'original');
     const inheritedAccess = () => powershell('Get-Acl -LiteralPath $env:FOLIO_TEST_FILE | Select-Object Owner,Group,AreAccessRulesProtected,AccessToString | ConvertTo-Json -Compress', inherited);
@@ -518,24 +663,32 @@ test('Windows saves preserve inherited and protected DACLs and refuse unsupporte
     const save = () => markdown ? content.save(opened.id, 'changed') : content.save(request());
     assert.equal((await save()).ok, true); assert.equal(access(file), before);
     powershell('& "$([Environment]::SystemDirectory)\\icacls.exe" $env:FOLIO_TEST_FILE /setintegritylevel L | Out-Null; if ($LASTEXITCODE -ne 0) { throw "Cannot set test integrity label" }', file);
+
     if (markdown) await content.reload(opened.id);
     const bytes = await fs.readFile(file), labelled = access(file);
     assert.match((await save()).error, /access permissions.*Save As/);
     assert.deepEqual(await fs.readFile(file), bytes); assert.equal(access(file), labelled);
   }
+
   assert.equal((await fs.readdir(root)).some(name => name.startsWith('.folio-')), false);
 });
 
 test('Linux saves preserve POSIX ACL entries', { skip: process.platform !== 'linux' }, async t => {
   const { execFileSync } = require('node:child_process');
+
   try { execFileSync('setfacl', ['--version']); execFileSync('getfacl', ['--version']); }
-  catch { t.skip('POSIX ACL fixture utilities unavailable; native command failure remains covered by mocks'); return; }
+  catch { t.skip('POSIX ACL fixture utilities unavailable; native command failure remains covered by mocks');
+
+ return; }
+
   const root = await temporary(t);
   const access = file => execFileSync('getfacl', ['-cpn', '--', file], { encoding: 'utf8' });
+
   for (const markdown of [false, true]) {
     const file = path.join(root, markdown ? 'notes.md' : 'copy.pdf'); await fs.writeFile(file, 'original', { mode: 0o644 });
     execFileSync('setfacl', ['-m', 'u:65534:---', '--', file]);
     const before = access(file);
+
     if (markdown) {
       const content = createContentFiles(); const opened = await content.open(file);
       assert.equal((await content.save(opened.id, 'changed')).ok, true);
@@ -546,11 +699,14 @@ test('Linux saves preserve POSIX ACL entries', { skip: process.platform !== 'lin
 
 test('failed copy fallback preserves a concurrently replaced destination', async t => {
   const root = await temporary(t), open = fs.open, link = fs.link;
+
   for (const failure of ['writeFile', 'sync']) {
     const file = path.join(root, `${failure}.pdf`);
     fs.link = async () => { throw Object.assign(new Error('No hard links'), { code: 'ENOTSUP' }); };
+
     fs.open = async (...args) => {
       const handle = await open(...args);
+
       if (args[0] === file && args[1] === 'wx') {
         const operation = handle[failure].bind(handle);
         handle[failure] = async (...values) => {
@@ -560,8 +716,10 @@ test('failed copy fallback preserves a concurrently replaced destination', async
           throw Object.assign(new Error('Write failed'), { code: 'EIO' });
         };
       }
+
       return handle;
     };
+
     try {
       const result = await createSaveFiles({ chooseSavePath: async () => file }).save(request());
       assert.match(result.error, /Check the destination file.*Save As/);
@@ -569,12 +727,14 @@ test('failed copy fallback preserves a concurrently replaced destination', async
       assert.equal(await fs.readFile(file, 'utf8'), 'external replacement');
     } finally { fs.open = open; fs.link = link; }
   }
+
   assert.equal((await fs.readdir(root)).some(name => name.startsWith('.folio-')), false);
 });
 
 test('Doko labels native macOS menus independently from its credential identity', () => {
   const menu = fileMenuTemplate({ platform: 'darwin', send() {}, open() {} })[0];
   assert.equal(menu.label, 'Doko');
+
   for (const role of ['about', 'hide', 'quit']) {
     assert.match(menu.submenu.find(item => item.role === role).label, /Doko$/);
   }

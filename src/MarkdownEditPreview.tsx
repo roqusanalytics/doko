@@ -3,6 +3,7 @@ import { parseMarkdownReply, type MarkdownEdit } from "./markdownAiEdits";
 
 function DiffLines({ value, type }: { value: string; type: "removed" | "added" }) {
   if (!value) return null;
+
   return <span className={type} aria-label={type === "added" ? "Added lines" : "Removed lines"}>
     {value.split("\n").map((line, i) => <span className="markdown-diff-line" key={i}>
       <span aria-hidden="true">{type === "added" ? "+" : "−"}</span>{line}
@@ -18,12 +19,16 @@ export function MarkdownEditPreview({ reply, status, readOnly, onApply, onStatus
   onStatus: (status: "applied" | "discarded") => void;
 }) {
   const [error, setError] = useState("");
+
   const edits = useMemo(() => {
     try { return parseMarkdownReply(reply).edits; }
     catch { return null; }
   }, [reply]);
+
   if (status) return <p className="markdown-edit-status" role="status">{status === "applied" ? "Edits applied" : "Edits discarded"}</p>;
+
   if (!edits?.length) return <p className="msg-error" role="alert">Couldn’t read the suggested edits.</p>;
+
   return <div className="markdown-edit-preview">
     {edits.map(({ find, replace }, i) => <pre className="markdown-diff" key={i} aria-label={`Suggested edit ${i + 1}`}><code>
       <DiffLines value={find} type="removed" /><DiffLines value={replace} type="added" />

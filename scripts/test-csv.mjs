@@ -4,7 +4,9 @@ import test, { after } from "node:test";
 import { createServer } from "vite";
 
 const server = await createServer({ root: path.resolve(import.meta.dirname, ".."), server: { middlewareMode: true }, appType: "custom" });
+
 after(() => server.close());
+
 const csv = await server.ssrLoadModule("/src/csv.ts");
 const { parseCsv, parseCsvPinned, encodeCell, applyChanges, setCell, insertRow, deleteRow, insertColumn, deleteColumn } = csv;
 
@@ -15,6 +17,7 @@ function assertCovers(text, table) {
   const start = table.bom ? 1 : 0;
   let pos = table.rows.length ? table.rows[0].from : start;
   assert.ok(pos >= start && pos <= text.length);
+
   for (const row of table.rows) {
     assert.equal(row.from, pos);
     assert.ok(row.cells.length > 0);
@@ -22,12 +25,14 @@ function assertCovers(text, table) {
     assert.equal(row.cells.at(-1).to, row.to);
     row.cells.forEach((cell, i) => {
       assert.ok(cell.from <= cell.to);
+
       if (i) assert.equal(text[cell.from - 1], table.delimiter), assert.equal(row.cells[i - 1].to + 1, cell.from);
     });
     assert.ok(row.to <= row.end && row.end <= text.length);
     assert.ok(/^(\r\n|\r|\n|)$/.test(text.slice(row.to, row.end)));
     pos = row.end;
   }
+
   if (table.rows.length) assert.equal(pos, text.length);
   assert.equal(table.columns, Math.max(0, ...table.rows.map(r => r.cells.length)));
 }
@@ -36,7 +41,9 @@ function check(text, expected, extra = {}) {
   const table = parseCsv(text);
   assert.deepEqual(values(table), expected);
   assertCovers(text, table);
+
   for (const [key, value] of Object.entries(extra)) assert.equal(table[key], value, key);
+
   return table;
 }
 
@@ -134,8 +141,10 @@ test("malformed input never throws and keeps ranges consistent", () => {
   check('x,"a"b"c",y\n', [["x", 'ab"c"', "y"]]);
   const rand = prng(7);
   const alphabet = ['a', 'b', ',', ';', '\t', '|', '"', '"', '\n', '\r', ' ', 'sep=', '\ufeff'];
+
   for (let n = 0; n < 4000; n++) {
     let text = "";
+
     for (let k = rand() * 24 | 0; k > 0; k--) text += alphabet[rand() * alphabet.length | 0];
     const table = parseCsv(text);
     assertCovers(text, table);
@@ -170,6 +179,7 @@ test("an edited cell holding another delimiter does not change detection when th
     assert.equal(reopened.columns, table.columns, JSON.stringify(value));
     assert.equal(reopened.rows[1].cells[0].value, value);
   }
+
   assert.equal(applyChanges("name\nbob\n", setCell(parseCsv("name\nbob\n"), 1, 0, "x;y")), 'name\n"x;y"\n');
 });
 
@@ -183,6 +193,7 @@ test("applyChanges uses original offsets in any order", () => {
 
 function prng(seed) {
   let s = seed >>> 0;
+
   return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 2 ** 32);
 }
 
@@ -197,6 +208,7 @@ function reparse(out, table) {
   assertCovers(out, next);
   assert.equal(next.bom, table.bom);
   assert.equal(next.sep, table.sep);
+
   return next;
 }
 
@@ -215,8 +227,10 @@ function checkAllEdits(text, delimiterOverride) {
         const changes = setCell(table, r, c, value);
         const out = applyChanges(text, changes);
         const expected = model.map(cells => [...cells]);
+
         while (expected[r].length <= c) expected[r].push("");
         expected[r][c] = value;
+
         if (c < model[r].length && model[r][c] === value) assert.deepEqual(changes, []);
         assert.deepEqual(values(reparse(out, table)), expected, `setCell(${r},${c},${JSON.stringify(value)}) on ${JSON.stringify(text)}`);
         assertOutside(text, out, row.from, row.to);
@@ -231,8 +245,10 @@ function checkAllEdits(text, delimiterOverride) {
     expected.splice(i, 0, Array(width).fill(""));
     const next = reparse(out, table);
     assert.deepEqual(values(next), expected, `insertRow(${i}) on ${JSON.stringify(text)}`);
+
     if (i < table.rows.length) assertOutside(text, out, table.rows[i].from, table.rows[i].from);
     else assert.ok(out.startsWith(text), "append must not touch the old text");
+
     if (table.rows.length) assert.equal(next.lineEnding === table.lineEnding || table.rows.length < 2, true);
   }
 
@@ -297,6 +313,7 @@ test("every edit operation on a fixed corpus", () => {
 test("every edit operation on random well-formed tables", () => {
   const rand = prng(20260511);
   const pool = ["a", "bb", "", "", "x y", "1,5", 'q"t', "two\nlines", " sp ", "car\rret", "|pipe|", "ž ė š", "tab\tx", "semi;colon"];
+
   for (let n = 0; n < 150; n++) {
     const delimiter = [",", ";", "\t", "|"][rand() * 4 | 0];
     const eol = ["\n", "\r\n", "\r"][rand() * 3 | 0];
@@ -304,7 +321,9 @@ test("every edit operation on random well-formed tables", () => {
     const lastBlank = rows.at(-1).length === 1 && rows.at(-1)[0] === "";
     const trailing = lastBlank || rand() < 0.5;
     let text = rows.map(cells => cells.map(v => (rand() < 0.15 ? `"${v.replaceAll('"', '""')}"` : encodeCell(v, delimiter))).join(delimiter)).join(eol) + (trailing ? eol : "");
+
     if (rand() < 0.2) text = `sep=${delimiter}${eol}` + text;
+
     if (rand() < 0.3) text = "\ufeff" + text;
     const table = parseCsv(text, delimiter);
     assert.deepEqual(values(table), rows, JSON.stringify(text));
@@ -370,7 +389,10 @@ test("emptying the only cell of an unterminated last row keeps the row", () => {
 });
 
 test("edits at the end of an unterminated quoted cell close the quote first", () => {
-  const edit = (text, make) => { const table = parseCsv(text, ","); const out = applyChanges(text, make(table, text)); return [out, values(parseCsv(out, ","))]; };
+  const edit = (text, make) => { const table = parseCsv(text, ","); const out = applyChanges(text, make(table, text));
+
+ return [out, values(parseCsv(out, ","))]; };
+
   assert.equal(parseCsv('a,"b', ",").unterminated, true);
   assert.equal(parseCsv('a,"b"', ",").unterminated, false);
   assert.equal(parseCsv('a,"b""', ",").unterminated, true, "an escaped quote at the end does not close it");
@@ -389,6 +411,7 @@ test("edits at the end of an unterminated quoted cell close the quote first", ()
 
 test("performance: ~5 MB, 100k rows parse quickly", () => {
   const parts = [];
+
   for (let i = 0; i < 100_000; i++) parts.push(`${i};"name ${i}, ""x""";${(i % 97) / 7};2026-05-11;some longer free text value here\r\n`);
   const text = parts.join("");
   assert.ok(text.length > 5_000_000, `generated ${text.length}`);

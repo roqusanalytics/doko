@@ -7,11 +7,15 @@ import path from 'node:path';
 import { electronPath } from './electron-path.mjs';
 import { readerPage } from './reader-page.mjs';
 import { assertHidden, closeHidden } from './hidden-window.mjs';
+
 const root = path.resolve(import.meta.dirname, '..');
 const temp = mkdtempSync(path.join(tmpdir(), 'folio-draw-layering-'));
 const env = { ...process.env, FOLIO_TEST_USER_DATA: path.join(temp, 'profile'), FOLIO_TEST_HIDDEN: '1' };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const app = await electron.launch({ executablePath: electronPath(env), env, args: [root, '--mute-audio', ...(process.platform === 'linux' && process.getuid?.() === 0 ? ['--no-sandbox'] : [])] });
+
 try {
   const page = readerPage(await app.firstWindow());
   await page.getByRole('button', { name: /Try a sample/ }).click();
@@ -28,11 +32,14 @@ try {
   await page.locator('.annotationEditorLayer .inkEditor.selectedEditor').waitFor();
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Comma' : 'Control+Comma');
   await page.locator('.modal-backdrop').waitFor();
+
   const covered = await editor.evaluate(ed => {
     const r = ed.getBoundingClientRect();
+
     return [[.5, .5], [0, 0], [1, 0], [0, 1], [1, 1]].every(([fx, fy]) =>
       !ed.contains(document.elementFromPoint(r.x + r.width * fx + (fx ? -2 : 2), r.y + r.height * fy + (fy ? -2 : 2))));
   });
+
   assert.ok(covered, 'selected drawing or its handles render above the Settings dialog');
   console.log('ok  selected drawing stays under the Settings dialog');
   await assertHidden(app);

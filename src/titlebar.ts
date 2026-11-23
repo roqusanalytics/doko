@@ -7,6 +7,7 @@ export function trackTitlebar(header: HTMLElement) {
   area.setAttribute("aria-hidden", "true");
   host.body.append(area);
   const controls = header.querySelectorAll<HTMLElement>("button, .segmented");
+
   const update = () => {
     const style = getComputedStyle(header);
     const left = parseFloat(style.paddingLeft);
@@ -17,12 +18,15 @@ export function trackTitlebar(header: HTMLElement) {
       const hole = host.createElement("span");
       hole.style.left = x - left + "px";
       hole.style.width = width + "px";
+
       return hole;
     }));
   };
+
   const observer = new ResizeObserver(update);
   observer.observe(header);
   controls.forEach(button => observer.observe(button));
   update();
+
   return () => { observer.disconnect(); area.remove(); };
 }

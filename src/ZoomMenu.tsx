@@ -7,6 +7,7 @@ const PRESETS: { value: string; label: string; icon?: IconName }[] = [
   { value: "page-width", label: "Fit width", icon: "fitWidth" },
   { value: "page-fit", label: "Fit page", icon: "fitPage" },
 ];
+
 const LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 
 export function ZoomMenu({
@@ -27,11 +28,13 @@ export function ZoomMenu({
   const panel = useRef<HTMLDivElement>(null);
   const open = useAnchoredPopover(trigger, panel);
   const ratio = photo ? 0.75 : 1;
+
   const pick = (value: string) => {
     panel.current?.hidePopover();
     trigger.current?.focus();
     onPick(value);
   };
+
   const presets = photo ? [
     { value: "auto", label: "Automatic" },
     { value: "page-fit", label: "Fit image", icon: "fitPage" as IconName },

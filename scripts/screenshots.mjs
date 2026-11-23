@@ -12,27 +12,35 @@ import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
 const out = path.join(root, "release", "capture-fixtures", "readme");
+
 mkdirSync(out, { recursive: true });
 
 const env = { ...process.env, FOLIO_TEST_USER_DATA: mkdtempSync(path.join(tmpdir(), "folio-shots-")), FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const app = await electron.launch({ executablePath: electronPath(env), args: [root, "--mute-audio", "--force-device-scale-factor=2"], env, timeout: 60_000 });
+
 try {
   const page = readerPage(await app.firstWindow());
   assert.ok(await app.evaluate(({ app }) => app.commandLine.hasSwitch("mute-audio")));
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1400, 880));
+
   const shot = async (name) => {
     await page.waitForTimeout(800);
     await page.screenshot({ path: path.join(out, `${name}.png`) });
     console.log("saved", name);
   };
+
   const pageText = () => page.locator(".textLayer span:not(.markedContent)").first().waitFor({ timeout: 30_000 });
+
   // Startup reopens the last document, so a reload is how the theme changes here.
   const theme = async (name) => {
     await page.evaluate((name) => localStorage.setItem("folio:theme", name), name);
     await page.reload();
     await pageText();
   };
+
   const highlight = async (text, color) => {
     await page.evaluate((text) => {
       const span = [...document.querySelectorAll(".textLayer span:not(.markedContent)")].find((s) => s.textContent.includes(text));
@@ -67,6 +75,7 @@ try {
     ipcMain.handle("folio:ai-ask", (event, { id }) => {
       event.sender.send("folio:ai-event", { id, type: "delta", text: answer });
       event.sender.send("folio:ai-event", { id, type: "done" });
+
       return true;
     });
   }, "This sample is a tour of Doko's reading tools.\n\n- **Navigate:** scroll, use thumbnails or the outline, and adjust zoom. (p. 1)\n- **Highlight and annotate:** add color, notes, drawings, text, and a signature. (p. 2)\n- **Ask AI:** explore the document with page citations. (p. 3)\n- **Save or print:** keep a copy with your annotations. (p. 4)");

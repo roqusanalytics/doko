@@ -41,6 +41,7 @@ export function Sidebar({ pdf, page, rotation, onSelectPage, onSelectDest, order
     <PageOrganizer pdf={pdf} page={page} rotation={rotation} onSelect={onSelectPage}
       order={order} onOrder={onOrder} onSave={onSaveOrder} onOpenCopy={onOpenCopy} />
   );
+
   return (
     <aside className={`sidebar tab-${tab}`}>
       <div className="sidebar-tabs" role="tablist">
@@ -95,6 +96,7 @@ export function Sidebar({ pdf, page, rotation, onSelectPage, onSelectDest, order
 function OutlineNode({ item, onSelect, depth }: { item: OutlineItem; onSelect: (d: unknown) => void; depth: number }) {
   const [open, setOpen] = useState(depth === 0 && item.items.length < 12);
   const hasKids = item.items.length > 0;
+
   return (
     <li>
       <div className="outline-row" style={{ paddingLeft: 8 + depth * 14 }}>
@@ -140,9 +142,11 @@ function PageOrganizer({ pdf, page, rotation, onSelect, order, onOrder, onSave, 
   const changed = order.some((n, i) => n !== i + 1);
 
   const select = (n: number) => { setSelected(n); onSelect(n); };
+
   const move = (source: number, to: number) => {
     if (saving || !Number.isInteger(to) || to < 1 || to > order.length) return;
     const from = order.indexOf(source);
+
     if (from < 0 || from === to - 1) return;
     const next = order.slice();
     next.splice(from, 1);
@@ -150,9 +154,11 @@ function PageOrganizer({ pdf, page, rotation, onSelect, order, onOrder, onSave, 
     onOrder(next);
     select(source);
   };
+
   const save = async () => {
     if (saving || !changed) return;
     setSaving(true);
+
     try {
       await onSave();
     } finally {
@@ -203,10 +209,12 @@ function PageExportMenu({ target, count, onExport, onClose }: {
   }, [target]);
   useEffect(() => {
     const outside = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) onClose(); };
+
     window.addEventListener("pointerdown", outside, true);
     window.addEventListener("scroll", onClose, true);
     window.addEventListener("resize", onClose);
     window.addEventListener("blur", onClose);
+
     return () => {
       window.removeEventListener("pointerdown", outside, true);
       window.removeEventListener("scroll", onClose, true);
@@ -215,6 +223,7 @@ function PageExportMenu({ target, count, onExport, onClose }: {
     };
   }, [onClose]);
   const dismiss = () => { onClose(); target.thumbnail.focus({ preventScroll: true }); };
+
   return createPortal(
     <div ref={ref} className="menu page-export-menu" role="menu" aria-label="Page actions" onKeyDown={e => {
       if (e.key === "Escape" || e.key === "Tab") { e.stopPropagation(); dismiss(); }
@@ -238,10 +247,13 @@ function Thumbnails({ pdf, page, rotation, onSelect, order, onMove, onExportPage
   const [dropTarget, setDropTarget] = useState<number | null>(null);
   const [sizes, setSizes] = useState<(PageSize | undefined)[] | null>(null);
   const [range, setRange] = useState({ start: 0, end: 12 });
+
   const pages = useMemo(() => {
     if (order || !bookmarkedOnly) return order;
+
     return (bookmarkedPages ?? []).filter(n => Number.isInteger(n) && n >= 1 && n <= pdf.numPages);
   }, [order, bookmarkedOnly, bookmarkedPages, pdf.numPages]);
+
   const count = pages?.length ?? pdf.numPages;
   const [picked, setPicked] = useState<Set<number> | null>(null);
   const anchor = useRef<number | null>(null);
@@ -251,26 +263,36 @@ function Thumbnails({ pdf, page, rotation, onSelect, order, onMove, onExportPage
     setMenu(null);
     anchor.current = null;
   }, [bookmarkedOnly]);
+
   const selected = useMemo(() => {
     const selection = picked ?? new Set([page]);
+
     return bookmarkedOnly && pages ? new Set(pages.filter(n => selection.has(n))) : selection;
   }, [picked, page, pages, bookmarkedOnly]);
+
   const select = (n: number, e: ReactMouseEvent) => {
-    if (!onExportPages) { onSelect(n); return; }
+    if (!onExportPages) { onSelect(n);
+
+ return; }
+
     const toggle = IS_MAC ? e.metaKey : e.ctrlKey;
+
     if (e.shiftKey) {
       const base = anchor.current ?? page;
       const start = pages && !pages.includes(base) ? n : base;
       const first = Math.min(start, n), last = Math.max(start, n);
       const next = toggle ? new Set(selected) : new Set<number>();
+
       if (pages) {
         for (const i of pages) if (i >= first && i <= last) next.add(i);
       } else {
         for (let i = first; i <= last; i++) next.add(i);
       }
+
       setPicked(next);
     } else if (toggle) {
       const next = new Set(selected);
+
       if (next.has(n)) next.delete(n); else next.add(n);
       setPicked(next);
       anchor.current = n;
@@ -280,12 +302,16 @@ function Thumbnails({ pdf, page, rotation, onSelect, order, onMove, onExportPage
       onSelect(n);
     }
   };
+
   const openMenu = (thumbnail: HTMLButtonElement, x: number, y: number) => {
     const n = Number(thumbnail.dataset.page);
+
     if (selected.has(n)) setPicked(selected);
     else { setPicked(new Set([n])); anchor.current = n; }
+
     setMenu({ x, y, thumbnail });
   };
+
   const rangeRef = useRef(range);
   rangeRef.current = range;
   const pagesRef = useRef(pages);
@@ -304,18 +330,23 @@ function Thumbnails({ pdf, page, rotation, onSelect, order, onMove, onExportPage
     setSizes(null);
     const known: (PageSize | undefined)[] = new Array(pdf.numPages);
     let frame = 0;
+
     const loader = loadPageSizes(pdf, (index, size) => {
       known[index] = size;
+
       if (!frame) frame = requestAnimationFrame(() => {
         frame = 0;
         setSizes(known.slice());
       });
     });
+
     loaderRef.current = loader;
     loader.prioritize(rangeRef.current.start, rangeRef.current.end, pagesRef.current);
+
     return () => {
       loader.stop();
       cancelAnimationFrame(frame);
+
       if (loaderRef.current === loader) loaderRef.current = null;
     };
   }, [pdf]);
@@ -330,26 +361,31 @@ function Thumbnails({ pdf, page, rotation, onSelect, order, onMove, onExportPage
   useLayoutEffect(() => {
     const previous = anchorRef.current;
     anchorRef.current = { pdf, tops: layout.tops };
+
     if (previous.pdf !== pdf || previous.tops === layout.tops) return;
     const scroll = listRef.current!.parentElement!;
     const next = anchoredScrollTop(previous.tops, layout.tops, scroll.scrollTop);
+
     if (Math.abs(next - scroll.scrollTop) >= 1) scroll.scrollTop = next;
   }, [pdf, layout]);
 
   useEffect(() => {
     const scroll = listRef.current!.parentElement!;
     let frame = 0;
+
     const measure = () => {
       frame = 0;
       const start = Math.max(0, Math.min(count - 1, rowAt(layout.tops, scroll.scrollTop) - 4));
       const end = Math.min(count, rowAt(layout.tops, scroll.scrollTop + scroll.clientHeight) + 5);
       setRange(previous => previous.start === start && previous.end === end ? previous : { start, end });
     };
+
     const schedule = () => { if (!frame) frame = requestAnimationFrame(measure); };
     const observer = new ResizeObserver(schedule);
     observer.observe(scroll);
     scroll.addEventListener("scroll", schedule, { passive: true });
     measure();
+
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
@@ -365,6 +401,7 @@ function Thumbnails({ pdf, page, rotation, onSelect, order, onMove, onExportPage
     const scroll = listRef.current!.parentElement!;
     const top = tops[activeIndex] ?? 0;
     const rowHeight = (tops[activeIndex + 1] ?? top) - top;
+
     if (top < scroll.scrollTop || top + rowHeight > scroll.scrollTop + scroll.clientHeight) {
       scroll.scrollTop = Math.max(0, top - (scroll.clientHeight - rowHeight) / 2);
       scroll.dispatchEvent(new Event("scroll"));
@@ -374,13 +411,16 @@ function Thumbnails({ pdf, page, rotation, onSelect, order, onMove, onExportPage
   const total = layout.tops[count];
   // The first render, before anything is measured, can ask for more rows than a short document has.
   const end = Math.min(range.end, count);
+
   return (
     <div className="thumbs" ref={listRef} style={{ gap: 0 }}
       onContextMenu={e => {
         if (!onExportPages) return;
         const target = e.target as Element;
+
         if (!target.closest(".thumb, .thumb-num")) return;
         const thumbnail = target.closest(".thumb-row")?.querySelector<HTMLButtonElement>(".thumb");
+
         if (!thumbnail) return;
         e.preventDefault();
         openMenu(thumbnail, e.clientX, e.clientY);
@@ -388,6 +428,7 @@ function Thumbnails({ pdf, page, rotation, onSelect, order, onMove, onExportPage
       onKeyDown={e => {
         if (!onExportPages || !(e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))) return;
         const thumbnail = (e.target as Element).closest<HTMLButtonElement>(".thumb");
+
         if (!thumbnail) return;
         e.preventDefault(); e.stopPropagation();
         const box = thumbnail.getBoundingClientRect();
@@ -396,6 +437,7 @@ function Thumbnails({ pdf, page, rotation, onSelect, order, onMove, onExportPage
       onDragStart={e => {
         if (!onMove) return;
         const source = thumbPage(e.target);
+
         if (!source) return;
         // The virtual list may unmount the source before dragend. Keep this drag out of the file opener.
         e.stopPropagation();
@@ -414,6 +456,7 @@ function Thumbnails({ pdf, page, rotation, onSelect, order, onMove, onExportPage
         if (!onMove || !order || !e.dataTransfer.types.includes(dragType)) return;
         e.preventDefault();
         const target = thumbPage(e.target);
+
         if (target) onMove(Number(e.dataTransfer.getData(dragType)), order.indexOf(target) + 1);
         setDropTarget(null);
       }}
@@ -426,6 +469,7 @@ function Thumbnails({ pdf, page, rotation, onSelect, order, onMove, onExportPage
       {Array.from({ length: Math.max(0, end - range.start) }, (_, i) => {
         const index = range.start + i;
         const n = pages?.[index] ?? index + 1;
+
         return <Thumb key={`${n}-${rotation}`} pdf={pdf} n={n} size={layout.frames[index]} rotation={rotation} active={page === n}
           selected={onExportPages ? selected.has(n) : undefined} showSelection={picked !== null || !!menu}
           bookmarked={bookmarkedPages?.includes(n)} onToggleBookmark={onToggleBookmark}
@@ -476,6 +520,7 @@ const Thumb = memo(function Thumb({
     const el = ref.current!;
     let cancelled = false;
     const controller = new AbortController();
+
     const io = new IntersectionObserver(
       (entries) => {
         if (!entries[0].isIntersecting) return;
@@ -486,7 +531,9 @@ const Thumb = memo(function Thumb({
       },
       { rootMargin: "400px 0px" },
     );
+
     io.observe(el);
+
     return () => {
       cancelled = true;
       controller.abort();

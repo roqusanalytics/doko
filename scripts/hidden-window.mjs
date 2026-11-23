@@ -5,11 +5,14 @@ import { execFileSync } from "node:child_process";
 export async function assertHidden(app) {
   const visible = await app.evaluate(({ BrowserWindow, app, screen }) => {
     const displays = screen.getAllDisplays().map(display => display.bounds);
+
     const onDisplay = bounds => displays.some(display => bounds.x < display.x + display.width
       && bounds.x + bounds.width > display.x && bounds.y < display.y + display.height && bounds.y + bounds.height > display.y);
+
     return { onScreen: BrowserWindow.getAllWindows().filter(window => window.isVisible() && onDisplay(window.getBounds())).length,
       dock: process.platform === "darwin" ? app.dock.isVisible() : false };
   });
+
   assert.deepEqual(visible, { onScreen: 0, dock: false }, "the test app appeared on the user's screen");
 }
 
@@ -21,6 +24,7 @@ export async function closeHidden(app) {
     app.removeAllListeners("window-all-closed");
     BrowserWindow.getAllWindows().forEach(window => window.destroy());
   });
+
   // Playwright uses a cmd.exe launcher on Windows; killing only it leaves Electron alive.
   if (process.platform === "win32") execFileSync("taskkill", ["/PID", String(app.process().pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
   else app.process().kill("SIGKILL");

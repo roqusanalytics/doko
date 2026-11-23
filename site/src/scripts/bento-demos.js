@@ -6,34 +6,49 @@ import { gsap } from "gsap";
 // transform-origin 0 0, so screen distances are divided by its scale. Measured when a tween starts.
 const box = (root, el) => {
   const r = el.getBoundingClientRect(), o = root.getBoundingClientRect(), z = gsap.getProperty(root, "scale") || 1;
+
   return { x: (r.left - o.left) / z, y: (r.top - o.top) / z, w: r.width / z, h: r.height / z };
 };
 
 export function bentoDemos(live) {
   const timelines = [], snapshots = [];
+
   const scene = (cell, build) => {
     const root = document.querySelector(`[data-cell="${cell}"] .demo`);
+
     if (!root) return;
     snapshots.push([root, root.innerHTML]); // classes and text the loops change; restored when motion stops
     const q = s => root.querySelector(s), qa = s => [...root.querySelectorAll(s)];
     const ptr = q('.ptr');
     const tl = gsap.timeline({ repeat: -1, repeatDelay: .8, scrollTrigger: live(root) });
+
     // Point at a spot of an element: fx/fy are fractions of its box.
-    const at = (el, fx = .5, fy = .5) => () => { const b = box(root, typeof el === 'function' ? el() : el); return { x: b.x + b.w * fx, y: b.y + b.h * fy }; };
+    const at = (el, fx = .5, fy = .5) => () => { const b = box(root, typeof el === 'function' ? el() : el);
+
+ return { x: b.x + b.w * fx, y: b.y + b.h * fy }; };
+
     // A hand moves in arcs: x and y ease differently, so the path curves instead of running on a ruler.
     const move = (target, t, d = .7) => tl.to(ptr, { x: () => target().x, duration: d, ease: 'power3.inOut' }, t)
       .to(ptr, { y: () => target().y, duration: d, ease: 'power2.inOut' }, t);
+
     // A click: the cursor dips, a soft ring opens where it landed, and the pressed control (if given) gives way.
     const ring = document.createElement('i'); ring.className = 'tap'; root.append(ring);
+
     const click = (t, el) => {
       tl.to(ptr, { scale: .82, duration: .08, yoyo: true, repeat: 1, ease: 'power1.inOut' }, t)
         .fromTo(ring, { x: () => gsap.getProperty(ptr, 'x'), y: () => gsap.getProperty(ptr, 'y'), scale: .2, opacity: .9 }, { scale: 1, opacity: 0, duration: .55, ease: 'expo.out', immediateRender: false }, t);
+
       if (el) tl.to(el, { scale: .94, duration: .08, yoyo: true, repeat: 1, ease: 'power1.inOut' }, t);
     };
+
     // The camera leans in on the action (z > 1) and back out (z = 1), keeping the chosen point steady.
     const cam = (point, z, t, d = 1.1) => tl.to(root, { scale: z, x: () => -point().x * (z - 1), y: () => -point().y * (z - 1), duration: d, ease: 'power2.inOut' }, t);
+
     // People type in bursts: a little jitter in the rhythm reads as a hand, not a script.
-    const type = (el, text, t, step = .05) => { tl.call(() => { el.textContent = ''; }, null, t); let at2 = t; [...text].forEach((ch, n) => { tl.call(() => { el.textContent += ch; }, null, at2); at2 += step * (ch === ' ' ? 1.8 : .7 + ((n * 37) % 7) / 10); }); return at2; };
+    const type = (el, text, t, step = .05) => { tl.call(() => { el.textContent = ''; }, null, t); let at2 = t; [...text].forEach((ch, n) => { tl.call(() => { el.textContent += ch; }, null, at2); at2 += step * (ch === ' ' ? 1.8 : .7 + ((n * 37) % 7) / 10); });
+
+ return at2; };
+
     tl.set(root, { scale: 1, x: 0, y: 0, transformOrigin: '0 0' }, 0)
       .set(ptr, { opacity: 1, x: () => root.clientWidth * .78, y: () => root.clientHeight * .85 }, 0);
     build({ root, tl, q, qa, ptr, at, move, click, type, cam });
@@ -45,7 +60,11 @@ export function bentoDemos(live) {
   // Highlight: select a phrase, pick a colour in the selection bar, type a note, watch it land in Notes.
   scene('hl', ({ root, tl, q, qa, at, move, click, type, cam }) => {
     const marks = qa('.mk'), notes = qa('.hl-note'), sel = q('.sel'), bar = q('.hl-bar'), dots = qa('.hl-bar > i'), field = q('.hl-field');
-    const first = m => () => { const r = m.getClientRects()[0], o = root.getBoundingClientRect(), z = gsap.getProperty(root, 'scale') || 1; return { x: (r.left - o.left) / z, y: (r.top - o.top) / z, w: r.width / z, h: r.height / z }; };
+
+    const first = m => () => { const r = m.getClientRects()[0], o = root.getBoundingClientRect(), z = gsap.getProperty(root, 'scale') || 1;
+
+ return { x: (r.left - o.left) / z, y: (r.top - o.top) / z, w: r.width / z, h: r.height / z }; };
+
     tl.set(marks, { '--hw': '0%' }, 0).set(notes, { opacity: 0, x: -12 }, 0).set([sel, bar], { opacity: 0 }, 0);
     [[0, 1], [1, 0]].forEach(([m, c], k) => {
       const t = .4 + k * 5.4, fr = first(marks[m]);
@@ -130,7 +149,9 @@ export function bentoDemos(live) {
     tl.to(boxEl, { opacity: 1, duration: .2 }, 3.05);
     move(at(stamp, 1, 1), 3.3, .5);
     tl.to(stamp, { scale: 1.12, duration: .5, ease: 'power2.inOut' }, 3.9);
-    move(() => { const b = box(root, stamp); return { x: b.x + b.w * 1.12, y: b.y + b.h * 1.12 }; }, 3.9, .5);
+    move(() => { const b = box(root, stamp);
+
+ return { x: b.x + b.w * 1.12, y: b.y + b.h * 1.12 }; }, 3.9, .5);
     tl.set(ok, { x: () => box(root, stamp).x + box(root, stamp).w * .3 - box(root, ok).x + gsap.getProperty(ok, 'x'), y: () => box(root, stamp).y + box(root, stamp).h * 1.25 - box(root, ok).y + gsap.getProperty(ok, 'y') }, 4.5)
       .to(ok, { opacity: 1, duration: .3 }, 4.5);
     cam(() => ({ x: 0, y: 0 }), 1, 4.2, .8); // step back so Approve, below the line, is in view
@@ -175,7 +196,9 @@ export function bentoDemos(live) {
     cam(at(frame, .5, .5), 1.18, 1.3, 1.6);
     move(at(frame, 1, 1), 1.4, .6);
     tl.to(frame, { width: '72%', height: '74%', duration: .9, ease: 'power2.inOut' }, 2.1);
-    move(() => { const f = at(frame, 1, 1)(); return { x: f.x - (f.x - at(frame, 0, 0)().x) * .28, y: f.y - (f.y - at(frame, 0, 0)().y) * .26 }; }, 2.1, .9);
+    move(() => { const f = at(frame, 1, 1)();
+
+ return { x: f.x - (f.x - at(frame, 0, 0)().x) * .28, y: f.y - (f.y - at(frame, 0, 0)().y) * .26 }; }, 2.1, .9);
     move(at(apply), 3.2, .6);
     click(3.85, apply);
     cam(() => ({ x: 0, y: 0 }), 1, 3.9, .9);
@@ -192,9 +215,11 @@ export function bentoDemos(live) {
     const [box, arrow] = qa('.cv-you .cv-draw'), label = q('.cv-you .cv-label'), word = label.textContent;
     const made = qa('.cv-ai-made > *');
     const tool = el => () => [rectTool, arrowTool, aiBtn].forEach(b => b.classList.toggle('on', b === el));
+
     // round line caps show as dots at offset 1, so each stroke stays hidden until it starts drawing; fills follow the stroke
     const draw = (el, t, d) => tl.set(el, { opacity: 1 }, t).to(el, { strokeDashoffset: 0, duration: d, ease: 'power2.inOut' }, t)
       .to(el, { fillOpacity: 1, duration: .4 }, t + d * .7);
+
     tl.set([box, arrow, ...made], { strokeDashoffset: 1, opacity: 0, fillOpacity: 0 }, 0)
       .set(ask, { opacity: 0, y: 8 }, 0).call(() => { label.textContent = ''; field.textContent = ''; tool(null)(); }, null, 0);
     move(at(rectTool), .3, .6);
@@ -227,7 +252,9 @@ export function bentoDemos(live) {
   // Positions are measured when tweens first run; after a resize they must be measured again.
   let pending = 0;
   const remeasure = () => { cancelAnimationFrame(pending); pending = requestAnimationFrame(() => timelines.forEach(t => t.invalidate())); };
+
   addEventListener('resize', remeasure);
+
   return () => {
     removeEventListener('resize', remeasure);
     cancelAnimationFrame(pending);

@@ -14,6 +14,7 @@ const fileTypes: { type: OpenFileType; name: string; hint: string; icon: IconNam
 
 export function openDocumentTypes(desktop: boolean) {
   if (desktop) return fileTypes;
+
   return fileTypes.filter(({ type }) => type !== "word")
     .map(format => format.type === "excel" ? { ...format, name: "CSV" } : format);
 }

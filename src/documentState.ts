@@ -1,6 +1,7 @@
 // Draft state of the one document a reader tab holds. See "Document state" in GLOSSARY.md and docs/specs/document-state.md.
 
 export type PageDraft = { order: number[]; copy?: Uint8Array };
+
 export type DocumentIdentity = { id: string; name: string; sourceId?: string; saveKey: string; photoName?: string; photoKey?: string };
 
 /** `reading` is the photo's notes and bookmarks, kept opaque with its draft. */
@@ -8,13 +9,16 @@ export type ExportedCopy = { bytes: Uint8Array; annotated: boolean; blob: Blob; 
 
 /** An edited photo kept in memory while another photo of the gallery is open. */
 export type PhotoDraft = { bytes: Uint8Array; dirty: boolean; reading?: unknown };
+
 export type PhotoDrafts = {
   /** The id of the open photo's document when it matches what was last saved or opened. */
   savedId: string;
   dirty: ReadonlySet<string>;
   drafts: ReadonlyMap<string, PhotoDraft>;
 };
+
 export type SavedCopy = { bytes: Uint8Array; blob: Blob; name: string; annotated: boolean; pageOrder: number[] | undefined };
+
 /** What keeping the copy's notes, conversation and version history produced. */
 export type RecordResult = { dataFailed: boolean; messages: string[] };
 
@@ -87,9 +91,11 @@ function derive(inputs: Inputs): DocumentStateSnapshot {
   const { doc, dirty, editorDirty, pageDraft, photos } = inputs;
   const pageOrder = pageDraft?.order.some((n, i) => n !== i + 1) ? pageDraft.order : undefined;
   const currentPhotoDirty = dirty || editorDirty || (!!doc && doc.id !== (photos?.savedId ?? ""));
+
   const unsaved = !!inputs.storageError || inputs.aiStorageError || (photos
     ? currentPhotoDirty || photos.dirty.size > 0
     : !!doc?.sourceId || dirty || editorDirty || (!!pageOrder && !pageDraft?.copy));
+
   return { ...inputs, pageOrder, currentPhotoDirty, unsaved, copyName: copyNameFor(doc, pageOrder),
     canUndoOperation: !!doc && inputs.operationUndo?.doc === doc };
 }
@@ -110,13 +116,16 @@ export class DocumentState {
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
+
     return () => { this.listeners.delete(listener); };
   };
 
   private set(patch: Partial<Inputs>) {
     const current = this.state as Inputs;
+
     if ((Object.keys(patch) as (keyof Inputs)[]).every(key => Object.is(current[key], patch[key]))) return;
     this.state = derive({ ...current, ...patch });
+
     for (const listener of this.listeners) listener();
   }
 
@@ -136,6 +145,7 @@ export class DocumentState {
   clean(revision?: number) {
     if (revision !== undefined && revision !== this.state.revision) return false;
     this.set({ dirty: false });
+
     return true;
   }
 
@@ -164,10 +174,13 @@ export class DocumentState {
 
   private keepPhoto(name: string, draft: PhotoDraft | undefined, dirty: boolean, savedId?: string) {
     const photos = this.state.photos;
+
     if (!photos) return;
     const drafts = new Map(photos.drafts);
+
     if (draft) drafts.set(name, draft);
     const dirtyPhotos = new Set(photos.dirty);
+
     if (dirty) dirtyPhotos.add(name); else dirtyPhotos.delete(name);
     this.setPhotos({ drafts, dirty: dirtyPhotos, ...(savedId === undefined ? {} : { savedId }) });
   }
@@ -176,6 +189,7 @@ export class DocumentState {
   leavePhoto(bytes: Uint8Array, reading: unknown) {
     const name = this.state.doc?.photoName;
     const photos = this.state.photos;
+
     if (!name || !photos) return;
     const changed = this.state.currentPhotoDirty;
     this.keepPhoto(name, changed || photos.drafts.has(name) ? { bytes, dirty: changed, reading } : undefined, changed);
@@ -184,6 +198,7 @@ export class DocumentState {
   /** A photo finished opening; it counts as saved unless it came from a draft with unsaved changes. */
   photoOpened() {
     const { doc, photos } = this.state;
+
     if (!doc?.photoName || !photos) return;
     this.setPhotos({ savedId: photos.drafts.get(doc.photoName)?.dirty ? "" : doc.id });
   }
@@ -194,6 +209,7 @@ export class DocumentState {
   /** The photo's original left the folder. */
   forgetPhoto(name: string) {
     const photos = this.state.photos;
+
     if (!photos?.drafts.has(name)) return;
     const drafts = new Map(photos.drafts);
     drafts.delete(name);
@@ -203,6 +219,7 @@ export class DocumentState {
   /** Stored notes were cleared, so drafts must not bring them back. */
   forgetPhotoReadings() {
     const photos = this.state.photos;
+
     if (!photos?.drafts.size) return;
     this.setPhotos({ drafts: new Map([...photos.drafts].map(([name, { reading: _, ...draft }]) => [name, draft])) });
   }
@@ -210,6 +227,7 @@ export class DocumentState {
   /** An operation replaced the open document with an edited copy; `bytes` is the document before it. */
   operationApplied(bytes: Uint8Array, details: unknown) {
     const doc = this.state.doc;
+
     if (!doc) return;
     this.set({ revision: this.state.revision + 1, dirty: true, pageDraft: null, operationUndo: { doc, bytes, details } });
   }
@@ -220,12 +238,17 @@ export class DocumentState {
    */
   async undoOperation(reopen: (undo: OperationUndo) => Promise<boolean>): Promise<UndoResult> {
     const undo = this.state.operationUndo;
+
     if (!undo) return { status: "skipped" };
+
     try {
       if (!this.state.canUndoOperation) throw new Error("A newer content edit is active. Save it before returning to an earlier document version.");
+
       if (this.state.pageOrder) throw new Error("Finish or cancel page reordering before undoing this edit.");
+
       if (!await reopen(undo)) return { status: "skipped" };
       this.set({ revision: this.state.revision + 1, dirty: true, operationUndo: null });
+
       return { status: "undone" };
     } catch (error) {
       return { status: "failed", error: error as Error };
@@ -239,54 +262,73 @@ export class DocumentState {
   async save(request: { format: "pdf" | "png"; saveAs: boolean }, adapters: SaveAdapters): Promise<SaveResult> {
     const doc = this.state.doc;
     const pdf = request.format === "pdf";
+
     if (this.state.saving || !doc || (!pdf && !doc.photoName)) return { status: "skipped" };
     const { revision, pageOrder, dirty: wasDirty } = this.state;
     const gallery = !!this.state.photos;
     const current = () => this.state.doc === doc;
     this.set({ saving: true });
+
     try {
       const copy = await adapters.exportBytes(pageOrder);
+
       if (!copy) {
         if (pdf) return { status: "skipped" };
         throw new Error("Another export is in progress. Try again.");
       }
+
       if (!current()) return { status: "skipped" };
       let name: string;
       let key: string;
+
       if (pdf) {
         const base = copyNameFor(doc, pageOrder);
         name = doc.sourceId ? pdfName(base) + " (edited).pdf" : base;
+
         if (!/\.pdf$/i.test(name)) name += ".pdf";
         key = `${doc.photoKey ?? doc.saveKey}:pdf`;
       } else {
         name = doc.photoName!.replace(/\.[^.]+$/, "") + " (edited).png";
         key = `${doc.photoKey}:png`;
       }
+
       const record = pdf ? await adapters.recordSave?.(pageOrder) : undefined;
+
       if (!current()) return { status: "skipped" };
+
       if (!await adapters.persist(copy.blob, name, key, request.saveAs)) return { status: "cancelled" };
+
       if (this.clean(revision) && doc.photoName) {
         this.keepPhoto(doc.photoName, { bytes: copy.bytes, dirty: false, reading: copy.reading }, false, doc.id);
       }
+
       if (!pdf) return { status: "saved", reopened: false, messages: ["Saved an edited PNG copy. Original unchanged."] };
 
       const recorded = record
         ? await record({ bytes: copy.bytes, blob: copy.blob, name, annotated: copy.annotated, pageOrder })
         : { dataFailed: false, messages: [] };
+
       if (!current()) return { status: "skipped" };
+
       if (doc.sourceId && !gallery && !recorded.dataFailed && adapters.reopen) {
         await adapters.reopen(name, copy.bytes, pageOrder);
+
         return { status: "saved", reopened: true, messages: recorded.messages };
       }
+
       let message = copy.annotated ? "Saved a copy with your highlights and notes" : "File saved";
+
       if (pageOrder) {
         this.savedPageCopy(pageOrder, copy.bytes);
         message = "Saved reordered copy";
       }
+
       return { status: "saved", reopened: false, messages: [message, ...recorded.messages] };
     } catch (error) {
       if (!current()) return { status: "skipped" };
+
       if (pdf && wasDirty) this.restoreDirty();
+
       return { status: "failed", error: error as Error };
     } finally {
       this.set({ saving: false });

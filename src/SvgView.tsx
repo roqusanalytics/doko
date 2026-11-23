@@ -22,16 +22,22 @@ export function useSvgImage(text: string, enabled: boolean): SvgImage {
   useEffect(() => {
     if (!enabled) return;
     const timer = setTimeout(() => setSettled(text), DEBOUNCE_MS);
+
     return () => clearTimeout(timer);
   }, [text, enabled]);
   useEffect(() => {
-    if (!enabled || !settled.trim()) { setUrl(""); setResult(null); return; }
+    if (!enabled || !settled.trim()) { setUrl(""); setResult(null);
+
+ return; }
+
     const next = URL.createObjectURL(new Blob([settled], { type: "image/svg+xml" }));
     setUrl(next);
+
     return () => URL.revokeObjectURL(next);
   }, [settled, enabled]);
   // "empty" means the text is blank; until the first Blob URL exists a non-empty SVG shows nothing rather than the empty notice.
   const state = !settled.trim() ? "empty" : !result ? "loading" : result.failed ? "failed" : result.url === url ? "ready" : "loading";
+
   return {
     url, state,
     onLoad: image => setResult({ url: image.currentSrc, failed: false }),

@@ -8,17 +8,22 @@ export default function WorkbookView({ workbook, selected, onSelect }: { workboo
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   const sheet = workbook.sheets[selected];
   const columns = useMemo(() => sheet?.rows.reduce((widest, row) => Math.max(widest, row.length), 0) ?? 0, [sheet]);
+
   if (!sheet) return <div className="tv-empty" role="status">This workbook has no worksheets to show.</div>;
 
   const choose = (index: number) => { onSelect(index); tabs.current[index]?.focus(); };
+
   const onKeyDown = (event: KeyboardEvent) => {
     const last = workbook.sheets.length - 1;
+
     const next = event.key === "ArrowRight" ? Math.min(selected + 1, last) : event.key === "ArrowLeft" ? Math.max(selected - 1, 0)
       : event.key === "Home" ? 0 : event.key === "End" ? last : -1;
+
     if (next < 0) return;
     event.preventDefault();
     choose(next);
   };
+
   const notice = sheet.truncated ? "This sheet is too large to show completely. Only the first part is shown."
     // A truncated sheet explains the workbook flag; without one, whole sheets were left out.
     : workbook.truncated && !workbook.sheets.some(item => item.truncated) ? "This workbook has more sheets than Doko can show." : "";

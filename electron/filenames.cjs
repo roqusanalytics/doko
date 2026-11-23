@@ -9,6 +9,7 @@ function safePdfName(name, fallback) {
   const clean = String(name || "").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) || fallback;
   const stem = clean.replace(/\.pdf$/i, "");
   const safe = WINDOWS_DEVICE_NAME.test(stem) ? stem + "_" : clean;
+
   return /\.pdf$/i.test(safe) ? safe : safe + ".pdf";
 }
 

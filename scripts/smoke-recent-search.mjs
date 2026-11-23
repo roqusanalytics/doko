@@ -10,10 +10,13 @@ import { readerPage } from "./reader-page.mjs";
 import { assertHidden, closeHidden } from "./hidden-window.mjs";
 
 const root = path.resolve(import.meta.dirname, ".."), temp = mkdtempSync(path.join(tmpdir(), "doko-recent-search-"));
+
 const server = await createServer({ root, cacheDir: path.join(temp, "vite"), logLevel: "error", plugins: [{ name: "old-recent-fixture", transform(source, id) {
   if (id.endsWith("/src/recent.ts?old-schema")) return source.replace('const DB_NAME = "folio"', 'const DB_NAME = "folio-old-fixture"');
 } }], server: { host: "127.0.0.1", port: 0 } });
+
 let app;
+
 try {
   await server.listen();
   const env = { ...process.env, FOLIO_TEST_USER_DATA: temp, FOLIO_TEST_HIDDEN: "1", FOLIO_DEV_URL: server.resolvedUrls.local[0] };
@@ -26,28 +29,39 @@ try {
   pdf.addPage().drawText("Recent metadata fixture", { font });
   await page.evaluate(async bytes => {
     const r = await import("/src/recent.ts");
+
     for (let n = 0; n < 10; n++) await r.saveRecent({ id: `fixture-${n}`, name: `Fixture ${n}.pdf`, size: bytes.length, pages: 1,
       openedAt: n, lastPage: 1, thumb: "", data: new Blob([new Uint8Array(bytes)]) });
     const list = await r.listRecent();
+
     if (list.length !== 8 || list[0].id !== "fixture-9" || list.some(row => "data" in row)) throw new Error("Metadata list or eviction is incorrect");
+
     if (await r.getRecent("fixture-0")) throw new Error("Eviction retained the PDF");
+
     if ((await r.getRecent("fixture-9")).data.size !== bytes.length) throw new Error("Lazy PDF read failed");
     await r.updateLastPage("fixture-9", 2);
+
     if ((await r.listRecent())[0].lastPage !== 2) throw new Error("Metadata lost reading position");
     const db = await r.openFolioDatabase();
     const stores = [];
     const getAll = IDBObjectStore.prototype.getAll;
-    IDBObjectStore.prototype.getAll = function (...args) { stores.push(this.name); return getAll.apply(this, args); };
+    IDBObjectStore.prototype.getAll = function (...args) { stores.push(this.name);
+
+ return getAll.apply(this, args); };
+
     try { await r.listRecent(); await r.saveRecent(await r.getRecent("fixture-9")); }
     finally { IDBObjectStore.prototype.getAll = getAll; }
+
     if (stores.includes("recent")) throw new Error("Listing/eviction loaded PDF payloads");
     window.parent.recentAuditReads = stores;
     // The old schema contains the original bytes, notes and position before metadata exists.
     const request = indexedDB.open("folio-old-fixture", 7);
     request.onupgradeneeded = () => {
       for (const name of ["recent", "notes", "ai"]) request.result.createObjectStore(name, { keyPath: "id" });
+
       for (const name of ["recentPositions", "clearGenerations"]) request.result.createObjectStore(name);
     };
+
     const old = await new Promise((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
     await new Promise((resolve, reject) => {
       const tx = old.transaction(["recent", "recentPositions", "notes"], "readwrite");
@@ -59,6 +73,7 @@ try {
     old.close();
     const migrated = await import("/src/recent.ts?old-schema");
     const [card] = await migrated.listRecent();
+
     if (card.lastPage !== 3 || "data" in card || (await migrated.getRecent("old")).data.size !== 8
       || (await migrated.getNotes("old")).value.note !== "KEEP NOTE") throw new Error("v7 metadata migration lost existing data");
   }, [...await pdf.save()]);
@@ -69,7 +84,10 @@ try {
     const original = IDBObjectStore.prototype.delete;
     window.failRecentDelete = true;
     IDBObjectStore.prototype.delete = function (...args) {
-      if (this.name === "recent" && window.failRecentDelete) { this.transaction.abort(); return {}; }
+      if (this.name === "recent" && window.failRecentDelete) { this.transaction.abort();
+
+ return {}; }
+
       return original.apply(this, args);
     };
   });
@@ -95,7 +113,10 @@ try {
     const original = IDBObjectStore.prototype.clear;
     window.failRecentClear = true;
     IDBObjectStore.prototype.clear = function (...args) {
-      if (this.name === "recent" && window.failRecentClear) { this.transaction.abort(); return {}; }
+      if (this.name === "recent" && window.failRecentClear) { this.transaction.abort();
+
+ return {}; }
+
       return original.apply(this, args);
     };
   });
@@ -112,7 +133,9 @@ try {
   await page.evaluate(async () => {
     const { PDFFindController } = await import("/src/viewer.ts");
     const original = PDFFindController.prototype.setDocument;
-    PDFFindController.prototype.setDocument = function (...args) { window.auditFind = this; return original.apply(this, args); };
+    PDFFindController.prototype.setDocument = function (...args) { window.auditFind = this;
+
+ return original.apply(this, args); };
   });
   await page.getByRole("button", { name: /Try a sample/ }).click();
   await page.locator(".page canvas").first().waitFor();

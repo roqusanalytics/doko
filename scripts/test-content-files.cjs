@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
+
 if (process.platform === 'win32') {
   // Keep native diagnostics for disposable fixtures; the app returns a short, user-facing error.
   const child = require('node:child_process'), execFile = child.execFile;
@@ -10,18 +11,23 @@ if (process.platform === 'win32') {
     callback(error, stdout, stderr);
   });
 }
+
 const { createContentFiles, imageInfo, MAX_MARKDOWN_BYTES, MAX_CANVAS_DOCUMENT_BYTES, MAX_IMAGE_BYTES } = require("../electron/content-files.cjs");
 
 function png(width = 2, height = 3) {
   const data = Buffer.alloc(33);
   Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(data);
   data.writeUInt32BE(13, 8); data.write("IHDR", 12); data.writeUInt32BE(width, 16); data.writeUInt32BE(height, 20);
+
   return data;
 }
+
 function box(type, body) {
   const header = Buffer.alloc(8); header.writeUInt32BE(body.length + 8); header.write(type, 4);
+
   return Buffer.concat([header, body]);
 }
+
 function formats() {
   const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xc0, 0, 8, 8, 0, 3, 0, 2, 1]);
   const gif = Buffer.from("47494638396102000300000000", "hex");
@@ -29,10 +35,12 @@ function formats() {
   const webp = Buffer.alloc(30); webp.write("RIFF"); webp.write("WEBPVP8X", 8); webp.writeUIntLE(1, 24, 3); webp.writeUIntLE(2, 27, 3);
   const ispe = Buffer.alloc(12); ispe.writeUInt32BE(2, 4); ispe.writeUInt32BE(3, 8);
   const avif = Buffer.concat([box("ftyp", Buffer.from("avif\0\0\0\0avif")), box("meta", Buffer.concat([Buffer.alloc(4), box("iprp", box("ipco", box("ispe", ispe)))]))]);
+
   for (const [name, data] of [["a.png", png()], ["a.jpg", jpeg], ["a.jpeg", jpeg], ["a.gif", gif], ["a.bmp", bmp], ["a.webp", webp], ["a.avif", avif]]) {
     assert.deepEqual([imageInfo(data, name).width, imageInfo(data, name).height], [2, 3], name);
     assert.throws(() => imageInfo(data.subarray(0, 4), name), /damaged/);
   }
+
   assert.throws(() => imageInfo(png(10_000, 8_001), "huge.png"), /80 million/);
   assert.throws(() => imageInfo(png(), "fake.jpg"), /damaged/);
 }
@@ -40,6 +48,7 @@ function formats() {
 (async () => {
   formats();
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "folio-content-"));
+
   try {
     const root = await fs.realpath(temp);
     let destination = null;
@@ -74,6 +83,7 @@ function formats() {
       assert.equal((await files.reload(doc.id)).text, "<p>Reloaded</p>");
       files.release(doc.id);
     }
+
     const htmlLimit = path.join(root, "huge.html");
     await fs.writeFile(htmlLimit, Buffer.alloc(MAX_MARKDOWN_BYTES + 1, 32));
     await assert.rejects(files.open(htmlLimit), /HTML is limited to 5 MB/);
@@ -84,6 +94,7 @@ function formats() {
     const canvasDocumentPath = path.join(root, "diagram.excalidraw");
     const scene = { type: "excalidraw", version: 2, source: "test", elements: [], appState: {}, files: {} };
     const sceneText = JSON.stringify(scene);
+
     for (const [data, failure] of [
       ["not JSON", /invalid JSON/],
       [JSON.stringify({ elements: [] }), /isn't an Excalidraw drawing/],
@@ -95,6 +106,7 @@ function formats() {
       await fs.writeFile(canvasDocumentPath, data);
       await assert.rejects(files.open(canvasDocumentPath), failure);
     }
+
     await fs.writeFile(canvasDocumentPath, "\ufeff" + sceneText);
     const drawingDocument = await files.open(canvasDocumentPath);
     assert.deepEqual([drawingDocument.kind, drawingDocument.name, drawingDocument.text], ["canvasDocument", "diagram.excalidraw", sceneText]);
@@ -108,10 +120,13 @@ function formats() {
     const beforeSave = await fs.stat(canvasDocumentPath);
     assert.equal((await files.saveCanvasDocument(drawingDocument.id, editedScene)).ok, true);
     assert.equal(await fs.readFile(canvasDocumentPath, "utf8"), "\ufeff" + editedScene);
+
     if (process.platform !== "win32") assert.notEqual((await fs.stat(canvasDocumentPath)).ino, beforeSave.ino, "save replaces the inode atomically");
+
     // Embedded images make drawings far larger than Markdown: a 6 MB scene still saves and reopens.
     const imageScene = JSON.stringify({ ...scene, files: { photo: { id: "photo", mimeType: "image/png", created: 1,
       dataURL: "data:image/png;base64," + "A".repeat(6 * 1024 * 1024) } } });
+
     assert.equal((await files.saveCanvasDocument(drawingDocument.id, imageScene)).ok, true);
     assert.equal((await files.open(canvasDocumentPath)).text.length, imageScene.length);
     await fs.writeFile(canvasDocumentPath, sceneText);
@@ -121,6 +136,7 @@ function formats() {
     const initialSave = await files.save(first.id, "# Edited\nText\n");
     assert.equal(initialSave.ok, true, JSON.stringify(initialSave));
     assert.equal(await fs.readFile(file, "utf8"), "\ufeff# Edited\r\nText\r\n");
+
     if (process.platform !== "win32") assert.equal((await fs.stat(file)).mode & 0o777, 0o640);
     assert.equal((await files.save(first.id, "")).ok, true);
     assert.equal(await fs.readFile(file, "utf8"), "\ufeff");
@@ -170,10 +186,21 @@ function formats() {
     // Plain text: .txt reuses the Markdown record, so it only needs its own decoding, encoding and wording checks.
     assert.equal("format" in first && "encoding" in first, false, "Markdown documents carry no text marker");
     let locale = "en-US", textDestination = null, savePrompts = 0;
-    const texts = createContentFiles({ getLocale: () => locale, chooseSavePath: async (name, format) => { savePrompts++; assert.equal(format, "text"); return textDestination; } });
+
+    const texts = createContentFiles({ getLocale: () => locale, chooseSavePath: async (name, format) => { savePrompts++; assert.equal(format, "text");
+
+ return textDestination; } });
+
     const note = path.join(root, "plain.txt");
-    const openText = async bytes => { await fs.writeFile(note, bytes); texts.clear(); return texts.open(note); };
-    const utf16 = (text, big) => { const data = Buffer.from("\ufeff" + text, "utf16le"); return big ? data.swap16() : data; };
+
+    const openText = async bytes => { await fs.writeFile(note, bytes); texts.clear();
+
+ return texts.open(note); };
+
+    const utf16 = (text, big) => { const data = Buffer.from("\ufeff" + text, "utf16le");
+
+ return big ? data.swap16() : data; };
+
     let doc = await openText("Plain\nnotes\n");
     assert.deepEqual([doc.kind, doc.format, doc.encoding, doc.text], ["markdown", "text", "UTF-8", "Plain\nnotes\n"]);
     assert.equal((await texts.save(doc.id, "Edited\n")).ok, true);
@@ -186,6 +213,7 @@ function formats() {
     assert.deepEqual([doc.text, doc.encoding], ["", "UTF-8"], "an empty file is valid text");
     // Unchanged text must write back the exact bytes, in the encoding the file was read in.
     const allBytes = Buffer.from(Array.from({ length: 224 }, (_, i) => i + 0x20));
+
     const cases = [
       ["utf-8", Buffer.from("\ufeffnaïve\r\nλ ✓\r\n"), "UTF-8", "en-US", "naïve\nλ ✓\n"],
       ["utf-8 lf", Buffer.from("zażółć\n"), "UTF-8", "lt-LT", "zażółć\n"],
@@ -198,14 +226,17 @@ function formats() {
       ["windows-1257 et", Buffer.from([0xf5]), "Windows-1257", "et_EE", "õ"],
       ["same bytes, English locale", Buffer.from([0xe0, 0xfe]), "Windows-1252", "en-GB", "àþ"],
     ];
+
     for (const [name, bytes, label, nextLocale, expected] of cases) {
       locale = nextLocale;
       doc = await openText(bytes);
       assert.equal(doc.encoding, label, name);
+
       if (expected !== null) assert.equal(doc.text, expected, name);
       assert.equal((await texts.save(doc.id, doc.text)).ok, true, name);
       assert((await fs.readFile(note)).equals(bytes), `${name}: unchanged text must keep its bytes`);
     }
+
     locale = "en-US";
     // Editing keeps the encoding, BOM and line endings.
     doc = await openText(utf16("a\r\nb", true));
@@ -217,6 +248,7 @@ function formats() {
 
     // Files that are not plain text, or that no supported encoding can read, never open.
     const notText = /isn't plain text or uses an encoding/;
+
     for (const [name, bytes, nextLocale] of [["NUL in UTF-8", Buffer.from("a\0b"), "en-US"], ["UTF-16 without BOM", Buffer.from("ab", "utf16le"), "en-US"],
       ["NUL in UTF-16", utf16("a\0b"), "en-US"], ["UTF-32 BOM", Buffer.from([0xff, 0xfe, 0, 0, 0x61, 0, 0, 0]), "en-US"],
       ["odd UTF-16", Buffer.from([0xff, 0xfe, 0x61]), "en-US"], ["lone surrogate", Buffer.from([0xff, 0xfe, 0x00, 0xd8]), "en-US"],
@@ -225,6 +257,7 @@ function formats() {
       await fs.writeFile(note, bytes); texts.clear();
       await assert.rejects(texts.open(note), notText, name);
     }
+
     locale = "en-US";
     await fs.writeFile(note, Buffer.alloc(MAX_MARKDOWN_BYTES + 1, 65)); texts.clear();
     await assert.rejects(texts.open(note), /Text is limited to 5 MB/);
@@ -270,9 +303,17 @@ function formats() {
 
     // CSV: the same record and encodings as text, with its own format marker, wording and file filter.
     let csvDestination = null, csvPrompts = [];
-    const csvs = createContentFiles({ getLocale: () => "lt-LT", chooseSavePath: async (name, format) => { csvPrompts.push(format); return csvDestination; } });
+
+    const csvs = createContentFiles({ getLocale: () => "lt-LT", chooseSavePath: async (name, format) => { csvPrompts.push(format);
+
+ return csvDestination; } });
+
     const sheet = path.join(root, "table.csv");
-    const openCsv = async bytes => { await fs.writeFile(sheet, bytes); csvs.clear(); return csvs.open(sheet); };
+
+    const openCsv = async bytes => { await fs.writeFile(sheet, bytes); csvs.clear();
+
+ return csvs.open(sheet); };
+
     doc = await openCsv("\ufeffVardas;Miestas\r\nŽygimantas;\"Šiauliai; centras\"\r\n");
     assert.deepEqual([doc.kind, doc.format, doc.encoding, doc.text], ["markdown", "csv", "UTF-8", "Vardas;Miestas\nŽygimantas;\"Šiauliai; centras\"\n"]);
     assert.deepEqual([doc.bom, doc.eol, "cellEol" in doc], [true, "\r\n", false], "CSV document carries its BOM and row ending");
@@ -291,6 +332,7 @@ function formats() {
     assert.equal((await csvs.save(doc.id, "Ž;ą;ы\n", false, true)).document.encoding, "UTF-8");
     assert.equal((await csvs.save(doc.id, "a\0b")).error, "CSV can't contain null characters.");
     assert.match((await csvs.save(doc.id, "x".repeat(MAX_MARKDOWN_BYTES + 1))).error, /CSV is limited to 5 MB/);
+
     // Row terminators and line breaks inside quoted cells keep their own endings (same vectors as test-content-source.mjs).
     for (const { name, raw, from, to } of JSON.parse(await fs.readFile(path.join(__dirname, "csv-line-endings.json"), "utf8"))) {
       doc = await openCsv(raw);
@@ -299,6 +341,7 @@ function formats() {
       assert.equal((await csvs.save(doc.id, doc.text.replace(from, to))).ok, true, name);
       assert.equal(await fs.readFile(sheet, "utf8"), raw.replace(from, to), `${name}: edited`);
     }
+
     doc = await openCsv("a,b\r\n1,2\r\n3,4\n");
     await csvs.save(doc.id, doc.text);
     assert.equal(await fs.readFile(sheet, "utf8"), "a,b\r\n1,2\r\n3,4\r\n", "mixed row endings normalize to the dominant one");
@@ -324,13 +367,22 @@ function formats() {
 
     // SVG: the same record and encodings as text, with its own format marker, wording and file filter. It is not a gallery image.
     let svgDestination = null; const svgPrompts = [];
-    const svgs = createContentFiles({ getLocale: () => "lt-LT", chooseSavePath: async (name, format) => { svgPrompts.push(format); return svgDestination; } });
+
+    const svgs = createContentFiles({ getLocale: () => "lt-LT", chooseSavePath: async (name, format) => { svgPrompts.push(format);
+
+ return svgDestination; } });
+
     const drawing = path.join(root, "Drawing.SVG");
-    const openSvg = async bytes => { await fs.writeFile(drawing, bytes); svgs.clear(); return svgs.open(drawing); };
+
+    const openSvg = async bytes => { await fs.writeFile(drawing, bytes); svgs.clear();
+
+ return svgs.open(drawing); };
+
     const markup = '<?xml version="1.0"?>\r\n<svg xmlns="http://www.w3.org/2000/svg" width="4" height="3"><title>Žaliuzė</title></svg>\r\n';
     doc = await openSvg(markup);
     assert.deepEqual([doc.kind, doc.format, doc.encoding, doc.name, doc.eol], ["markdown", "svg", "UTF-8", "Drawing.SVG", "\r\n"]);
     assert.equal(doc.text, markup.replaceAll("\r\n", "\n"));
+
     // Unchanged text writes back the same bytes in every readable encoding, BOM and line ending included.
     for (const [name, bytes] of [["utf-8", Buffer.from(markup)], ["utf-8 bom lf", Buffer.from("﻿" + markup.replaceAll("\r\n", "\n"))],
       ["utf-16le", utf16(markup)], ["utf-16be", utf16(markup, true)], ["windows-1257", Buffer.from([0x3c, 0x73, 0x76, 0x67, 0x3e, 0xe0, 0xfe, 0x0a])]]) {
@@ -338,6 +390,7 @@ function formats() {
       assert.equal((await svgs.save(doc.id, doc.text)).ok, true, name);
       assert((await fs.readFile(drawing)).equals(bytes), `${name}: unchanged SVG keeps its bytes`);
     }
+
     // An edit changes only the edited characters; encoding, BOM and line endings stay.
     doc = await openSvg(utf16(markup, true));
     assert.equal((await svgs.save(doc.id, doc.text.replace('width="4"', 'width="40"'))).ok, true);
@@ -346,13 +399,16 @@ function formats() {
     assert.deepEqual([doc.bom, "eol" in doc], [true, false]);
     assert.equal((await svgs.save(doc.id, "<svg/>\n<!-- x -->\n")).ok, true);
     assert.equal(await fs.readFile(drawing, "utf8"), "﻿<svg/>\n<!-- x -->\n");
+
     // An empty file and text that is not SVG open as text: the reader decides what it can draw.
     for (const bytes of ["", "<html><body>no</body></html>", "plain words"]) assert.equal((await openSvg(bytes)).text, bytes);
+
     // Unreadable bytes, an oversized file and a NUL are refused in words about SVG, or with the shared text error.
     for (const bytes of [Buffer.from("a\0b"), Buffer.from("ab", "utf16le"), Buffer.from([0xff, 0xfe, 0x61])]) {
       await fs.writeFile(drawing, bytes); svgs.clear();
       await assert.rejects(svgs.open(drawing), notText);
     }
+
     await fs.writeFile(drawing, Buffer.alloc(MAX_MARKDOWN_BYTES + 1, 65)); svgs.clear();
     await assert.rejects(svgs.open(drawing), /SVG is limited to 5 MB/);
     doc = await openSvg("<svg/>");
@@ -366,6 +422,7 @@ function formats() {
     assert((await fs.readFile(drawing)).equals(Buffer.from([0x3c, 0x73, 0x3e, 0xe9])), "nothing is written");
     assert.equal((await svgs.save(doc.id, "<s>é ы</s>", false, true)).document.encoding, "UTF-8");
     assert.equal(await fs.readFile(drawing, "utf8"), "<s>é ы</s>");
+
     // Moving an SVG to UTF-8 updates a stale XML encoding declaration (the vectors are shared with src/content-source.ts);
     // a save in the file's own encoding rewrites nothing.
     for (const { name, input, output } of JSON.parse(await fs.readFile(path.join(__dirname, "svg-xml-encoding.json"), "utf8"))) {
@@ -379,12 +436,15 @@ function formats() {
       assert.equal(await fs.readFile(drawing, "utf8"), output + "<!--é-->", `${name}: Save as UTF-8`);
       assert.equal(moved.document.text, output + "<!--é-->", `${name}: the record holds the saved text`);
     }
+
     const stale = '<?xml version="1.0" encoding="UTF-16"?>\r\n<svg><title>Žaliuzė</title></svg>\r\n';
+
     for (const [name, bytes] of [["utf-16le", utf16(stale)], ["utf-16be", utf16(stale, true)]]) {
       doc = await openSvg(bytes);
       assert.equal((await svgs.save(doc.id, doc.text, false, true)).ok, true, name);
       assert.equal(await fs.readFile(drawing, "utf8"), "\ufeff" + stale.replace("UTF-16", "UTF-8"), `${name}: Save as UTF-8 declares UTF-8 (the BOM is kept)`);
     }
+
     // A file already in UTF-8 keeps even a wrong declaration on a normal save, and after Save as UTF-8 a later save keeps the new one.
     const misdeclared = Buffer.from('<?xml version="1.0" encoding="ISO-8859-1"?><svg><title>é</title></svg>');
     doc = await openSvg(misdeclared);
@@ -412,12 +472,14 @@ function formats() {
     await fs.writeFile(path.join(pictures, "photo1.png"), png());
     await fs.writeFile(path.join(pictures, "ignored.txt"), "text");
     await fs.mkdir(path.join(pictures, "nested"));
+
     if (process.platform !== "win32") {
       // Outlook's macOS attachment folder: the opened file is readable, the folder can't be listed.
       const locked = path.join(root, "locked"); await fs.mkdir(locked);
       await fs.writeFile(path.join(locked, "image001.png"), png());
       await fs.writeFile(path.join(locked, "other.png"), png());
       await fs.chmod(locked, 0o300);
+
       try {
         const single = await files.open(path.join(locked, "image001.png"));
         assert.deepEqual([single.files, single.selected], [["image001.png"], "image001.png"]);
@@ -427,15 +489,18 @@ function formats() {
         files.release(single.id);
       } finally { await fs.chmod(locked, 0o700); }
     }
+
     const selected = path.join(pictures, "photo2.png");
     const gallery = await files.open(selected);
     assert.deepEqual(gallery.files, ["photo1.png", "photo2.png", "photo10.png"]);
     assert.equal(gallery.selected, "photo2.png");
     assert.equal((await files.open(path.join(pictures, "photo10.png"))).id, gallery.id);
     assert.equal((await files.image(gallery.id, "photo2.png")).mime, "image/png");
+
     for (const name of ["../notes.md", "/etc/passwd", "nested/photo.png", "photo2.png:stream", "photo2.png\\other", "ignored.txt"]) {
       await assert.rejects(files.image(gallery.id, name));
     }
+
     await fs.unlink(selected);
     await assert.rejects(files.image(gallery.id, "photo2.png"));
     assert.equal((await files.refresh(gallery.id, "photo10.png")).selected, "photo10.png");
@@ -453,9 +518,11 @@ function formats() {
     assert.equal((await files.asset(readonly.id, "./pictures/photo%20space.png")).mime, "image/png");
     await assert.rejects(files.asset(readonly.id, "%2e%2e/outside.png"));
     assert((await files.save(readonly.id, "binary\0text")).error);
+
     for (const name of ["../outside.png", "https://host/image.png", "/etc/passwd", "pictures/../notes.md", "notes.md", "pictures//photo1.png"]) {
       await assert.rejects(files.asset(readonly.id, name));
     }
+
     if (process.platform !== "win32") {
       await fs.symlink(path.join(pictures, "photo1.png"), path.join(pictures, "link.png"));
       await assert.rejects(files.open(path.join(pictures, "link.png")), /symbolic link/);
@@ -468,6 +535,7 @@ function formats() {
       assert((await files.save(readonly.id, "replace link", true)).error);
       assert.equal(await fs.readFile(path.join(root, "readonly-copy.md"), "utf8"), "safe copy");
     }
+
     assert(!(await fs.readdir(root)).some(name => name.startsWith(".folio-")), "failed saves remove temporary files");
     files.release(gallery.id);
     await assert.rejects(files.image(gallery.id, "photo1.png"), /no longer open/);
@@ -478,10 +546,17 @@ function formats() {
 
     // A workbook is read through the injected reader and leaves no record: opening it again reads the file again.
     let reads = 0, failure;
-    const book = createContentFiles({ readWorkbook: async file => { reads++; if (failure) throw failure; return { sheets: [{ name: "S", rows: [["a"]], truncated: false }], truncated: false }; } });
+
+    const book = createContentFiles({ readWorkbook: async file => { reads++;
+
+ if (failure) throw failure;
+
+ return { sheets: [{ name: "S", rows: [["a"]], truncated: false }], truncated: false }; } });
+
     for (const name of ["data.xlsx", "old.XLS"]) {
       assert.deepEqual(await book.open(path.join(root, name)), { kind: "workbook", name, sheets: [{ name: "S", rows: [["a"]], truncated: false }], truncated: false });
     }
+
     assert.equal(reads, 2);
     failure = Object.assign(new Error("technical"), { userMessage: "This workbook is password-protected." });
     await assert.rejects(book.open(path.join(root, "locked.xlsx")), error => error.message === "This workbook is password-protected.");

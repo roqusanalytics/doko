@@ -22,12 +22,14 @@ const { fileMenuTemplate } = require("./file-menu.cjs");
 const { releaseNotesText } = require("./release-notes.cjs");
 
 const LOCAL_COPY = require("../package.json").folioLocal === true;
+
 if (LOCAL_COPY) {
   // Electron derives the OS credential-store key from this internal name.
   app.setName("Folio Local");
   // Keep the existing fork profile, including Chromium storage and saved credentials.
   app.setPath("userData", path.join(app.getPath("appData"), "Folio Local"));
 }
+
 const contentFiles = createContentFiles({
   confirmTrash: async name => (await dialog.showMessageBox(win, { type: "warning", title: "Move to Trash",
     message: `Move “${name}” to Trash?`, detail: "You can restore it from your system Trash.",
@@ -36,6 +38,7 @@ const contentFiles = createContentFiles({
     const result = await dialog.showOpenDialog(win, { title: "Allow access to move this image",
       message: `macOS denied access. Select “${path.basename(file)}” to retry moving it to Trash.`,
       buttonLabel: "Allow and Move to Trash", defaultPath: file, properties: ["openFile"] });
+
     return result.canceled ? null : result.filePaths[0];
   } : undefined,
   trashItem: file => shell.trashItem(file), showItemInFolder: file => shell.showItemInFolder(file),
@@ -48,17 +51,22 @@ const contentFiles = createContentFiles({
     : format === "svg" ? ["Save SVG copy", { name: "SVG", extensions: ["svg"] }]
     : format === "excalidraw" ? ["Save Canvas", { name: "Excalidraw", extensions: ["excalidraw"] }]
     : ["Save Markdown copy", { name: "Markdown", extensions: ["md", "markdown"] }];
+
   const result = await dialog.showSaveDialog(win, { title, defaultPath: name,
     filters: [filter], properties: ["showOverwriteConfirmation", "createDirectory"] });
+
   return result.canceled ? null : result.filePath;
 } });
 
 const saveFiles = createSaveFiles({ chooseSavePath: async (name, format) => {
   const result = await dialog.showSaveDialog(win, { title: "Save File", defaultPath: name,
     filters: [{ name: format.toUpperCase(), extensions: [format] }], properties: ["showOverwriteConfirmation", "createDirectory"] });
+
   return result.canceled ? null : result.filePath;
 } });
+
 const openFileExtensions = ["pdf", "doc", "docx", "xlsx", "xls", "md", "markdown", "txt", "csv", "svg", "html", "htm", "excalidraw", "jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"];
+
 const openFileTypes = new Map([
   ["pdf", ["PDF", /\.pdf$/i]],
   ["markdown", ["Markdown", MARKDOWN_FILE]],
@@ -66,33 +74,42 @@ const openFileTypes = new Map([
   ["excel", ["Excel", XLSX_FILE]],
   ["word", ["Word", WORD_FILE]],
 ]);
+
 let fileDialogOpen = false;
+
 async function openFileDialog(type) {
   if (!win || fileDialogOpen) return;
   const format = openFileTypes.get(type);
+
   const filters = format
     ? [{ name: format[0], extensions: openFileExtensions.filter(ext => format[1].test(`.${ext}`)) },
       { name: "All supported files", extensions: openFileExtensions }]
     : [{ name: "Documents and Photos", extensions: openFileExtensions }];
+
   fileDialogOpen = true;
   let result;
+
   try {
     result = await dialog.showOpenDialog(win, { title: "Open", properties: ["openFile", "multiSelections"], filters });
   } finally {
     fileDialogOpen = false;
   }
+
   if (!result.canceled) await sendFiles(result.filePaths);
 }
 
 let fileMenuState = { kind: "none", busy: false };
+
 function updateFileMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(fileMenuTemplate({ platform: process.platform, state: fileMenuState,
     send: (channel, command) => win?.webContents.send(channel, command), open: () => openFileDialog() })));
 }
 
 if (!app.isPackaged && process.env.FOLIO_TEST_USER_DATA) app.setPath("userData", process.env.FOLIO_TEST_USER_DATA);
+
 // Automated tests drive a window that never appears, so a local run doesn't take over the screen or focus.
 const TEST_HIDDEN = !app.isPackaged && process.env.FOLIO_TEST_HIDDEN === "1";
+
 // macOS gives every ordinary app a Dock icon, whatever its windows do. An accessory app has none and can't come
 // forward by itself. The test scripts start a copy of Electron that is one from its first moment
 // (scripts/electron-path.mjs); this covers a hidden launch of the ordinary Electron, set right away because the Dock
@@ -100,8 +117,10 @@ const TEST_HIDDEN = !app.isPackaged && process.env.FOLIO_TEST_HIDDEN === "1";
 if (TEST_HIDDEN && process.platform === "darwin") app.setActivationPolicy("accessory");
 
 const DIST = path.join(__dirname, "..", "dist");
+
 // Development only (e.g. http://localhost:5173); ignored by installed builds.
 const DEV_URL = !app.isPackaged && process.env.FOLIO_DEV_URL ? new URL(process.env.FOLIO_DEV_URL).origin : null;
+
 const isAppUrl = (url) => {
   try { return url.startsWith("app://folio/") || (!!DEV_URL && new URL(url).origin === DEV_URL); } catch { return false; }
 };
@@ -113,6 +132,7 @@ const CSP = csp({ connect: "'self' data: blob:" });
 function isTrustedSender(event) {
   if (!win || event.sender !== win.webContents) return false;
   const url = event.senderFrame?.url ?? "";
+
   return isAppUrl(url);
 }
 
@@ -140,18 +160,24 @@ let closeAction = "close";
 async function requestClose(action) {
   if (!win || win.isDestroyed()) {
     if (action === "quit") app.quit();
+
     return;
   }
+
   if (closeRequest) {
     if (action === "update" || (action === "quit" && closeAction === "close")) closeAction = action;
+
     return;
   }
+
   closeAction = action;
   const target = win;
+
   const result = await new Promise(resolve => {
     const id = crypto.randomUUID();
     const timer = setTimeout(() => finish("timeout"), CLOSE_TIMEOUT_MS);
     let finished = false;
+
     const finish = result => {
       if (finished) return;
       finished = true;
@@ -159,7 +185,9 @@ async function requestClose(action) {
       closeRequest = null;
       resolve(result);
     };
+
     closeRequest = { id, target, finish };
+
     if (target.webContents.isCrashed()) {
       void dialog.showMessageBox(target, {
         type: "warning", title: "Close Doko?", buttons: ["Keep open", "Close Doko"], defaultId: 0, cancelId: 0,
@@ -171,18 +199,24 @@ async function requestClose(action) {
       catch { finish("error"); }
     }
   });
+
   if (target.isDestroyed()) return;
+
   if (result !== "ready") {
     target.webContents.send("folio:close-cancelled");
+
     if (result !== "cancelled") void dialog.showMessageBox(target, {
       type: "warning", title: "Doko is still open", buttons: ["OK"],
       message: "Couldn't finish saving your changes.",
       detail: result === "timeout" ? "Saving took too long. Your window is still open. Check each tab, then try closing again."
         : "Your window is still open. Resolve the saving error in each tab, then try again.",
     }).catch(() => {});
+
     return;
   }
+
   closeApproved = true;
+
   if (closeAction === "update" && updateReady) {
     try { autoUpdater.quitAndInstall(true, true); }
     catch (error) {
@@ -198,19 +232,26 @@ async function requestClose(action) {
 let windowTheme = "dark";
 let windowTransparencyRequested = false;
 const WINDOWS_MATERIAL = process.platform === "win32" && Number(require("node:os").release().split(".")[2]) >= 22621;
+
 function applyWindowTransparency() {
   if (!win || win.isDestroyed()) return false;
+
   let enabled = windowTransparencyRequested && (IS_MAC || WINDOWS_MATERIAL)
     && !nativeTheme.prefersReducedTransparency && !nativeTheme.shouldUseHighContrastColors;
+
   try {
     if (IS_MAC) win.setVibrancy(enabled ? "sidebar" : null);
     else if (WINDOWS_MATERIAL) win.setBackgroundMaterial(enabled ? "acrylic" : "none");
   } catch { enabled = false; }
+
   win.setBackgroundColor(enabled ? "#00000000" : TITLEBAR[windowTheme].color);
   win.webContents.send("folio:window-transparency", enabled);
+
   return enabled;
 }
+
 nativeTheme.on("updated", () => applyWindowTransparency());
+
 const OPENABLE = /\.(pdf|docx?|xlsx?|md|markdown|txt|csv|svg|html?|excalidraw|jpe?g|png|webp|gif|bmp|avif)$/i;
 const pendingFiles = filesFromArgs(process.argv);
 let rendererReady = false;
@@ -219,15 +260,19 @@ let rendererReady = false;
 // It can fire before the app is ready, so register it right away.
 app.on("open-file", (event, file) => {
   event.preventDefault();
+
   if (!OPENABLE.test(file)) return;
+
   if (win && rendererReady) {
     if (!TEST_HIDDEN) {
       if (win.isMinimized()) win.restore();
       win.focus();
     }
+
     void sendFile(file);
   } else {
     pendingFiles.push(file);
+
     if (app.isReady() && !win) createWindow();
   }
 });
@@ -245,17 +290,25 @@ async function sendFiles(files) {
 
 async function sendFile(file) {
   const target = win;
+
   if (!file || !target) return;
+
   if (WORD_FILE.test(file)) return sendWordFile(file, target);
+
   if (XLSX_FILE.test(file)) return sendWorkbookFile(file, target);
+
   try {
     if (MARKDOWN_FILE.test(file) || TEXT_FILE.test(file) || CSV_FILE.test(file) || SVG_FILE.test(file) || HTML_FILE.test(file) || CANVAS_DOCUMENT_FILE.test(file) || IMAGE_FILE.test(file)) {
       const document = await contentFiles.open(file);
+
       if (!target.isDestroyed()) target.webContents.send("folio:open-content", document);
+
       return;
     }
+
     checkDiskPath(file);
     const data = await readRegular(await fs.promises.realpath(file));
+
     if (!target.isDestroyed()) target.webContents.send("folio:open-file", { name: path.basename(file), data });
   } catch (err) {
     dialog.showErrorBox("Couldn't open file", `${file}\n\n${err.userMessage ?? err.message}`);
@@ -269,6 +322,7 @@ async function sendWordFile(file, target) {
   const original = path.basename(file);
   const token = crypto.randomUUID();
   send("folio:converting", { name: original, token });
+
   try {
     send("folio:open-file", { ...await openWord(file, (msg) => logConvert(`${file}: ${msg}`)), token });
   } catch (error) {
@@ -283,6 +337,7 @@ async function sendWorkbookFile(file, target) {
   const original = path.basename(file);
   const token = crypto.randomUUID();
   send("folio:converting", { name: original, token });
+
   try {
     send("folio:open-content", await contentFiles.open(file), token);
   } catch (error) {
@@ -303,6 +358,7 @@ function logConvert(msg) {
 // logged to update.log in the app's user-data folder.
 let updateReady = null;
 let updateStatus = { state: "idle" };
+
 // Plain-text release notes of the update being offered, shown in the renderer's update popover.
 let updateNotes = "";
 
@@ -324,8 +380,11 @@ function saveUpdatePreference(enabled) {
   fs.renameSync(filename + ".tmp", filename);
   automaticUpdates = enabled;
   autoUpdater.autoInstallOnAppQuit = enabled;
+
   if (!enabled && activeUpdate && !activeUpdate.manual) activeUpdate.token?.cancel();
+
   if (enabled) void checkForUpdates();
+
   return enabled;
 }
 
@@ -343,18 +402,23 @@ function setUpdateStatus(status) {
 async function checkForUpdates(manual = false) {
   // Keep the reason (e.g. "system" for apt-managed copies) when a manual check finds updates unsupported.
   if (!updatesEnabled) return setUpdateStatus(updateStatus.state === "unsupported" ? updateStatus : { state: "unsupported" });
+
   if ((!manual && !automaticUpdates) || updateReady || activeUpdate) return;
   const operation = { manual, token: null };
   activeUpdate = operation;
+
   try {
     const result = await autoUpdater.checkForUpdates();
+
     if (result?.isUpdateAvailable) updateNotes = releaseNotesText(result.updateInfo.releaseNotes);
+
     if (result?.isUpdateAvailable && NOTIFY_ONLY) {
       setUpdateStatus({ state: "available", version: result.updateInfo.version, notes: updateNotes });
     } else if (result?.isUpdateAvailable && (manual || automaticUpdates)) {
       operation.token = result.cancellationToken;
       setUpdateStatus({ state: "downloading", version: result.updateInfo.version, notes: updateNotes, percent: 0 });
       await autoUpdater.downloadUpdate(result.cancellationToken);
+
       if (operation.token?.cancelled && !updateReady) setUpdateStatus({ state: "idle" });
     } else if (result?.isUpdateAvailable) setUpdateStatus({ state: "idle" });
   } catch (error) {
@@ -366,8 +430,11 @@ async function checkForUpdates(manual = false) {
 /** How this copy was installed, which decides how it can be updated. */
 function installKind() {
   if (!app.isPackaged) return "development";
+
   if (process.env.PORTABLE_EXECUTABLE_FILE) return "portable";
+
   if (IS_LINUX) return process.env.APPIMAGE ? "appimage" : "package";
+
   return "installed";
 }
 
@@ -375,7 +442,9 @@ function installLocation() {
   if (process.env.PORTABLE_EXECUTABLE_FILE || process.env.APPIMAGE) {
     return path.dirname(process.env.PORTABLE_EXECUTABLE_FILE || process.env.APPIMAGE);
   }
+
   const exeDir = path.dirname(app.getPath("exe"));
+
   // Inside a packaged .app the exe lives in Contents/MacOS; the install folder is where the .app sits.
   return IS_MAC && /\.app[\/\\]Contents[\/\\]MacOS$/.test(exeDir) ? path.resolve(exeDir, "..", "..", "..") : exeDir;
 }
@@ -392,15 +461,21 @@ function setupAutoUpdate() {
   // don't; Linux packages (.deb) are updated by apt along with the rest of the system.
   // FOLIO_UPDATE_TEST lets the unpacked build be tested.
   const kind = installKind();
+
   if (kind === "package") {
     updateStatus = { state: "unsupported", message: "system" };
+
     return;
   }
+
   if ((kind === "development" && !process.env.FOLIO_UPDATE_TEST) || kind === "portable") {
     updateStatus = { state: "unsupported" };
+
     return;
   }
+
   updatesEnabled = true;
+
   if (!app.isPackaged) autoUpdater.forceDevUpdateConfig = true; // reads dev-app-update.yml
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = automaticUpdates;
@@ -419,6 +494,7 @@ function setupAutoUpdate() {
       closeApproved = false;
       win?.webContents.send("folio:close-cancelled");
     }
+
     logUpdate(`error: ${err?.stack || err}`);
     setUpdateStatus({ state: "error", message: String(err?.message || err).split("\n")[0] });
   });
@@ -430,9 +506,11 @@ function setupAutoUpdate() {
 function createWindow() {
   let savedWindow = null;
   const windowStatePath = path.join(app.getPath("userData"), "window-state.json");
+
   try {
     const saved = JSON.parse(fs.readFileSync(windowStatePath, "utf8"));
     const bounds = saved.bounds;
+
     if (bounds && [bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite) && bounds.width >= 600 && bounds.height >= 400) {
       const area = screen.getDisplayMatching(bounds).workArea;
       savedWindow = { bounds: { width: Math.min(bounds.width, area.width), height: Math.min(bounds.height, area.height),
@@ -440,6 +518,7 @@ function createWindow() {
         y: Math.max(area.y, Math.min(bounds.y, area.y + area.height - Math.min(bounds.height, area.height))) }, maximized: saved.maximized === true };
     }
   } catch {}
+
   const theme = windowTheme; // the page reports its real theme on load via folio:theme
   win = new BrowserWindow({
     width: 1360,
@@ -470,13 +549,16 @@ function createWindow() {
 
   const cameraOwner = win.webContents;
   const trustedCameraOrigin = isAppUrl;
+
   // Doko's own page may write (never read) the clipboard, for its Copy buttons.
   const clipboardWrite = (contents, permission, url) =>
     contents === cameraOwner && permission === "clipboard-sanitized-write" && isAppUrl(url ?? "");
+
   cameraOwner.session.setPermissionCheckHandler((contents, permission, origin, details) =>
     contents === cameraOwner && permission === "media" && trustedCameraOrigin(details.requestingUrl || origin) && details.mediaType === "video");
   cameraOwner.session.setPermissionRequestHandler((contents, permission, callback, details) => {
     if (clipboardWrite(contents, permission, details.requestingUrl)) return callback(true);
+
     if (contents !== cameraOwner || permission !== "media" || !details.isMainFrame
       || !trustedCameraOrigin(details.requestingUrl) || !details.mediaTypes?.length
       || details.mediaTypes.some(type => type !== "video")) return callback(false);
@@ -495,34 +577,44 @@ function createWindow() {
       win.setSkipTaskbar(true);
       win.setPosition(-32000, -32000);
       win.showInactive();
+
       return;
     }
+
     if (savedWindow?.maximized) win.maximize();
     win.show();
   });
+
   const saveWindow = () => {
     if (!win || win.isDestroyed() || win.isMinimized() || win.isFullScreen()) return;
+
     try {
       fs.writeFileSync(windowStatePath, JSON.stringify({ bounds: win.getNormalBounds(), maximized: win.isMaximized() }));
     } catch {}
   };
+
   let windowTimer;
   const scheduleWindowSave = () => { clearTimeout(windowTimer); windowTimer = setTimeout(saveWindow, 300); };
+
   win.on("resize", scheduleWindowSave);
   win.on("move", scheduleWindowSave);
   win.on("close", event => {
     saveWindow();
+
     if (!closeApproved) { event.preventDefault(); void requestClose("close"); }
   });
   // Native menu accelerators (especially Cmd+W on macOS) run before a DOM keydown.
   win.webContents.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown" || input.alt) return;
     let command;
+
     if (input.control && input.key === "Tab") command = input.shift ? "previous" : "next";
     else if (!input.shift && (IS_MAC ? input.meta : input.control)) {
       if (input.key.toLowerCase() === "t") command = "new";
+
       if (input.key.toLowerCase() === "w") command = "close";
     }
+
     if (command) { event.preventDefault(); win.webContents.send("folio:tab-command", command); }
   });
   win.loadURL(DEV_URL ? DEV_URL + "/" : "app://folio/index.html");
@@ -530,17 +622,20 @@ function createWindow() {
   // Links inside PDFs open in the default browser, never in-app (see openLink).
   win.webContents.setWindowOpenHandler(({ url }) => {
     void openLink(url);
+
     return { action: "deny" };
   });
   // Subframes (the print frame) may only show Doko pages, local blob: PDFs, and Chromium's built-in PDF viewer.
   const PDF_VIEWER = "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/";
   win.webContents.on("will-frame-navigate", (e) => {
     const allowed = isAppUrl(e.url) || e.url.startsWith("blob:app://folio/") || e.url.startsWith(PDF_VIEWER) || e.url === "about:blank";
+
     if (!e.isMainFrame && !allowed) e.preventDefault();
   });
   win.webContents.on("will-navigate", (e, url) => {
     if (!isAppUrl(url)) {
       e.preventDefault();
+
       if (/^https?:/.test(url)) void openLink(url);
     }
   });
@@ -556,10 +651,12 @@ function createWindow() {
     rendererReady = false;
     closeApproved = false;
     closeRequest?.finish("error");
+
     try {
       fs.appendFileSync(path.join(app.getPath("userData"), "recovery.log"),
         `${new Date().toISOString()} renderer stopped: ${details.reason}, exit ${details.exitCode}\n`);
     } catch {}
+
     const canReload = recoveryAttempts++ === 0;
     void dialog.showMessageBox(target, {
       type: "error", title: "Doko reader stopped",
@@ -588,12 +685,16 @@ let askingAboutLink = false;
 // a PDF decides both a link's address and its clickable area, which can be invisible and cover the whole page.
 async function openLink(rawUrl) {
   let url;
+
   try { url = new URL(rawUrl); } catch { return; }
+
   if (url.protocol !== "http:" && url.protocol !== "https:" && url.protocol !== "mailto:") return;
+
   if (!FOLIO_LINKS.has(url.href)) {
     if (askingAboutLink || !win) return; // one question at a time
     askingAboutLink = true;
     const mail = url.protocol === "mailto:";
+
     const { response } = await dialog.showMessageBox(win, {
       type: "question",
       title: "Open link?",
@@ -603,8 +704,10 @@ async function openLink(rawUrl) {
       defaultId: 0,
       cancelId: 1,
     }).finally(() => { askingAboutLink = false; });
+
     if (response !== 0) return;
   }
+
   await shell.openExternal(url.href);
 }
 
@@ -621,6 +724,7 @@ async function confirmLocalAddress(url, addresses, signal) {
     defaultId: 1,
     cancelId: 1,
   });
+
   return response === 0;
 }
 
@@ -628,7 +732,9 @@ async function confirmLocalAddress(url, addresses, signal) {
 function pdfNameFromResponse(url, disposition) {
   const match = /filename\*=(?:UTF-8'')?([^;]+)|filename="?([^";]+)"?/i.exec(disposition || "");
   let name = (match?.[1] || match?.[2] || "").trim();
+
   try { name = decodeURIComponent(name || url.pathname.split("/").filter(Boolean).pop() || ""); } catch {}
+
   return safePdfName(name, url.hostname);
 }
 
@@ -638,27 +744,36 @@ function pdfNameFromResponse(url, disposition) {
 async function downloadPdf(url, approvedLocal, signal) {
   const ses = session.fromPartition(`folio-download-${crypto.randomUUID()}`); // in-memory only
   const guard = await guardSession(ses, session.defaultSession, approvedLocal, app);
+
   if (signal.aborted) {
     guard.close();
+
     return { cancelled: true };
   }
+
   return new Promise((resolve) => {
     let done = false;
     const request = net.request({ url: url.toString(), redirect: "manual", session: ses, cache: "no-store" });
+
     const finish = (result) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
+
       if (result.error || result.webpage) request.abort();
       resolve(result);
     };
+
     // The minute is for a silent connection, not for the whole file: a large PDF on a slow connection keeps
     // going for as long as data arrives.
     let timer;
+
     const alive = () => {
       clearTimeout(timer);
+
       if (!done) timer = setTimeout(() => finish({ error: "The download timed out." }), 60_000);
     };
+
     alive();
     request.on("redirect", alive);
     request.on("response", (response) => { alive(); response.on("data", alive); });
@@ -668,7 +783,9 @@ async function downloadPdf(url, approvedLocal, signal) {
     // Track redirects ourselves: the final address usually carries the real file name.
     request.on("redirect", (_status, _method, redirectUrl) => {
       const next = new URL(redirectUrl, url);
+
       if (++hops > 10) return finish({ error: "That link redirects too many times." });
+
       if (next.protocol !== "http:" && next.protocol !== "https:") return finish({ error: "That link redirects somewhere Doko can't open." });
       url = next;
       request.followRedirect();
@@ -679,31 +796,41 @@ async function downloadPdf(url, approvedLocal, signal) {
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return finish({ error: `The server responded with ${response.statusCode}${response.statusMessage ? " " + response.statusMessage : ""}.` });
       }
+
       const header = (key) => [].concat(response.headers[key] ?? [])[0];
+
       // A webpage: stop downloading and let the caller render it to PDF instead.
       if (/\b(text\/html|application\/xhtml\+xml)\b/i.test(header("content-type") ?? "")) {
         return finish({ webpage: url.toString() });
       }
+
       const tooBig = { error: "That PDF is larger than 300 MB." };
+
       if (Number(header("content-length")) > MAX_URL_PDF_BYTES) return finish(tooBig);
       const chunks = [];
       let size = 0;
       let verifiedHeader = false;
+
       const checkHeader = (head) => {
         if (head.subarray(0, 1024).indexOf("%PDF-") >= 0) return true;
+
         // Some servers don't label HTML; recognize it by its start.
         if (/^\s*(<!doctype html|<html|<head|<body)/i.test(head.subarray(0, 512).toString("latin1"))) {
           finish({ webpage: url.toString() });
         } else {
           finish({ error: "That link isn't a PDF or a webpage." });
         }
+
         return false;
       };
+
       response.on("data", (chunk) => {
         if (done) return;
         size += chunk.byteLength;
+
         if (size > MAX_URL_PDF_BYTES) return finish(tooBig);
         chunks.push(chunk);
+
         if (!verifiedHeader && size >= 1024) {
           verifiedHeader = true;
           checkHeader(Buffer.concat(chunks, 1024));
@@ -713,6 +840,7 @@ async function downloadPdf(url, approvedLocal, signal) {
       response.on("end", () => {
         if (done) return;
         const data = Buffer.concat(chunks);
+
         if (!verifiedHeader && !checkHeader(data)) return;
         finish({ name: pdfNameFromResponse(url, header("content-disposition")), data });
       });
@@ -727,39 +855,51 @@ if (!app.requestSingleInstanceLock()) {
   // A second launch (e.g. double-clicking another PDF) hands its file to the running window.
   app.on("second-instance", (_e, argv, cwd) => {
     const files = filesFromArgs(argv, cwd);
+
     if (!win || !rendererReady) {
       pendingFiles.push(...files);
+
       if (!win && app.isReady()) createWindow();
+
       return;
     }
+
     if (!TEST_HIDDEN) {
       if (win.isMinimized()) win.restore();
       win.focus();
     }
+
     void sendFiles(files);
   });
 
   app.whenReady().then(() => {
     app.setAboutPanelOptions({ applicationName: "Doko" });
+
     // Refresh the running Dock icon after an in-place app update.
     if (IS_MAC && !TEST_HIDDEN) app.dock.setIcon(path.join(__dirname, "icon.png"));
     protocol.handle("app", async (req) => {
       const { host, pathname } = new URL(req.url);
+
       if (host !== "folio") return new Response("Not found", { status: 404 });
       let file;
+
       try { file = path.normalize(path.join(DIST, decodeURIComponent(pathname))); } catch { return new Response("Bad request", { status: 400 }); }
+
       if (!file.startsWith(DIST + path.sep)) return new Response("Forbidden", { status: 403 });
       const response = await net.fetch(pathToFileURL(file).toString());
       const headers = new Headers(response.headers);
       headers.set("Content-Security-Policy", CSP);
+
       return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
     });
 
     // Only Doko's own page may call into the main process.
     const handle = (channel, listener) => ipcMain.handle(channel, (event, ...args) => {
       if (!isTrustedSender(event)) throw new Error("Untrusted sender");
+
       return listener(event, ...args);
     });
+
     const on = (channel, listener) => ipcMain.on(channel, (event, ...args) => {
       if (isTrustedSender(event)) listener(event, ...args);
     });
@@ -772,6 +912,7 @@ if (!app.requestSingleInstanceLock()) {
     updateFileMenu();
     handle("folio:open-files", (_event, type) => {
       if (!openFileTypes.has(type)) throw new Error("Unsupported file type");
+
       return openFileDialog(type);
     });
     handle("folio:save-file", (_event, request) => saveFiles.save(request));
@@ -800,12 +941,15 @@ if (!app.requestSingleInstanceLock()) {
     handle("folio:ready", () => {
       rendererReady = true;
       const files = pendingFiles.splice(0);
+
       if (files.length) setTimeout(() => void sendFiles(files), 0);
+
       return files.length > 0;
     });
     // Word documents picked or dropped in Doko (PDFs are read by the page itself).
     handle("folio:open-document", (_event, file) => {
       if (typeof file !== "string" || !WORD_FILE.test(file) || !path.isAbsolute(file)) throw new Error("Not a Word document");
+
       return openWord(file, (msg) => logConvert(`${file}: ${msg}`));
     });
     // PDF links open directly; webpages are converted to a PDF first. An address on this computer or the local
@@ -815,20 +959,28 @@ if (!app.requestSingleInstanceLock()) {
     let importing = null;
     handle("folio:fetch-pdf", async (_event, rawUrl, id) => {
       let url;
+
       try { url = new URL(typeof rawUrl === "string" && rawUrl.length <= 8192 ? rawUrl.trim() : ""); }
       catch { return { error: "That isn't a valid web address." }; }
+
       if (url.protocol !== "http:" && url.protocol !== "https:") return { error: "Only http:// and https:// links can be opened." };
+
       if (importing) return { error: "Another link is still opening." };
       const controller = new AbortController();
       const { signal } = controller;
       importing = { id: typeof id === "string" ? id : "", controller };
+
       try {
         const destination = await resolveDestination(url, session.defaultSession);
+
         if (signal.aborted) return { cancelled: true };
+
         if (destination.local && !(await confirmLocalAddress(url, destination.addresses, signal))) return { cancelled: true };
         const approved = destination.local ? destination : null;
         const result = await downloadPdf(url, approved, signal);
+
         if (!result.webpage) return result;
+
         return await captureWebpage(result.webpage, approved?.origin === new URL(result.webpage).origin ? approved : null, signal);
       } catch {
         return signal.aborted ? { cancelled: true } : { error: `Couldn't open a verified connection to ${url.hostname}.` };
@@ -836,6 +988,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     handle("folio:cancel-fetch-pdf", (_event, id) => {
       if (importing?.id && importing.id === id) importing.controller.abort();
+
       return true;
     });
     handle("folio:app-info", () => ({ version: app.getVersion(), mode: installKind(), location: installLocation(), platform: process.platform,
@@ -844,6 +997,7 @@ if (!app.requestSingleInstanceLock()) {
     handle("folio:open-download", () => shell.openExternal(RELEASES_PAGE));
     handle("folio:download-ocr-model", async (_event, code) => {
       const { downloadOcrModel } = await import("./ocr-download.mjs");
+
       return downloadOcrModel(code, (url, options) => net.fetch(url, options));
     });
     handle("folio:update-state", () => updateStatus);
@@ -856,6 +1010,7 @@ if (!app.requestSingleInstanceLock()) {
     handle("folio:set-window-transparency", (_event, enabled) => {
       if (typeof enabled !== "boolean") throw new TypeError("Window transparency must be a boolean");
       windowTransparencyRequested = enabled;
+
       return applyWindowTransparency();
     });
     on("folio:theme", (_e, theme) => {

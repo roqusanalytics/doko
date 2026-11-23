@@ -11,6 +11,7 @@ export class ReaderErrorBoundary extends Component<Props, { failed: boolean; rec
   }
   private recover = async () => {
     this.setState({ recovering: true, message: "" });
+
     try {
       await this.props.onRecover();
       this.setState({ failed: false, recovering: false });
@@ -20,6 +21,7 @@ export class ReaderErrorBoundary extends Component<Props, { failed: boolean; rec
   };
   render() {
     if (!this.state.failed) return this.props.children;
+
     return <main style={{ padding: "max(24px, 8vh) 24px", maxWidth: 560, margin: "0 auto" }}>
       <div role="alert">
         <h1>This reader stopped</h1>

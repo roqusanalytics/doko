@@ -2,6 +2,7 @@
 // navigator.platform is deprecated; userAgentData covers Chromium, the old API is the fallback.
 const uaPlatform =
   (navigator as { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform;
+
 const platform =
   window.folioDesktop?.platform ??
   (/Mac|iPhone|iPad/i.test(uaPlatform) ? "darwin" : /Linux/i.test(uaPlatform) ? "linux" : "win32");

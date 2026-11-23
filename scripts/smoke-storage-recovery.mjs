@@ -7,9 +7,11 @@ import {_electron as electron} from 'playwright-core';
 import {electronPath} from './electron-path.mjs';
 import {readerPage} from './reader-page.mjs';
 import {assertHidden,closeHidden} from './hidden-window.mjs';
+
 const root=path.resolve(import.meta.dirname,'..'),temp=mkdtempSync(path.join(tmpdir(),'doko-storage-recovery-'));
 const server=await createServer({root,cacheDir:path.join(temp,'vite'),logLevel:'error',plugins:[{name:'future-schema-fixture',transform(source,id){if(id.endsWith('/src/recent.ts?future-schema'))return source.replace('indexedDB.open(DB_NAME, 8)','indexedDB.open(DB_NAME, 9)');}}],server:{host:'127.0.0.1',port:0}});
 let app;
+
 try {
  await server.listen();
  const env={...process.env,FOLIO_TEST_USER_DATA:temp,FOLIO_TEST_HIDDEN:'1',FOLIO_DEV_URL:server.resolvedUrls.local[0]};delete env.ELECTRON_RUN_AS_NODE;
@@ -18,37 +20,64 @@ try {
  window.on('pageerror',error=>errors.push(String(error)));
  await page.getByRole('button',{name:/Try a sample/}).click();
  await page.locator('.page canvas').first().waitFor();
- await page.waitForFunction(async()=>{const r=await import('/src/recent.ts');return (await r.listRecent()).length>0;});
+ await page.waitForFunction(async()=>{const r=await import('/src/recent.ts');
+
+return (await r.listRecent()).length>0;});
  await page.evaluate(async()=>{
   const recent=await import('/src/recent.ts');
   const get=IDBObjectStore.prototype.get,put=IDBObjectStore.prototype.put;
   window.storageTest={failRead:'',failWrite:'',writes:{},restore(){IDBObjectStore.prototype.get=get;IDBObjectStore.prototype.put=put;}};
-  IDBObjectStore.prototype.get=function(...args){if(this.name===window.storageTest.failRead)throw new DOMException('Synthetic read failed','UnknownError');return get.apply(this,args);};
-  IDBObjectStore.prototype.put=function(...args){window.storageTest.writes[this.name]=(window.storageTest.writes[this.name]??0)+1;if(this.name===window.storageTest.failWrite)throw new DOMException('Synthetic quota exceeded','QuotaExceededError');return put.apply(this,args);};
+  IDBObjectStore.prototype.get=function(...args){if(this.name===window.storageTest.failRead)throw new DOMException('Synthetic read failed','UnknownError');
+
+return get.apply(this,args);};
+
+  IDBObjectStore.prototype.put=function(...args){window.storageTest.writes[this.name]=(window.storageTest.writes[this.name]??0)+1;
+
+if(this.name===window.storageTest.failWrite)throw new DOMException('Synthetic quota exceeded','QuotaExceededError');
+
+return put.apply(this,args);};
+
   const {MarkupController}=await import('/src/markup.ts');
   const markup=new MarkupController({on(){}},{pagesCount:1,getPageView(){return{};}},()=>{});
   await markup.load('storage-fixture',true);markup.setDocNote('PRESERVE OLD NOTE');await markup.flush();
   window.storageTest.failRead='notes';
-  let rejected=false;try{await markup.load('unread-fixture',true);}catch{rejected=true;}
+  let rejected=false;
+
+try{await markup.load('unread-fixture',true);}catch{rejected=true;}
+
   if(!rejected||markup.state.note!=='PRESERVE OLD NOTE')throw new Error('Read failure discarded old notes');
   window.storageTest.failRead='';
+
   if((await recent.getNotes('storage-fixture')).value.note!=='PRESERVE OLD NOTE')throw new Error('Read failure overwrote storage');
   await markup.load('storage-fixture',true);
   const flush=markup.flush.bind(markup);let inject=true;
-  markup.flush=async()=>{await flush();if(inject){inject=false;markup.setDocNote('LATEST NOTE DURING SWITCH');}};
+  markup.flush=async()=>{await flush();
+
+if(inject){inject=false;markup.setDocNote('LATEST NOTE DURING SWITCH');}};
+
   await markup.load('next-fixture',true);markup.flush=flush;
+
   if((await recent.getNotes('storage-fixture')).value.note!=='LATEST NOTE DURING SWITCH')throw new Error('Switch discarded a note changed during flush');
   await markup.load('storage-fixture',true);
-  inject=true;markup.flush=async()=>{await flush();if(inject){inject=false;markup.setDocNote('LATEST SAME ID NOTE');}};
+  inject=true;markup.flush=async()=>{await flush();
+
+if(inject){inject=false;markup.setDocNote('LATEST SAME ID NOTE');}};
+
   await markup.load('storage-fixture',true);markup.flush=flush;
+
   if(markup.state.note!=='LATEST SAME ID NOTE')throw new Error('Same identity reload restored a stale note');
   markup.flush=async()=>{await flush();markup.clearSaved(1);};
-  let clearRejected=false;try{await markup.load('unread-after-clear',true);}catch{clearRejected=true;}
+
+  let clearRejected=false;
+
+try{await markup.load('unread-after-clear',true);}catch{clearRejected=true;}
+
   if(!clearRejected)throw new Error('Clear race silently attached a different notes identity');
   markup.flush=flush;markup.unload();
   window.storageTest.failWrite='notes';
  });
  const sidebar=page.getByRole('button',{name:/Toggle sidebar/});
+
  if(await sidebar.getAttribute('aria-pressed')==='false')await sidebar.click();
  await page.getByRole('tab',{name:/^Notes/}).click();
  const note=page.getByRole('textbox',{name:'Notes about this document'});
@@ -65,12 +94,17 @@ try {
  await page.evaluate(()=>{window.storageTest.failWrite='';});
  await page.getByRole('button',{name:'Retry saving notes',exact:true}).click();
  await page.getByRole('button',{name:'Retry saving notes',exact:true}).waitFor({state:'detached'});
+
  const id=await page.evaluate(async()=>{
   const r=await import('/src/recent.ts');const [{id}]=await r.listRecent();
+
   if((await r.getNotes(id)).value.note!=='KEEP THIS UNSAVED NOTE')throw new Error('Retry did not save retained note');
   await r.saveAiHistory(id,[{role:'user',content:'RESTORED CHAT HISTORY'}],0);
-  window.storageTest.failRead='ai';window.storageTest.writes.ai=0;return id;
+  window.storageTest.failRead='ai';window.storageTest.writes.ai=0;
+
+return id;
  });
+
  await app.evaluate(({ipcMain})=>{
   ipcMain.removeHandler('folio:ai-status');
   ipcMain.handle('folio:ai-status',()=>({chatgpt:{connected:false,welcomeSeen:true},claude:{installed:true,loggedIn:true,subscription:true}}));
@@ -95,7 +129,9 @@ try {
  assert.equal(await page.evaluate(async id=>(await(await import('/src/recent.ts')).getAiHistory(id)).messages[0].content,id),'RESTORED CHAT HISTORY');
  await app.evaluate(({ipcMain,BrowserWindow})=>{
   for(const channel of ['folio:ai-ask','folio:ai-cancel'])ipcMain.removeHandler(channel);
-  ipcMain.handle('folio:ai-ask',(_event,request)=>{globalThis.closingAiRequest=request.id;BrowserWindow.getAllWindows()[0].webContents.send('folio:ai-event',{id:request.id,type:'delta',text:'SAVED BEFORE CLOSE'});return true;});
+  ipcMain.handle('folio:ai-ask',(_event,request)=>{globalThis.closingAiRequest=request.id;BrowserWindow.getAllWindows()[0].webContents.send('folio:ai-event',{id:request.id,type:'delta',text:'SAVED BEFORE CLOSE'});
+
+return true;});
   ipcMain.handle('folio:ai-cancel',()=>true);
  });
  const chatPanel=page.getByRole('complementary',{name:'Ask AI'});
@@ -121,44 +157,63 @@ try {
   const chat={messages:[{role:'user',content:'COPY CHAT'}],generation:ai.generation};
   await r.copySavedPdfData('copy-target',reading,notes.generation,chat);
   const saved=(await r.getNotes('copy-target')).value;
+
   if(saved.note!=='COPY NOTE'||saved.marks.length||saved.bookmarkedPages.join()!=='2,1')throw new Error('Saved-copy reading data missing or duplicated embedded annotations');
   await r.copySavedPdfData('copy-target',{note:'OVERWRITE',bookmarkedPages:[]},notes.generation,{...chat,messages:[{role:'user',content:'OVERWRITE'}]});
+
   if((await r.getNotes('copy-target')).value.note!=='COPY NOTE'||(await r.getAiHistory('copy-target')).messages[0].content!=='COPY CHAT')throw new Error('Copy overwrote another document');
   window.storageTest.failWrite='ai';let copyRejected=false;
+
   try{await r.copySavedPdfData('copy-rollback',reading,notes.generation,chat);}catch{copyRejected=true;}
+
   window.storageTest.failWrite='';
+
   if(!copyRejected||(await r.getNotes('copy-rollback')).value||(await r.getAiHistory('copy-rollback')).messages.length)throw new Error('Failed copy partially committed reading data');
+
   if((await r.getNotes('copy-target')).value.note!=='COPY NOTE'||(await r.getAiHistory('copy-target')).messages[0].content!=='COPY CHAT')throw new Error('Failed copy changed original records');
   const positionId='position-fixture';
   const blob=new Blob([new Uint8Array(8*1024*1024)]);
   await r.saveRecent({id:positionId,name:'Position fixture',size:blob.size,pages:100,openedAt:Date.now(),lastPage:1,thumb:'',data:blob});
   const writes=window.storageTest.writes.recent??0;
+
   for(let page=2;page<=21;page++)await r.updateLastPage(positionId,page);
+
   if((window.storageTest.writes.recent??0)!==writes)throw new Error('Page changes rewrote the document Blob record');
+
   if((await r.getRecent(positionId)).lastPage!==21||(await r.listRecent()).find(file=>file.id===positionId).lastPage!==21)throw new Error('Recent position was not restored');
   await r.updateLastPage(positionId,-1);
+
   if((await r.getRecent(positionId)).lastPage!==21)throw new Error('Invalid page overwrote reading position');
   await r.removeRecent(positionId);
   const positionsDb=await r.openFolioDatabase();
   const position=await new Promise((resolve,reject)=>{const request=positionsDb.transaction('recentPositions').objectStore('recentPositions').get(positionId);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+
   if(position!==undefined)throw new Error('Removing recent file retained its position');
   window.storageTest.restore();
   await r.clearStoredData('notes');
   await r.copySavedPdfData('copy-notes-cleared',reading,notes.generation,chat);
+
   if((await r.getNotes('copy-notes-cleared')).value||(await r.getAiHistory('copy-notes-cleared')).messages[0]?.content!=='COPY CHAT')throw new Error('Independent notes clear discarded an eligible conversation');
   await r.clearStoredData('ai');
   await r.copySavedPdfData('copy-after-clear',reading,notes.generation,chat);
+
   if((await r.getNotes('copy-after-clear')).value||(await r.getAiHistory('copy-after-clear')).messages.length)throw new Error('Copy resurrected cleared data');
   const db=await r.openFolioDatabase();db.close();
   const future=await import('/src/recent.ts?future-schema');
   const blocker=await new Promise((resolve,reject)=>{const request=indexedDB.open('folio',8);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
   blocker.onversionchange=()=>{};
+
   let blockedRejected=false;
+
   try{await future.openFolioDatabase();}catch{blockedRejected=true;}
+
   blocker.close();
+
   if(!blockedRejected)throw new Error('Blocked schema upgrade did not reject for retry');
   const upgraded=await future.openFolioDatabase();
+
   if(upgraded.version!==9||!upgraded.objectStoreNames.contains('clearGenerations'))throw new Error('Future upgrade failed with an existing clearGenerations store');
+
   if((await future.getNotes('copy-after-clear')).generation!==notes.generation+1)throw new Error('Future upgrade discarded clear generation');
  });
  assert.deepEqual(errors,[]);

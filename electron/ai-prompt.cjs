@@ -47,6 +47,7 @@ function chatRequest(model, document, messages) {
       role, content: context ? JSON.stringify({ question: content, selectedPassage: context }) : content,
     })),
   ];
+
   return { model, instructions: instructionsFor(document), input, store: false, stream: true };
 }
 

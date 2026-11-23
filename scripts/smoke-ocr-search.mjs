@@ -12,18 +12,25 @@ import { assertHidden, closeHidden } from "./hidden-window.mjs";
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "doko-ocr-search-"));
 const shots = path.join(root, "release", "smoke");
+
 mkdirSync(shots, { recursive: true });
+
 const env = { ...process.env, FOLIO_TEST_USER_DATA: temp, FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const app = await electron.launch({ executablePath: electronPath(env), env,
   args: [root, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
+
 const errors = [];
 let page;
+
 try {
   page = readerPage(await app.firstWindow());
   page.on("pageerror", error => errors.push(String(error)));
   await page.getByRole("button", { name: /Try a sample/ }).waitFor({ timeout: 30_000 });
   const pdf = await PDFDocument.create();
+
   for (const text of ["Reference code: 7319", "Delivery city: Kaunas", "AMBER RIVER 8426", "Reference code: 7319"]) {
     const png = await page.evaluate(text => {
       const canvas = Object.assign(document.createElement("canvas"), { width: 1400, height: 700 });
@@ -32,24 +39,30 @@ try {
       ctx.fillStyle = "black"; ctx.font = "60px sans-serif";
       ctx.fillText(text, 70, 180);
       ctx.fillText("Total: 84.00 EUR", 70, 280);
+
       return canvas.toDataURL("image/png").split(",")[1];
     }, text);
+
     const image = await pdf.embedPng(Buffer.from(png, "base64"));
     pdf.addPage([700, 350]).drawImage(image, { x: 0, y: 0, width: 700, height: 350 });
   }
+
   const open = async (name, bytes) => {
     await app.evaluate(({ BrowserWindow }, { name, bytes }) => BrowserWindow.getAllWindows()[0].webContents.send(
       "folio:open-file", { name, data: Buffer.from(bytes) }), { name, bytes: [...bytes] });
     await page.window.waitForFunction(name => document.title.startsWith(name), name);
   };
+
   await open("OCR search.pdf", await pdf.save());
   await page.locator('[data-page-number="1"] [data-ocr-word]').first().waitFor({ timeout: 45_000 });
   await page.keyboard.press("ControlOrMeta+f");
   const query = page.getByRole("textbox", { name: "Find in document" });
   const status = page.locator(".search-status");
+
   const search = async (text, expected) => {
     await query.fill(text);
     await query.press("Enter");
+
     try { await status.filter({ hasText: expected }).waitFor({ timeout: 45_000 }); }
     catch (error) {
       console.error(JSON.stringify({ query: text.slice(0, 80), expected, actual: await status.textContent(), errors, ocrWords: await page.locator('[data-ocr-word]').allTextContents() }));
@@ -57,6 +70,7 @@ try {
       throw error;
     }
   };
+
   await search("7319", "1 of 2");
   await page.getByRole("button", { name: "Go to page 4, 1 matches", exact: true }).waitFor();
   const snippet = page.locator(".search-results mark");

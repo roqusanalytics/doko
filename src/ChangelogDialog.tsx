@@ -19,6 +19,7 @@ function ChangeList({ release }: { release: Release }) {
 export function ChangelogDialog({ upgradeNotes, onClose }: { upgradeNotes?: Release[]; onClose: () => void }) {
   const [page, setPage] = useState(0);
   const pages = Math.ceil(releases.length / PAGE_SIZE);
+
   return (
     <Modal title="What's new" onClose={onClose}>
       <div className="changelog">

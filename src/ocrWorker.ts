@@ -19,27 +19,34 @@ export async function startOcrWorker(base: string, languages: string[], cachePat
     stopped = true;
     signal.removeEventListener("abort", abort);
     worker.terminate();
+
     for (const job of jobs.values()) job.reject(error);
     jobs.clear();
   }
+
   const abort = () => stop(signal.reason);
   signal.addEventListener("abort", abort, { once: true });
   worker.onerror = event => stop(new Error(event.message || "OCR worker failed."));
   worker.onmessageerror = () => stop(new Error("Couldn't read the OCR worker response."));
   worker.onmessage = ({ data: { jobId, status, data } }) => {
     const job = jobs.get(jobId);
+
     if (!job || status === "progress") return;
     jobs.delete(jobId);
+
     if (status === "reject") job.reject(new Error(String(data)));
     else job.resolve({ jobId, data });
   };
 
   function request<T = unknown>(action: string, payload: object): Promise<T> {
     signal.throwIfAborted();
+
     if (stopped) return Promise.reject(new Error("OCR worker stopped."));
+
     return new Promise((resolve, reject) => {
       const jobId = String(++nextJob);
       jobs.set(jobId, { resolve: value => resolve(value as T), reject });
+
       try {
         worker.postMessage({ workerId: "doko", jobId, action, payload });
       } catch (error) {
@@ -49,13 +56,16 @@ export async function startOcrWorker(base: string, languages: string[], cachePat
   }
 
   const timeout = setTimeout(() => stop(new Error("OCR initialization timed out.")), 60_000);
+
   try {
     await request("load", { options: { lstmOnly: true, corePath: path, logging: false } });
     await request("loadLanguage", { langs: languages, options: { langPath: path, cachePath, cacheMethod: "readOnly", gzip: true, lstmOnly: true } });
     await request("initialize", { langs: languages, oem: OEM.LSTM_ONLY, config: {} });
     await request("setParameters", { params: { tessedit_pageseg_mode: PSM.AUTO } });
+
     return { get stopped() { return stopped; }, async recognize(image) {
       const timer = setTimeout(() => stop(new Error("OCR recognition timed out. Change page to try again.")), 60_000);
+
       try { return await request<RecognizeResult>("recognize", { image, options: {}, output: { blocks: true, text: false } }); }
       finally { clearTimeout(timer); }
     } };

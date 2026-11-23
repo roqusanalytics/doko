@@ -30,24 +30,32 @@ export function VersionHistoryPanel({ id, allowed, pending, active, canOpen, onO
   useEffect(() => {
     if (!allowed || !active) return;
     let generation = 0;
+
     const refresh = async () => {
       const request = ++generation;
-      try { const rows = await listVersions(id); if (request === generation) { setVersions(rows); setError(""); } }
+
+      try { const rows = await listVersions(id);
+
+ if (request === generation) { setVersions(rows); setError(""); } }
       catch { if (request === generation) setError("Couldn’t read version history on this device."); }
     };
+
     const channel = new BroadcastChannel(HISTORY_CHANNEL);
     channel.onmessage = refresh;
     void refresh();
+
     return () => { generation++; channel.close(); };
   }, [id, allowed, active]);
 
   const recover = async (row: PdfVersion, download = false) => {
     try {
       const data = await readVersion(row.id);
+
       if (!data) throw new Error();
       (download ? onDownload : onOpen)(row, data);
     } catch { setError("This version could not be opened."); }
   };
+
   return <aside className="version-panel" aria-label="Version history">
     <header><div><h2>Version history</h2><p>Stored on this device</p></div>
       <button className="icon-btn" aria-label="Close version history" onClick={onClose}><Icon name="close" /></button></header>

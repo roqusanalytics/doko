@@ -5,6 +5,8 @@ const { signAsync } = require("@electron/osx-sign");
 module.exports = (opts) => {
   const identity = process.env.DOKO_MAC_SIGN_IDENTITY; // SHA-1 of the certificate
   const keychain = process.env.DOKO_MAC_SIGN_KEYCHAIN;
+
   if (!identity || !keychain) throw new Error("DOKO_MAC_SIGN_IDENTITY and DOKO_MAC_SIGN_KEYCHAIN are required");
+
   return signAsync({ ...opts, identity, keychain, identityValidation: false });
 };

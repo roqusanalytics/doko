@@ -4,14 +4,21 @@ import { readerPage } from "./reader-page.mjs";
 
 function fixture(outcomes, operation = async () => "ready") {
   const calls = { acquired: 0, disposed: 0, operations: 0 };
-  const run = async (...args) => { calls.operations++; return operation(...args); };
+
+  const run = async (...args) => { calls.operations++;
+
+ return operation(...args); };
+
   const owner = { evaluate: run, waitForFunction: run };
+
   const reader = {
     locator: () => ({ elementHandle: async () => {
       const outcome = outcomes[calls.acquired++];
+
       return {
         ownerFrame: async () => {
           if (outcome instanceof Error) throw outcome;
+
           return outcome === null ? null : owner;
         },
         dispose: async () => { calls.disposed++; },
@@ -19,10 +26,12 @@ function fixture(outcomes, operation = async () => "ready") {
     } }),
     getByRole() {}, getByLabel() {}, getByTitle() {}, getByText() {},
   };
+
   const window = {
     frameLocator: () => reader,
     on() {}, reload() {}, title() {}, screenshot() {}, waitForTimeout() {}, waitForEvent() {},
   };
+
   return { page: readerPage(window), calls };
 }
 

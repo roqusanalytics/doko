@@ -12,15 +12,20 @@ import { electronPath } from "./electron-path.mjs";
 import { assertHidden, closeHidden } from "./hidden-window.mjs";
 
 const converter = process.env.FOLIO_TEST_CONVERTER ?? "builtin";
+
 assert.ok(["builtin", "libreoffice", "word"].includes(converter), "Choose a supported Word test converter");
+
 const root = path.resolve(import.meta.dirname, ".."), temp = mkdtempSync(path.join(tmpdir(), "doko-word-network-"));
 const bootstrap = path.join(temp, "bootstrap.cjs"), requests = [];
+
 const server = createServer((request, response) => {
   requests.push(request.url);
   response.writeHead(200, { "Content-Type": "image/png" });
   response.end(readFileSync(path.join(temp, "outside.png")));
 });
+
 let app;
+
 try {
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   writeFileSync(bootstrap, `
@@ -34,10 +39,13 @@ try {
   delete env.ELECTRON_RUN_AS_NODE;
   app = await electron.launch({ executablePath: electronPath(env), env,
     args: [bootstrap, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])] });
+
   const png = await app.evaluate(({ nativeImage }) => {
     const pixel = bytes => [...nativeImage.createFromBitmap(Buffer.from(bytes), { width: 1, height: 1 }).toPNG()];
+
     return { embedded: pixel([255, 0, 0, 255]), outside: pixel([0, 0, 255, 255]) };
   });
+
   const outside = path.join(temp, "outside.png");
   writeFileSync(outside, Buffer.from(png.outside));
   const url = `http://127.0.0.1:${server.address().port}/tracking.png`;
@@ -51,10 +59,13 @@ try {
   zip.file("word/document.xml", `${xml}<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body><w:p><w:r><w:t>Local Word conversion</w:t></w:r></w:p>${image("embedded", "embed", 1)}${image("remote", "link", 2)}${image("outside", "link", 3)}</w:body></w:document>`);
   const source = path.join(temp, "linked-images.docx"), bytes = await zip.generateAsync({ type: "nodebuffer" });
   writeFileSync(source, bytes);
+
   const output = await app.evaluate(async (_, source) => {
     const result = await globalThis.openWord(source);
+
     return { name: result.name, bytes: [...result.data] };
   }, source);
+
   assert.match(output.name, /\.pdf$/);
   const pdf = await PDFDocument.load(new Uint8Array(output.bytes));
   assert.equal(pdf.getPageCount(), 1);
