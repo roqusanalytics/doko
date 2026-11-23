@@ -109,5 +109,5 @@ try {
 } finally {
   await app.evaluate(() => { globalThis.aiEndTest?.restore(); delete globalThis.aiEndTest; }).catch(() => {});
   await closeHidden(app);
-  rmSync(temp, { recursive: true, force: true });
+  rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
