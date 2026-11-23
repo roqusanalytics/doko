@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.22.4
+
+- Internal: Doko is now built with Bun and its code is checked with Oxlint; nothing changes in how it works.
+
 ## 1.22.3
 
 - Closing a PDF or photo with unsaved changes now asks in Doko's own dialog, with Save copy, Discard and Cancel.
