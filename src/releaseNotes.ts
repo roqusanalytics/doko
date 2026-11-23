@@ -1,5 +1,6 @@
 import changelog from "../CHANGELOG.md?raw";
 import { version as installed } from "../package.json";
+import { readSetting, writeSetting } from "./preferences";
 
 export interface Release {
   version: string;
@@ -26,11 +27,11 @@ export const releases = parse(changelog).filter(r => byVersion.compare(r.version
 export function takeUpgradeNotes(): Release[] {
   const key = "folio:last-opened-version";
   try {
-    const previous = localStorage.getItem(key);
+    const previous = readSetting(key);
     if (previous && byVersion.compare(installed, previous) <= 0) return [];
-    localStorage.setItem(key, installed);
+    if (!writeSetting(key, installed)) return [];
     // Older releases saved the sidebar preference on first launch, before version tracking existed.
-    if (!previous) return localStorage.getItem("folio:sidebar") === null ? [] : releases.filter(r => r.version === installed);
+    if (!previous) return readSetting("folio:sidebar") === null ? [] : releases.filter(r => r.version === installed);
     return releases.filter(r => byVersion.compare(r.version, previous) > 0);
   } catch {
     return []; // If the version can't be saved, don't repeat the popup on every launch.

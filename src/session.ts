@@ -1,3 +1,5 @@
+import { readSetting, removeSetting, writeSetting } from "./preferences";
+
 export interface ReadingView {
   page: number;
   scale: string;
@@ -18,7 +20,7 @@ export function flushViews() {
   window.clearTimeout(saveTimer);
   saveTimer = 0;
   for (const [id, view] of pendingViews) {
-    try { localStorage.setItem(`folio:content-view:${id}`, JSON.stringify(view)); pendingViews.delete(id); } catch {}
+    if (writeSetting(`folio:content-view:${id}`, JSON.stringify(view))) pendingViews.delete(id);
   }
   return pendingViews.size === 0;
 }
@@ -29,7 +31,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) flush
 
 export function readView(id: string): ReadingView | null {
   try {
-    const view = pendingViews.get(id) ?? JSON.parse(localStorage.getItem(`folio:content-view:${id}`) || "null");
+    const view = pendingViews.get(id) ?? JSON.parse(readSetting(`folio:content-view:${id}`) || "null");
     if (!view || !Number.isInteger(view.page) || view.page < 1) return null;
     if (![0, 90, 180, 270].includes(view.rotation)) return null;
     if (typeof view.sidebar !== "boolean" || typeof view.spread !== "boolean") return null;
@@ -47,16 +49,10 @@ export function writeView(id: string, view: ReadingView) {
 }
 
 export function setActiveDocument(id: string | null) {
-  try {
-    if (id) localStorage.setItem("folio:active-content", id);
-    else localStorage.removeItem("folio:active-content");
-  } catch {}
+  if (id) writeSetting("folio:active-content", id);
+  else removeSetting("folio:active-content");
 }
 
 export function activeDocument(): string | null {
-  try {
-    return localStorage.getItem("folio:active-content");
-  } catch {
-    return null;
-  }
+  return readSetting("folio:active-content");
 }

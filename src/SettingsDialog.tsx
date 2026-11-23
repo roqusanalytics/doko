@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { SelectMenu } from "./SelectMenu";
 import { Modal } from "./Dialogs";
 import { WINDOW_TRANSPARENCY_KEY, saveWindowTransparency } from "./appearance";
-import { readSetting } from "./preferences";
+import { readSetting, removeSetting } from "./preferences";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { CLAUDE_CODE_URL, PROVIDERS, savedProvider, saveAiPreference, signInChatGPT, USAGE_URL, type AiProvider } from "./ai";
 import { OpenRouterSettings } from "./OpenRouterSettings";
@@ -233,9 +233,7 @@ export function SettingsDialog(props: Props | { initialSection: "Ask AI"; onClos
   }, [ai, section]);
 
   // Signature
-  const [savedSignature, setSavedSignature] = useState(() => {
-    try { return !!localStorage.getItem("folio:signature"); } catch { return false; }
-  });
+  const [savedSignature, setSavedSignature] = useState(() => !!readSetting("folio:signature"));
 
   return (
     <Modal title="Settings" onClose={onClose}>
@@ -320,8 +318,8 @@ export function SettingsDialog(props: Props | { initialSection: "Ask AI"; onClos
             ? "Saved on this computer (unencrypted) for quick signing."
             : "None. You can choose to remember one when you sign a document."}>
             <button className="btn ghost" disabled={!savedSignature} onClick={() => {
-              try { localStorage.removeItem("folio:signature"); setSavedSignature(false); }
-              catch { setError("Couldn't forget the signature. Please try again."); }
+              if (removeSetting("folio:signature")) setSavedSignature(false);
+              else setError("Couldn't forget the signature. Please try again.");
             }}>Forget</button>
           </Row>
         </Section></>}

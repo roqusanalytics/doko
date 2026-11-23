@@ -6,6 +6,7 @@ import { Modal } from "./Dialogs";
 import { keys } from "./platform";
 import { Icon } from "./icons";
 import { cleanSignature, fitSignature, readSignature, type SignatureImage, type SignatureTarget } from "./signatures";
+import { writeSetting } from "./preferences";
 
 export function SignatureDialog({ pdf, pageNumber, targets, onApprove, onClose }: {
   pdf: PDFDocumentProxy; pageNumber: number; targets: SignatureTarget[];
@@ -142,8 +143,9 @@ export function SignatureDialog({ pdf, pageNumber, targets, onApprove, onClose }
     try {
       await onApprove(signature, rect);
       if (remember) {
-        try { localStorage.setItem("folio:signature", JSON.stringify(signature)); }
-        catch { setError("Signature added, but couldn't remember it on this device. Close to continue."); setBusy(false); return; }
+        if (!writeSetting("folio:signature", JSON.stringify(signature))) {
+          setError("Signature added, but couldn't remember it on this device. Close to continue."); setBusy(false); return;
+        }
       }
       onClose();
     } catch (reason) { setError((reason as Error).message); setBusy(false); }

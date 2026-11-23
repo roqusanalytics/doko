@@ -1,6 +1,7 @@
 import { AnnotationEditorType } from "pdfjs-dist";
 import type { PDFDocumentProxy } from "./pdf";
 import type { PDFViewer } from "./viewer";
+import { readSetting } from "./preferences";
 
 export interface SignatureImage { url: string; width: number; height: number }
 export interface SignatureTarget { id: string; label: string; rect: number[]; kind: "field" | "label" }
@@ -112,7 +113,7 @@ export function cleanSignature(source: HTMLCanvasElement, crop: number[], thresh
 
 export function readSignature(): SignatureImage | null {
   try {
-    const value = JSON.parse(localStorage.getItem("folio:signature") || "null");
+    const value = JSON.parse(readSetting("folio:signature") || "null");
     return value && typeof value.url === "string" && value.url.startsWith("data:image/png;base64,")
       && value.url.length < 4000000 && Number.isFinite(value.width) && Number.isFinite(value.height)
       && value.width > 0 && value.height > 0 ? value : null;

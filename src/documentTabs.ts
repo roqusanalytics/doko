@@ -1,6 +1,7 @@
 import { keys } from "./platform";
 import { activeDocument, setActiveDocument } from "./session";
 import { getRecent, listCanvasDocumentDrafts } from "./recent";
+import { readSetting, writeSetting } from "./preferences";
 
 const untitledCanvasDocument = (draftId?: string): CanvasDocument => ({ kind: "canvasDocument", name: "Untitled Canvas", draftId });
 
@@ -59,10 +60,8 @@ export class DocumentTabs {
   takeLinkHint() {
     if (this.linkHintSeen) return false;
     this.linkHintSeen = true;
-    try {
-      if (localStorage.getItem("folio:link-return-hint")) return false;
-      localStorage.setItem("folio:link-return-hint", "1");
-    } catch { /* Once per window when storage is unavailable. */ }
+    if (readSetting("folio:link-return-hint")) return false;
+    writeSetting("folio:link-return-hint", "1"); // Once per window when storage is unavailable.
     return true;
   }
 
