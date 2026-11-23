@@ -251,13 +251,6 @@ try {
   const other = Buffer.concat([Buffer.from(sample), Buffer.from("\\n% Another PDF")]);
   const select = name => docs.getByRole("tab", { name, exact: true }).click();
   await page.getByTitle("Next page").click();
-  // Stub the native confirmation only in this test window.
-  await page.window.evaluate(() => {
-    const original = window.confirm;
-    window.tabPrompts = [];
-    window.confirm = message => { window.tabPrompts.push(message); return window.tabPrompts.length === 2; };
-    window.restoreConfirm = () => { window.confirm = original; };
-  });
   await app.evaluate(({ BrowserWindow }, bytes) => BrowserWindow.getAllWindows()[0].webContents.send(
     "folio:open-file", { name: "Another.pdf", data: Buffer.from(bytes) }), Array.from(other));
   await page.locator(".textLayer span:not(.markedContent)").first().waitFor();
@@ -267,15 +260,17 @@ try {
   assert.equal(await page.getByLabel("Page number", { exact: true }).inputValue(), "2");
   await page.getByTitle("Previous page").click();
   await page.locator(".stampEditor").waitFor();
-  assert.deepEqual(await page.window.evaluate(() => window.tabPrompts), []);
+  const unsavedDialog = page.getByRole("dialog", { name: "Unsaved changes", exact: true });
+  assert.equal(await unsavedDialog.count(), 0, "switching tabs asked about unsaved changes");
   await select("Another.pdf");
   const closeSigned = docs.getByRole("button", { name: "Close Doko sample.pdf, unsaved changes" });
   await closeSigned.click();
+  await unsavedDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await unsavedDialog.waitFor({ state: "detached" });
   assert.equal(await docs.getByRole("tab").count(), 2);
   await closeSigned.click();
+  await unsavedDialog.getByRole("button", { name: "Discard", exact: true }).click();
   await closeSigned.waitFor({ state: "detached" });
-  assert.equal(await page.window.evaluate(() => window.tabPrompts.length), 2);
-  await page.window.evaluate(() => window.restoreConfirm());
 
   // Batch opening keeps picker order, never replaces the current reader, and gives each file its own view.
   const choosing = page.waitForEvent("filechooser");
@@ -836,15 +831,17 @@ try {
   console.log("ok  local network addresses need the user's OK");
   console.log("ok  a link that is given up on stops, and the next one opens");
 
-  // Exercise the real all-tab close coordinator rather than the replaced will-prevent-unload hook.
+  // Exercise the real all-tab close coordinator rather than the replaced will-prevent-unload hook. Readers that can't
+  // answer for themselves (e.g. a crashed one) fall back to the native question, which names this platform's shortcut.
   const closePrompt = await page.evaluate(async () => {
     const { tabs, key } = window.frameElement.readerContext;
-    const host = window.parent, ask = host.confirm;
+    const host = window.parent, ask = host.confirm, reader = tabs.entry(key).reader, canClose = reader.canClose;
     let detail = null;
     host.confirm = message => { detail = message; return false; };
+    reader.canClose = undefined;
     tabs.markDirty(key, true);
     try { if (await tabs.prepareClose()) throw new Error("Cancelled close succeeded"); }
-    finally { host.confirm = ask; tabs.markDirty(key, false); tabs.cancelClose(); }
+    finally { host.confirm = ask; reader.canClose = canClose; tabs.markDirty(key, false); tabs.cancelClose(); }
     return detail;
   });
   assert.match(closePrompt, process.platform === "darwin" ? /⌘\s*S/ : /Ctrl[+ ]S/);

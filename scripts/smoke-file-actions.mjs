@@ -127,6 +127,37 @@ try {
   assert.equal((await PDFDocument.load(readFileSync(compressed))).getPageCount(), 1);
   console.log("ok native PDF Export retains prepared output after cancellation; Compress saves a separate PDF");
 
+  // Form values are the PDF edits Doko does not store itself, so they make a document genuinely unsaved.
+  const formPath = path.join(temp, "form.pdf"), form = await PDFDocument.create();
+  form.getForm().createTextField("name").addToPage(form.addPage([600, 800]), { x: 50, y: 700, width: 300, height: 30 });
+  writeFileSync(formPath, await form.save());
+  const formTabs = () => page.getByRole("tablist", { name: "Open documents" }).getByRole("tab", { name: "form.pdf", exact: true }).count();
+  const unsaved = page.getByRole("dialog", { name: "Unsaved changes", exact: true });
+  const editForm = async () => {
+    await open(formPath); await page.locator(".annotationLayer input").fill("Ada");
+    await page.locator(".dirty-dot").waitFor();
+  };
+  await editForm(); await page.keyboard.press("ControlOrMeta+w");
+  assert.match(await unsaved.innerText(), /Save a copy of “form\.pdf” with your changes before closing\? The original file is not changed\./);
+  assert.ok(await unsaved.getByRole("button", { name: "Cancel", exact: true }).evaluate(el => el === el.ownerDocument.activeElement), "Cancel is not focused");
+  await unsaved.getByRole("button", { name: "Cancel", exact: true }).click(); await unsaved.waitFor({ state: "detached" });
+  assert.equal(await formTabs(), 1, "Cancel closed the PDF");
+  // Window close asks the same question; Escape cancels it and keeps every tab.
+  const closing = page.evaluate(() => window.frameElement.readerContext.tabs.prepareClose());
+  await unsaved.waitFor(); await page.keyboard.press("Escape"); await unsaved.waitFor({ state: "detached" });
+  assert.equal(await closing, false, "Cancelled window close succeeded");
+  assert.equal(await formTabs(), 1, "Cancelled window close removed a tab");
+  await page.keyboard.press("ControlOrMeta+w");
+  await unsaved.getByRole("button", { name: "Discard", exact: true }).click();
+  await wait(async () => await formTabs() === 0, "Discard did not close the PDF");
+  await editForm(); await page.keyboard.press("ControlOrMeta+w");
+  const closedCopy = path.join(temp, "form-copy.pdf"); await queue(closedCopy);
+  await unsaved.getByRole("button", { name: "Save copy", exact: true }).click(); await outputReady(closedCopy);
+  await wait(async () => await formTabs() === 0, "Save copy did not close the PDF");
+  assert.equal((await PDFDocument.load(readFileSync(closedCopy))).getForm().getTextField("name").getText(), "Ada", "Save copy lost the form value");
+  assert.equal((await PDFDocument.load(readFileSync(formPath))).getForm().getTextField("name").getText(), undefined, "Form original was modified");
+  console.log("ok dirty PDF close asks in Doko's dialog: Cancel and Escape keep it, Discard closes, Save copy saves then closes");
+
   const sourceImages = await page.evaluate(() => ["#e03020", "#2040e0"].map(color => {
     const canvas = Object.assign(document.createElement("canvas"), { width: 200, height: 150 });
     const context = canvas.getContext("2d"); context.fillStyle = color; context.fillRect(0, 0, 200, 150); return canvas.toDataURL().split(",")[1];
@@ -182,10 +213,9 @@ try {
   const beforePhotoCancel = (await state()).dialogs.length;
   await queue(null); await native("Save As…");
   await wait(async () => (await state()).dialogs.length === beforePhotoCancel + 1 && (await menuState()).Save, "Photo Save As cancellation did not finish");
-  await page.window.evaluate(() => { window.fileCloseQuestions = []; window.confirm = message => { window.fileCloseQuestions.push(message); return false; }; });
   await native("Close Tab");
-  await page.window.waitForFunction(() => window.fileCloseQuestions.length === 1);
-  assert.match(await page.window.evaluate(() => window.fileCloseQuestions[0]), /unsaved|discard/i);
+  await unsaved.getByRole("button", { name: "Cancel", exact: true }).click();
+  await unsaved.waitFor({ state: "detached" });
   const cleanPhoto = path.join(temp, "photo1-edited.png"); await queue(cleanPhoto); await native("Save"); await outputReady(cleanPhoto);
   await wait(async () => (await menuState()).Save, "Photo save did not finish");
   const savedPhoto = path.join(temp, "photo2-copy.png"); await queue(savedPhoto);
