@@ -10,10 +10,12 @@ import { artifactIds, verifyPublicReleaseRepository, verifyReleaseNotes, release
 test("release notes exist for the exact next version before versioning or tagging", () => {
   for (const [bump, next] of [["patch", "1.20.29"], ["minor", "1.21.0"], ["major", "2.0.0"], ["1.22.3", "1.22.3"]]) {
     assert.equal(verifyReleaseNotes(`# Changelog\n\n## ${next}\n\n- A user-visible change.\n`, "1.20.28", bump), next);
+
     for (const missing of ["", "## 1.20.28\n- Old change.\n", `${next}\n- Missing heading.\n`, `## ${next}\n\n## 1.0.0\n- Old change.\n`, `## ${next}\n- \n`]) {
       assert.throws(() => verifyReleaseNotes(missing, "1.20.28", bump), /CHANGELOG.md before releasing/);
     }
   }
+
   assert.equal(verifyReleaseNotes("## 1.20.29\r\n- Change.\r\n", "1.20.28", "patch"), "1.20.29");
   assert.throws(() => verifyReleaseNotes("", "invalid", "patch"), /numeric release version/);
   assert.throws(() => verifyReleaseNotes("", "1.20.28", "invalid"), /numeric release version/);
@@ -23,10 +25,12 @@ test("release notes exist for the exact next version before versioning or taggin
 
 const tag = "v1.2.3";
 const commit = "a".repeat(40);
+
 const build = {
   id: 42, event: "push", head_branch: tag, head_sha: commit, path: ".github/workflows/release-build.yml", head_repository: { full_name: SOURCE_REPO },
   status: "completed", conclusion: "success", run_attempt: 2,
 };
+
 const select = (...runs) => selectBuild({ total_count: runs.length, workflow_runs: runs }, tag, commit);
 const ci = { ...build, id: 50, path: ".github/workflows/ci.yml", head_branch: "main" };
 const ciHistory = (...runs) => ({ total_count: runs.length, workflow_runs: runs });
@@ -39,6 +43,7 @@ test("macOS packaging rejects unsigned releases and verifies the persistent cert
   const identity = "C1D1C0D9EC7D8B849C48DADC2F9E278B40C33919";
   assert.match(block, new RegExp(`DOKO_MAC_SIGN_IDENTITY: ${identity}\\n`));
   const script = block.split("        run: |\n")[1].replace(/^          /gm, "");
+
   const mocks = `
     sudo() { "$@"; }
     security() {
@@ -50,6 +55,7 @@ test("macOS packaging rejects unsigned releases and verifies the persistent cert
     npx() { printf '%s\\n' "$@" >> "$RUNNER_TEMP/package-args"; }
     codesign() { printf '%s\\n' "$@" >> "$RUNNER_TEMP/verify-args"; return "\${MOCK_VERIFY_STATUS:-0}"; }
   `;
+
   const env = { ...process.env, RUNNER_TEMP: folder, MAC_SELF_SIGNED_P12_BASE64: "", MAC_SELF_SIGNED_PASSWORD: "", DOKO_MAC_SIGN_IDENTITY: identity, MAC_CERTIFICATE_P12_BASE64: "" };
   const run = (values) => spawnSync("bash", ["-eu", "-c", mocks + script], { env: { ...env, ...values }, encoding: "utf8" });
   const unsigned = run({});
@@ -83,10 +89,12 @@ test("full CI must be from the exact main push, repository and workflow", () => 
   successfulCI(selectCI(ciHistory(ci), commit));
   assert.equal(selectCI(ciHistory(), commit), null);
   assert.throws(() => successfulCI(null), /Full CI/);
+
   for (const change of [{ head_sha: "b".repeat(40) }, { path: build.path }, { head_repository: { full_name: "example/fork" } },
     { event: "pull_request" }, { event: "workflow_dispatch" }, { head_branch: tag }, { id: "50" }]) {
     assert.throws(() => selectCI(ciHistory({ ...ci, ...change }), commit), /CI does not match/);
   }
+
   assert.throws(() => selectCI({ total_count: 2, workflow_runs: [ci] }, commit), /Incomplete/);
 });
 
@@ -98,16 +106,19 @@ test("an older successful CI run cannot hide a newer run or rerun", () => {
     assert.throws(() => successfulCI(selectCI(ciHistory(ci, latest), commit)), /Full CI/);
     assert.throws(() => successfulCI(selectCI(ciHistory({ ...ci, run_attempt: 3, ...change }), commit)), /Full CI/);
   }
+
   successfulCI(selectCI(ciHistory({ ...ci, run_attempt: 3 }), commit));
 });
 
 test("normal and resumed publication execute the CI gate and recheck it after download", (t) => {
   const folder = mkdtempSync(path.join(tmpdir(), "doko-publisher-test-"));
   t.after(() => rmSync(folder, { recursive: true, force: true }));
+
   const source = readFileSync(new URL("./release.mjs", import.meta.url), "utf8")
     .replace('from "node:child_process"', 'from "./mock-process.mjs"')
     .replaceAll('"./check-release.mjs"', JSON.stringify(new URL("./check-release.mjs", import.meta.url).href))
     .replaceAll('"./release-build.mjs"', JSON.stringify(new URL("./release-build.mjs", import.meta.url).href));
+
   writeFileSync(path.join(folder, "release.mjs"), source);
   writeFileSync(path.join(folder, "CHANGELOG.md"), "## 1.2.3\n- A user-visible change.\n");
   writeFileSync(path.join(folder, "mock-process.mjs"), `
@@ -151,23 +162,29 @@ test("normal and resumed publication execute the CI gate and recheck it after do
       return "";
     }
   `);
+
   for (const args of [[], ["--publish-only"]]) {
     for (const scenario of ["private", "failed", "rerun", "success"]) {
       writeFileSync(path.join(folder, "package.json"), JSON.stringify({ version: args.length ? "1.2.3" : "1.2.2" }));
       writeFileSync(path.join(folder, "calls"), "");
+
       const result = spawnSync(process.execPath, ["release.mjs", ...args], {
         cwd: folder, encoding: "utf8", env: { ...process.env, CI_SCENARIO: scenario },
       });
+
       const calls = readFileSync(path.join(folder, "calls"), "utf8");
       assert.equal(result.status, 1, result.stderr);
+
       if (scenario === "private") {
         assert.match(result.stderr, /public release repository/);
         assert.ok(!calls.includes('["git","push"') && !calls.includes("npm version") && !calls.includes('["gh","run","download"'));
         continue;
       }
+
       const pushes = calls.split("\n").filter(line => line.startsWith('["git","push"')).map(line => JSON.parse(line));
       assert.deepEqual(pushes, args.length ? [] : [["git", "push", "--atomic", `https://github.com/${SOURCE_REPO}.git`, "HEAD:refs/heads/main", `refs/tags/${tag}`]]);
       assert.ok(calls.includes("/ci.yml/runs?event=push&branch=main&head_sha=" + commit));
+
       if (scenario === "success") {
         assert.match(result.stderr, /PUBLICATION_REACHED/);
         assert.ok(calls.includes('["gh","release","create"'));
@@ -181,6 +198,7 @@ test("normal and resumed publication execute the CI gate and recheck it after do
       }
     }
   }
+
   writeFileSync(path.join(folder, "package.json"), JSON.stringify({ version: "1.2.2" }));
   writeFileSync(path.join(folder, "CHANGELOG.md"), "## 1.2.2\n- Old change.\n");
   writeFileSync(path.join(folder, "calls"), "");
@@ -199,6 +217,7 @@ test("source and downloads use the public Doko repository", () => {
 test("publication rejects private or renamed repositories", () => {
   const repository = { full_name: RELEASES_REPO, private: false };
   verifyPublicReleaseRepository(() => repository);
+
   for (const change of [{ private: true }, { private: undefined }, { full_name: "roqusanalytics/folio-fork" }]) {
     assert.throws(() => verifyPublicReleaseRepository(() => ({ ...repository, ...change })), /public release repository/);
   }
@@ -219,13 +238,17 @@ test("published releases require their era's assets and matching update feeds", 
       const manifest = Object.values(RELEASE_ARTIFACTS).flat().map(asset => ({
         ...asset, name: asset.name.replace(/^Doko-/, `${prefix}-`),
       }));
+
       t.mock.method(globalThis, "fetch", async (url) => {
         if (url.startsWith("https://api.github.com/")) {
           assert.equal(url, `https://api.github.com/repos/${RELEASES_REPO}/releases/latest`);
+
           return { ok: true, json: async () => ({ tag_name: `v${version}`, assets: manifest
             .filter(asset => asset.name !== missing).map(asset => ({ ...asset, browser_download_url: `https://downloads.example/${asset.name}` })) }) };
         }
+
         const feed = manifest.find(asset => url.endsWith(`/${asset.name}`));
+
         return { text: async () => `${feed.feed === "apt" ? "Version" : "version"}: ${stale ? "1.0.0" : version}\n` };
       });
       const result = await checkRelease();
@@ -245,11 +268,13 @@ test("release bump is read with or without notes", () => {
 
 test("publisher requires the original tag object and a commit on canonical main", () => {
   const tagObject = "1".repeat(40), main = "b".repeat(40);
+
   const responses = new Map([
     [`git/ref/tags/${tag}`, { ref: `refs/tags/${tag}`, object: { sha: tagObject } }],
     ["git/ref/heads/main", { object: { sha: main } }],
     [`compare/${commit}...${main}?per_page=1`, { merge_base_commit: { sha: commit } }],
   ]);
+
   const verify = () => verifyReleaseTag(key => responses.get(key), tag, tagObject, commit);
   verify();
   responses.get(`compare/${commit}...${main}?per_page=1`).merge_base_commit.sha = "c".repeat(40);
@@ -263,11 +288,14 @@ test("publisher requires the original tag object and a commit on canonical main"
 test("only a unique matching tag-push build can supply a successful attempt", () => {
   assert.equal(select(), null);
   assert.equal(successfulAttempt(select(build), 42), 2);
+
   for (const change of [{ event: "workflow_dispatch" }, { head_sha: "b".repeat(40) }, { head_branch: "main" },
     { path: ".github/workflows/ci.yml" }, { head_repository: { full_name: "example/fork" } }]) {
     assert.throws(() => select({ ...build, ...change }));
   }
+
   assert.throws(() => select(build, { ...build, id: 43 }));
+
   for (const change of [{ conclusion: "failure" }, { conclusion: "skipped" }, { status: "in_progress" }, { id: 43 }]) {
     assert.throws(() => successfulAttempt({ ...build, ...change }, 42));
   }
@@ -278,10 +306,12 @@ test("archives must be unexpired and belong to the same run and SHA", () => {
   const archives = groups.map((name, i) => ({ name, id: i + 1, expired: false, workflow_run: { id: 42, head_sha: commit } }));
   const ids = (artifacts) => artifactIds({ total_count: artifacts.length, artifacts }, build);
   assert.equal(ids(archives), ids(archives.toReversed()));
+
   for (const change of [{ name: groups[1] }, { expired: true }, { workflow_run: { id: 44, head_sha: commit } },
     { workflow_run: { id: 42, head_sha: "b".repeat(40) } }]) {
     assert.throws(() => ids([{ ...archives[0], ...change }, ...archives.slice(1)]));
   }
+
   assert.notEqual(ids([{ ...archives[0], id: 4 }, ...archives.slice(1)]), ids(archives));
   assert.throws(() => ids([...archives, archives[0]]));
 });
@@ -289,10 +319,13 @@ test("archives must be unexpired and belong to the same run and SHA", () => {
 test("only manifest files from the correct platform directory can be published", (t) => {
   const folder = mkdtempSync(path.join(tmpdir(), "doko-release-test-"));
   t.after(() => rmSync(folder, { recursive: true, force: true }));
+
   for (const [group, assets] of Object.entries(RELEASE_ARTIFACTS)) {
     mkdirSync(path.join(folder, group));
+
     for (const { name } of assets) writeFileSync(path.join(folder, group, name), "");
   }
+
   const mac = path.join(folder, "doko-macos");
   const win = path.join(folder, "doko-windows");
   const files = releaseFiles(folder);

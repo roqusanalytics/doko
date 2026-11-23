@@ -8,6 +8,7 @@ const { guardSession } = require("./network.cjs");
 const { MAX_DOCUMENT_BYTES } = require("./document-files.cjs");
 
 const TOTAL_TIMEOUT_MS = 60_000;
+
 // Pages are laid out like a desktop browser window: 1280 CSS px wide, no margins.
 const PAGE_WIDTH_PX = 1280;
 const PAGE_HEIGHT_PX = 1664;
@@ -19,11 +20,13 @@ const FIDELITY_CSS = `
 *, *::before, *::after { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 @page { margin: 0 !important; }
 `;
+
 const SCROLL_TIMEOUT_MS = 15_000;
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function withTimeout(promise, ms, message) {
   let timer;
+
   return Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), ms); })])
     .finally(() => clearTimeout(timer));
 }
@@ -89,6 +92,7 @@ async function captureWebpage(rawUrl, approvedLocal, signal) {
   // Rejects when the capture is called off; the window is closed below, whatever it was in the middle of.
   const cancelled = new Promise((_, reject) => signal?.addEventListener("abort", () => reject(new Error("cancelled")), { once: true }));
   cancelled.catch(() => {}); // only matters while it is being raced
+
   try {
     if (signal?.aborted) return { cancelled: true };
     win = new BrowserWindow({
@@ -122,7 +126,9 @@ async function captureWebpage(rawUrl, approvedLocal, signal) {
     } catch {
       /* falls back to print styles */
     }
+
     if (signal?.aborted) return { cancelled: true };
+
     return await Promise.race([cancelled, withTimeout((async () => {
       try {
         await contents.loadURL(url.toString());
@@ -130,10 +136,12 @@ async function captureWebpage(rawUrl, approvedLocal, signal) {
         // Pages that keep redirecting or abort a subresource can reject even though they loaded.
         if (!contents.getURL() || contents.getURL() === "about:blank") throw error;
       }
+
       await contents.insertCSS(FIDELITY_CSS, { cssOrigin: "user" }).catch(() => {});
       await delay(800);
       await withTimeout(contents.executeJavaScript(PREPARE_PAGE, false), SCROLL_TIMEOUT_MS, "scroll").catch(() => {});
       await delay(600);
+
       const data = await contents.printToPDF({
         printBackground: true,
         pageSize: { width: PAGE_WIDTH_PX / CSS_PX_PER_INCH, height: PAGE_HEIGHT_PX / CSS_PX_PER_INCH },
@@ -142,12 +150,16 @@ async function captureWebpage(rawUrl, approvedLocal, signal) {
         generateDocumentOutline: true,
         generateTaggedPDF: true,
       });
+
       if (data.length > MAX_DOCUMENT_BYTES) return { error: "The converted webpage is larger than 300 MB." };
+
       return { name: safePdfName(contents.getTitle(), new URL(contents.getURL() || url.toString()).hostname), data };
     })(), TOTAL_TIMEOUT_MS, "timeout")]);
   } catch (error) {
     if (signal?.aborted) return { cancelled: true };
+
     if (error?.message === "timeout") return { error: "The webpage took too long to load." };
+
     return { error: `Couldn't load that webpage${error?.code ? ` (${error.code})` : ""}.` };
   } finally {
     win?.destroy();

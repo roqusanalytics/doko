@@ -13,8 +13,10 @@ export function canvasDocumentAppState(state: Partial<AppState>) {
 
 export function loadCanvasDocument(text?: string): ExcalidrawInitialDataState {
   const appState = { currentItemFontFamily: FONT_FAMILY.Virgil };
+
   if (text === undefined) return { appState };
   const scene = JSON.parse(text) as ExcalidrawInitialDataState;
+
   // Resolve malformed element data before the editor's asynchronous initialization.
   return { ...restore({ elements: scene.elements, files: scene.files,
     appState: { ...canvasDocumentAppState(scene.appState ?? {}), ...appState } }, null, null, { repairBindings: true }),

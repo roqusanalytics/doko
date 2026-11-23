@@ -14,6 +14,6 @@
   (about 6,800 findings, mostly `require-readable-spacing`): `no-array-filter-map`, `no-chained-type-assertions`,
   `no-conditional-empty-object-spread`, `no-known-value-widening`, `no-object-parameters`, `no-reflect-get`,
   `no-runtime-typeof`, `no-shape-in-symbol-names`, `no-unknown-parameters`, `no-unsafe-dictionary-type`,
-  `require-readable-spacing`, `require-safety-comment-for-type-assertion`. Move each back to `error` once its
-  findings are cleaned up.
+  `require-safety-comment-for-type-assertion`. Move each back to `error` once its findings are cleaned up.
+  `require-readable-spacing` was cleaned up with its autofix and is back at `error`.
 - `.scratch/**` is added to `ignorePatterns` (local agent scratch space).

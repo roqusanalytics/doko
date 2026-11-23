@@ -95,23 +95,29 @@ function StoredData() {
   useEffect(() => {
     if (!open) return;
     let active = true;
+
     const refresh = async () => {
       try {
         const next = await countStoredData();
+
         if (active) setCounts(next);
       } catch {
         if (active) setError("Couldn't count stored documents. Close and reopen this section to try again.");
       }
     };
+
     void refresh();
     const stop = onStoredDataCleared(() => void refresh());
+
     return () => { active = false; stop(); };
   }, [open]);
 
   const cancel = () => { setConfirm(null); trigger.current?.focus(); };
+
   const clear = async (kind: StoredCategory) => {
     setBusy(true);
     setError("");
+
     try {
       await clearStoredData(kind);
       setCounts(current => current && { ...current, [kind]: 0 });
@@ -123,6 +129,7 @@ function StoredData() {
 
   return <details className="settings-section stored-data" onToggle={event => {
     setOpen(event.currentTarget.open);
+
     if (!event.currentTarget.open) { setConfirm(null); setError(""); setCounts(null); }
   }}>
     <summary ref={summary}><Icon name="chevronRight" size={15} />Stored data</summary>
@@ -131,6 +138,7 @@ function StoredData() {
       {(["notes", "ai"] as const).map(kind => {
         const { label, action } = storedCategories[kind];
         const count = counts?.[kind];
+
         return <Row key={kind} label={label} hint={count === undefined ? "…" : `${count} document${count === 1 ? "" : "s"}`}>
           <button className="btn ghost" disabled={!count || busy} onClick={event => {
             trigger.current = event.currentTarget;
@@ -140,7 +148,9 @@ function StoredData() {
         </Row>;
       })}
       {confirm && <div key={confirm} className="stored-confirm" role="alertdialog" aria-labelledby="stored-question" aria-describedby="stored-detail"
-        onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); if (!busy) cancel(); } }}>
+        onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation();
+
+ if (!busy) cancel(); } }}>
         <strong id="stored-question">{storedCategories[confirm].question}</strong>
         <p id="stored-detail">{storedCategories[confirm].detail}</p>
         <button className="btn ghost" autoFocus disabled={busy} onClick={cancel}>Cancel</button>
@@ -165,6 +175,7 @@ export function UpdateSettings() {
     desktop.getAppInfo().then((i) => { if (!cancelled) setInfo(i); }).catch(() => {});
     desktop.getAutoUpdateEnabled().then((on) => { if (!cancelled) setAutoUpdate(on); }).catch(() => {});
     const unsubscribe = desktop.onUpdateStatus(setStatus);
+
     return () => { cancelled = true; unsubscribe?.(); };
   }, [desktop]);
   // Installed Windows copies and Linux AppImages update themselves; Macs check and offer the download.
@@ -173,6 +184,7 @@ export function UpdateSettings() {
   const notifyOnly = !!info?.notifyOnly;
 
   if (!desktop) return null;
+
   return <>
     <Section title="Updates">
       {updatable && (
@@ -184,6 +196,7 @@ export function UpdateSettings() {
           <Switch label="Automatic updates" checked={autoUpdate === true} disabled={autoUpdate === null || savingUpdate} onChange={async (on) => {
             setSavingUpdate(true);
             setError(null);
+
             try { setAutoUpdate(await desktop.setAutoUpdateEnabled(on)); }
             catch { setError("Couldn't save the update setting. Try again."); }
             finally { setSavingUpdate(false); }
@@ -216,7 +229,9 @@ export function SettingsDialog(props: Props | { initialSection: "Ask AI"; onClos
     const update = (event: StorageEvent) => {
       if (event.key === WINDOW_TRANSPARENCY_KEY || event.key === null) setWindowTransparency(readSetting(WINDOW_TRANSPARENCY_KEY) === "true");
     };
+
     window.addEventListener("storage", update);
+
     return () => window.removeEventListener("storage", update);
   }, []);
 
@@ -229,6 +244,7 @@ export function SettingsDialog(props: Props | { initialSection: "Ask AI"; onClos
     let current = true;
     void ai?.status().then(value => { if (current) setAiStatus(value); })
       .catch(() => { if (current) setError("Couldn't check the provider connections."); });
+
     return () => { current = false; };
   }, [ai, section]);
 

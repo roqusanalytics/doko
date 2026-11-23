@@ -169,9 +169,11 @@ export const lt: Copy = {
 (function same(a: unknown, b: unknown, path: string): void {
   if (Array.isArray(a)) {
     if (!Array.isArray(b) || (path !== "kinetic.statement" && a.length !== b.length)) throw new Error(`lt.ts: ${path} must be a list of ${a.length}`);
+
     if (path !== "kinetic.statement") a.forEach((x, i) => same(x, b[i], `${path}[${i}]`));
   } else if (a && typeof a === "object") {
     if (!b || typeof b !== "object") throw new Error(`lt.ts: ${path} is missing`);
+
     for (const k of Object.keys(a)) same((a as any)[k], (b as any)[k], path ? `${path}.${k}` : k);
   } else if (typeof a !== typeof b) throw new Error(`lt.ts: ${path} is missing`);
 })(en, lt, "");

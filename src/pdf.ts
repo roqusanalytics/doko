@@ -17,6 +17,7 @@ export const pdfBlob = (bytes: Uint8Array) => new Blob([bytes as Uint8Array<Arra
 export async function loadPdf(data: Uint8Array, signal: AbortSignal, password?: string) {
   checkPdfSize(data.byteLength);
   signal.throwIfAborted();
+
   const task = pdfjs.getDocument({
     // pdf.js transfers this buffer to the worker. Doko still needs the input for identity, Recent and password retries.
     data: data.slice(),
@@ -29,12 +30,16 @@ export async function loadPdf(data: Uint8Array, signal: AbortSignal, password?: 
     wasmUrl: `${base}wasm/`,
     iccUrl: `${base}iccs/`,
   });
+
   const abort = () => { void task.destroy().catch(() => {}); };
+
   signal.addEventListener("abort", abort, { once: true });
+
   try {
     const pdf = await task.promise;
     signal.throwIfAborted();
     checkPageCount(pdf.numPages);
+
     return pdf;
   } catch (error) {
     if (!signal.aborted) await task.destroy().catch(() => {});
@@ -52,9 +57,12 @@ export async function copyPdfPages(pdf: PDFDocumentProxy, pages: number[], signa
   const pageIndices = bySource.map(entry => entry.destination);
   // Extraction alone doesn't commit form values. Use a saved snapshot when there are edits.
   const snapshot = pdf.annotationStorage.size ? await loadPdf(await pdf.saveDocument(), signal, password) : pdf;
+
   try {
     const bytes = await snapshot.extractPages([{ document: null, includePages, pageIndices }]);
+
     if (!bytes?.length) throw new Error("Couldn't copy the selected pages.");
+
     return bytes;
   } finally {
     if (snapshot !== pdf) await snapshot.loadingTask.destroy();
@@ -74,10 +82,12 @@ export async function renderThumbnail(
   signal?.throwIfAborted();
   const base = page.getViewport({ scale: 1, rotation: (page.rotate + rotation) % 360 });
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
   const viewport = page.getViewport({
     scale: (width / base.width) * dpr,
     rotation: (page.rotate + rotation) % 360,
   });
+
   canvas.width = Math.floor(viewport.width);
   canvas.height = Math.floor(viewport.height);
   canvas.style.width = `${width}px`;
@@ -85,17 +95,20 @@ export async function renderThumbnail(
   const task = page.render({ canvas, viewport, recordImages: true });
   const cancel = () => task.cancel();
   signal?.addEventListener("abort", cancel, { once: true });
+
   try {
     await task.promise;
   } finally {
     signal?.removeEventListener("abort", cancel);
   }
+
   if (canvas.parentElement) paintImageOverlay(canvas.parentElement, canvas, page, viewport.rotation);
 }
 
 export async function thumbnailDataUrl(doc: PDFDocumentProxy) {
   const canvas = document.createElement("canvas");
   await renderThumbnail(doc, 1, canvas, 220);
+
   return canvas.toDataURL("image/jpeg", 0.8);
 }
 

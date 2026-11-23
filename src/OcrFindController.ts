@@ -2,7 +2,9 @@ import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
 import { EventBus, PDFFindController } from "./viewer";
 
 export type PageText = Awaited<ReturnType<PDFPageProxy["getTextContent"]>>;
+
 type TextReader = (page: PDFPageProxy) => Promise<PageText>;
+
 type FindState = { query: string; type?: string };
 
 /** Keep PDF.js matching, offsets and navigation; share recognized text with search and AI. */
@@ -20,7 +22,10 @@ export class OcrFindController {
     this.reset(false);
     options.eventBus.on("findbarclose", () => this.reset(false));
     options.eventBus.on("find", (state: FindState) => {
-      if (!state.query?.trim()) { this.reset(false); return; }
+      if (!state.query?.trim()) { this.reset(false);
+
+ return; }
+
       if (this.failed) this.reset(false);
       this.events.dispatch("find", state);
     });
@@ -53,26 +58,37 @@ export class OcrFindController {
 
   getPageText(n: number, expectedPdf = this.pdf): Promise<PageText> {
     const pdf = this.pdf, reader = this.reader;
+
     const check = () => {
       if (!pdf || pdf !== expectedPdf || pdf !== this.pdf || reader !== this.reader) {
         throw new DOMException("Document text changed", "AbortError");
       }
     };
+
     try { check(); } catch (error) { return Promise.reject(error); }
+
     const existing = this.text.get(n);
-    if (existing) { this.text.delete(n); this.text.set(n, existing); return existing; }
+
+    if (existing) { this.text.delete(n); this.text.set(n, existing);
+
+ return existing; }
+
     const text = (async () => {
       const page = await pdf!.getPage(n);
       check();
       const content = reader ? await reader(page) : await page.getTextContent({ disableNormalization: true });
       check();
+
       return content;
     })().catch(error => {
       if (this.text.get(n) === text) this.text.delete(n);
       throw error;
     });
+
     this.text.set(n, text);
+
     if (this.text.size > 100) this.text.delete(this.text.keys().next().value!);
+
     return text;
   }
 
@@ -86,25 +102,31 @@ export class OcrFindController {
     this.controller = new PDFFindController({ ...this.options, eventBus: this.events });
     this.controller.onIsPageVisible = (n: number) => this.onIsPageVisible?.(n) ?? true;
     this.failed = false;
+
     for (const name of ["updatefindmatchescount", "updatefindcontrolstate", "updatetextlayermatches"]) {
       this.events.on(name, (event: object) => {
         if (generation === this.generation) this.options.eventBus.dispatch(name, event);
       });
     }
+
     const fail = (error: unknown): never => {
       if (generation === this.generation && (error as Error).name !== "AbortError") {
         this.failed = true;
         this.options.eventBus.dispatch("searchtexterror", { message: "Some scanned pages couldn't be searched. Search again to retry." });
       }
+
       throw error;
     };
+
     // PDF.js uses only getPage/getTextContent here. Leave the viewer's real PDF untouched.
     if (pdf) this.controller.setDocument(new Proxy(pdf, { get: (target, key) => key === "getPage" ? async (n: number) => {
       try {
         if (generation !== this.generation) throw new DOMException("Search cancelled", "AbortError");
+
         return { getTextContent: async () => {
           try {
             if (generation !== this.generation) throw new DOMException("Search cancelled", "AbortError");
+
             return await this.getPageText(n, pdf);
           } catch (error) { return fail(error); }
         } };
@@ -112,6 +134,7 @@ export class OcrFindController {
     } : Reflect.get(target, key, target) }));
     this.options.eventBus.dispatch("searchtextchanged", {});
     this.options.eventBus.dispatch("updatetextlayermatches", { pageIndex: -1 });
+
     if (resume && wasOpen && state) this.events.dispatch("find", { ...state, type: "" });
   }
 }

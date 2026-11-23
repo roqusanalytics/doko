@@ -6,22 +6,30 @@ const path = require("node:path");
 const { createOpenRouter } = require("../electron/openrouter.cjs");
 
 const key = "test-only-example-key";
+
 const question = { model: "fixture/reader", document: { name: "Example.pdf", text: "[Page 1] A sample", truncated: false },
   messages: [{ role: "user", content: "What is the topic?" }] };
+
 const model = { id: question.model, name: "Reader", context_length: 8192,
   architecture: { input_modalities: ["text"], output_modalities: ["text"] } };
+
 function fixture(t) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "folio-test-router-"));
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   const file = name => path.join(home, name);
+
   const safeStorage = { isAsyncEncryptionAvailable: async () => true, getSelectedStorageBackend: () => "gnome_libsecret",
     encryptStringAsync: async value => Buffer.from(value).map(b => b ^ 128),
     decryptStringAsync: async bytes => ({ result: bytes.map(b => b ^ 128).toString() }) };
+
   const calls = [];
+
   const net = { fetch: async (url, options) => {
     calls.push({ url, options });
+
     return Response.json({ data: {} });
   } };
+
   return { router: createOpenRouter({ safeStorage, net, file, writeAtomic: (name, bytes) => fs.writeFileSync(file(name), bytes) }),
     calls, net, safeStorage, file };
 }
@@ -35,6 +43,7 @@ test("key setup validates before encryption, preserves a good key on failure, an
   assert.equal(bytes.includes(key), false);
   await router.check();
   assert.equal(calls.length, 2);
+
   for (const { url, options } of calls) {
     assert.equal(url, "https://openrouter.ai/api/v1/key");
     assert.equal(options.headers.Authorization, "Bearer " + key);
@@ -42,12 +51,14 @@ test("key setup validates before encryption, preserves a good key on failure, an
     assert.equal(options.credentials, "omit");
     assert.equal(options.body, undefined);
   }
+
   net.fetch = async () => Response.json({ error: { message: key } }, { status: 401 });
   await assert.rejects(router.save("another-fake-key"), /rejected this key/);
   assert.deepEqual(fs.readFileSync(file("openrouter-key.bin")), bytes);
   safeStorage.isAsyncEncryptionAvailable = async () => false;
   await assert.rejects(router.save(key), /system key store/);
   safeStorage.decryptStringAsync = async () => { throw new Error("locked"); };
+
   await assert.rejects(router.check(), /unlock/);
   await router.remove();
   assert.equal(fs.existsSync(file("openrouter-key.bin")), false);
@@ -59,8 +70,10 @@ test("setup returns only compatible text models and their individual context win
   net.fetch = async (url, options) => {
     assert.equal(new URL(url).pathname, "/api/v1/models");
     assert.equal(options.body, undefined);
+
     return Response.json({ data: [model, { ...model, id: "fixture/picture", architecture: { input_modalities: ["text"], output_modalities: ["image"] } }] });
   };
+
   assert.deepEqual(await router.models(), [{ id: model.id, name: model.name, contextLength: 8192, created: null }]);
   const withDate = { ...model, created: 1_760_000_000 };
   net.fetch = async () => Response.json({ data: [withDate, { ...model, id: "fixture/bad-date", created: "soon" }] });
@@ -81,9 +94,11 @@ test("answers stream page-marked content, selection questions omit other pages, 
   net.fetch = async (url, options) => {
     assert.equal(url, "https://openrouter.ai/api/v1/chat/completions");
     sent.push(JSON.parse(options.body));
+
     return stream(": comment\r\n\r", "\ndata: {\"choices\":[{\"delta\":{\"content\":\"Read \"}}]}\r\n\r",
       "\ndata: {\"choices\":[{\"delta\":{\"content\":\"(p. 1)\"},\"finish_reason\":\"stop\"}]}\n\n", "data: [DONE]\n\n");
   };
+
   const received = [], signal = new AbortController().signal;
   await router.ask(question, text => received.push(text), signal);
   assert.deepEqual(received, ["Read ", "(p. 1)"]);
@@ -102,20 +117,24 @@ test("requests surface billing, unavailable models, context limits, incomplete s
   const { router, net } = fixture(t);
   await router.save(key);
   const signal = new AbortController().signal;
+
   for (const [status, detail, expected] of [[402, "", /insufficient/], [429, "", /rate limiting/], [404, "", /model ID/],
     [400, "maximum context length exceeded", /context exceed/], [503, "", /unavailable/]]) {
     net.fetch = async () => Response.json({ error: { message: detail } }, { status });
     await assert.rejects(router.ask(question, () => {}, signal), expected);
   }
+
   for (const [event, expected] of [[{error:{code:402}}, /insufficient/], [{choices:[{finish_reason:"length"}]}, /output limit/],
     [{choices:[{delta:{content:"partial"}}]}, /without a complete answer/]]) {
     net.fetch = async () => stream("data: " + JSON.stringify(event) + "\n\n");
     await assert.rejects(router.ask(question, () => {}, signal), expected);
   }
+
   const controller = new AbortController();
   net.fetch = async (_url, options) => {
     controller.abort();
     options.signal.throwIfAborted();
   };
+
   await assert.rejects(router.ask(question, () => {}, controller.signal));
 });

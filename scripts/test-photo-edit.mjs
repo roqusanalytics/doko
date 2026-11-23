@@ -13,36 +13,61 @@ import { captureSave } from "./capture-save.mjs";
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "doko-photo-edit-"));
 const env = { ...process.env, FOLIO_TEST_USER_DATA: temp, FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const asset = readdirSync(path.join(root, "dist/assets")).find(name => /^photoEdit-.*\.js$/.test(name));
+
 assert.ok(asset, "Build Doko with PhotoEditDialog integrated before running the photo edit test");
-const multiple = await PDFDocument.create(); multiple.addPage(); multiple.addPage();
-const huge = await PDFDocument.create(); huge.addPage([8000, 5001]);
+
+const multiple = await PDFDocument.create();
+
+ multiple.addPage();
+
+ multiple.addPage();
+
+const huge = await PDFDocument.create();
+
+ huge.addPage([8000, 5001]);
+
 const app = await electron.launch({ executablePath: electronPath(env), env, args: [root, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
+
 try {
   const page = readerPage(await app.firstWindow());
   page.window.setDefaultTimeout(15_000);
   await page.getByRole("button", { name: /Try a sample/ }).waitFor({ timeout: 30_000 });
   console.log("photo edit: production pixel pipeline");
   page.on("console", message => { if (message.text().startsWith("photo edit:")) console.log(message.text()); });
+
   const result = await page.evaluate(async ({ asset, multiple, huge }) => {
     const api = await import(new URL(`./assets/${asset}`, location.href).href);
     const { initialPhotoEdit, renderPhotoEdit, photoEditSize, adjustPhotoPixels, loadPhotoCanvas, createPhotoEditPdf } = api;
     const signal = new AbortController().signal;
+
     const rejects = async (action, pattern) => {
-      try { await action(); } catch (error) { if (!pattern.test(String(error))) throw error; return; }
+      try { await action(); } catch (error) { if (!pattern.test(String(error))) throw error;
+
+ return; }
+
       throw new Error("Invalid photo edit was accepted");
     };
+
     const source = Object.assign(document.createElement("canvas"), { width: 3, height: 2 });
     const context = source.getContext("2d");
+
     const original = new Uint8ClampedArray([
       255,0,0,255, 0,255,0,255, 0,0,255,255,
       255,255,0,255, 0,255,255,255, 255,0,255,255,
     ]);
+
     context.putImageData(new ImageData(original.slice(), 3, 2), 0, 0);
     const pixels = canvas => [...canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data];
     const render = operations => renderPhotoEdit(source, { ...initialPhotoEdit(), operations });
-    const get = canvas => { const result = { width: canvas.width, height: canvas.height, pixels: pixels(canvas) }; canvas.width = canvas.height = 0; return result; };
+
+    const get = canvas => { const result = { width: canvas.width, height: canvas.height, pixels: pixels(canvas) }; canvas.width = canvas.height = 0;
+
+ return result; };
+
     const crop = get(render([{ kind: "crop", x: 1, y: 0, width: 2, height: 2 }]));
     const right = get(render([{ kind: "rotate", turns: 1 }]));
     const left = get(render([{ kind: "rotate", turns: 3 }]));
@@ -57,6 +82,7 @@ try {
     const flat = new Uint8ClampedArray([20,30,40,87]); adjustPhotoPixels(flat, { brightness: 0, contrast: -100, saturation: 0 });
     const saturated = new Uint8ClampedArray([130,120,110,87]); adjustPhotoPixels(saturated, { brightness: 0, contrast: 0, saturation: 100 });
     await rejects(() => photoEditSize(3, 2, [{ kind: "crop", x: 2, y: 0, width: 2, height: 1 }]), /inside/);
+
     for (const dimensions of [[0,1], [NaN,1], [1.5,1], [32768,1], [8000,5001]]) await rejects(() => photoEditSize(...dimensions, []), /whole|million/);
     await rejects(() => renderPhotoEdit(source, { ...initialPhotoEdit(), brightness: NaN }), /adjustments/);
     await rejects(() => renderPhotoEdit(source, { ...initialPhotoEdit(), operations: [{ kind: "rotate", turns: 2 }] }), /quarter/);
@@ -81,8 +107,10 @@ try {
     const alphaValue = pixels(alphaCanvas)[7];
     alphaCanvas.width = alphaCanvas.height = alpha.width = alpha.height = 0;
     const unchanged = pixels(source); source.width = source.height = 0;
+
     return { crop, right, left, horizontal, vertical, identity, resized, composed, preview, gray: [...gray], bright: [...bright], flat: [...flat], saturated: [...saturated], roundtrip, unchanged, original: [...original], savedOriginal, after: [...pdf], alphaValue };
   }, { asset, multiple: [...await multiple.save()], huge: [...await huge.save()] });
+
   const rows = image => Array.from({ length: image.pixels.length / 4 }, (_, i) => image.pixels.slice(i * 4, i * 4 + 4));
   const R = [255,0,0,255], G = [0,255,0,255], B = [0,0,255,255], Y = [255,255,0,255], C = [0,255,255,255], M = [255,0,255,255];
   assert.deepEqual(rows(result.crop), [G,B,C,M]);
@@ -103,14 +131,17 @@ try {
   assert.deepEqual(result.savedOriginal, result.after, "PDF input buffer changed or detached");
   assert.equal(result.alphaValue, 0);
   console.log("photo edit: pixel assertions passed; starting dialog flow");
+
   // The public UI applies the snapshot, then saves a separate image through the existing save flow.
   const fixture = await page.evaluate(() => {
     const canvas = Object.assign(document.createElement("canvas"), { width: 800, height: 600 });
     const context = canvas.getContext("2d");
     context.fillStyle = "#e08040"; context.fillRect(0, 0, 400, 600);
     context.fillStyle = "#40c080"; context.fillRect(400, 0, 400, 600);
+
     return canvas.toDataURL().split(",")[1];
   });
+
   const folder = path.join(temp, "Photos"); mkdirSync(folder);
   const originalFile = path.join(folder, "photo.png"), originalBytes = Buffer.from(fixture, "base64");
   writeFileSync(originalFile, originalBytes);
@@ -124,21 +155,27 @@ try {
   await sheet.locator('.annotationEditorLayer').click({ position: { x: 250, y: 180 } });
   await sheet.locator('.freeTextEditor .internal[contenteditable="true"]').fill("Keep this mark");
   await page.getByRole("button", { name: "Done", exact: true }).click();
+
   const openEditor = async () => {
     await page.getByRole("button", { name: "Image", exact: true }).click();
     await page.getByRole("menuitem", { name: "Crop, resize and adjust…", exact: true }).click();
     const editor = page.getByRole("dialog", { name: "Edit photo", exact: true });
     await editor.getByRole("button", { name: "Apply edits", exact: true }).waitFor();
     await page.waitForFunction(() => !document.querySelector('.photo-editor-controls')?.disabled);
+
     return editor;
   };
+
   console.log("photo edit: annotation prepared");
   await page.keyboard.press("r");
   await page.waitForFunction(()=>document.querySelector('.textLayer')?.getAttribute('data-main-rotation')==='90');
   let editor = await openEditor();
   console.log("photo edit: dialog opened", await editor.locator("canvas").evaluate(canvas => {
     const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
-    let dark = 0; for (let i = 0; i < data.length; i += 4) if (data[i] + data[i + 1] + data[i + 2] < 200 && data[i+3] > 128) dark++;
+    let dark = 0;
+
+ for (let i = 0; i < data.length; i += 4) if (data[i] + data[i + 1] + data[i + 2] < 200 && data[i+3] > 128) dark++;
+
     return { width: canvas.width, height: canvas.height, dark };
   }));
   await editor.getByLabel("Photo width", { exact: true }).fill("");
@@ -208,16 +245,20 @@ try {
   const layout = await editor.evaluate(element => ({ width: element.getBoundingClientRect().width, viewport: innerWidth, scroll: element.scrollWidth, client: element.clientWidth }));
   assert.ok(layout.width <= layout.viewport && layout.scroll <= layout.client + 1, "photo editor overflows a narrow window");
   assert.equal(await editor.locator('.photo-editor').evaluate(element => getComputedStyle(element).overflowX), "hidden", "photo editor must have only vertical scrolling");
+
   const actions = await editor.locator('.photo-editor-actions').evaluate(element => {
     const buttons = [...element.querySelectorAll('button')].map(button => ({ text: button.textContent, top: button.getBoundingClientRect().top, bottom: button.getBoundingClientRect().bottom }));
     const canvas = document.querySelector('.photo-editor canvas'), box = canvas.getBoundingClientRect();
     const image = canvas.parentElement.getBoundingClientRect();
+
     return { buttons, height: innerHeight, canvas: { width: box.width, height: box.height, ratio: canvas.width / canvas.height }, image: { width: image.width, height: image.height } };
   });
+
   for (const label of ["Apply edits", "Cancel"]) {
     const button = actions.buttons.find(button => button.text === label);
     assert.ok(button && button.top >= 0 && button.bottom <= actions.height, `${label} is outside the narrow viewport`);
   }
+
   assert.ok(actions.canvas.height <= actions.height * 0.35 + 1, "narrow preview takes too much screen height");
   assert.ok(Math.abs(actions.canvas.width / actions.canvas.height - actions.canvas.ratio) < 0.01, "photo preview aspect ratio is distorted");
   assert.ok(Math.abs(actions.image.width - actions.canvas.width) < 1 && Math.abs(actions.image.height - actions.canvas.height) < 1, "crop overlay and preview geometry differ");
@@ -232,25 +273,33 @@ try {
   await captureSave(app, savedFile, "photoEditSaved");
   await page.getByRole("button", {name:"Save PNG",exact:true}).click();
   assert.equal(await app.evaluate(() => globalThis.photoEditSaved), "completed");
+
   const savedPixels = await page.evaluate(async ({ bytes, asset }) => {
     const bitmap = await createImageBitmap(new Blob([Uint8Array.from(bytes)], { type: "image/png" }));
     const canvas = Object.assign(document.createElement("canvas"), { width: bitmap.width, height: bitmap.height });
     const context = canvas.getContext("2d"); context.drawImage(bitmap, 0, 0); bitmap.close();
     const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
-    let dark = 0; for (let i = 0; i < data.length; i += 4) if (data[i] + data[i + 1] + data[i + 2] < 200 && data[i + 3] > 128) dark++;
+    let dark = 0;
+
+ for (let i = 0; i < data.length; i += 4) if (data[i] + data[i + 1] + data[i + 2] < 200 && data[i + 3] > 128) dark++;
     const { renderPhotoEdit, initialPhotoEdit } = await import(new URL(`./assets/${asset}`, location.href).href);
     const clean = Object.assign(document.createElement("canvas"), { width: 800, height: 600 });
     const g = clean.getContext("2d"); g.fillStyle = "#e08040"; g.fillRect(0,0,400,600); g.fillStyle = "#40c080"; g.fillRect(400,0,400,600);
+
     const expected = renderPhotoEdit(clean, { ...initialPhotoEdit(), operations: [
       { kind: "crop", x: 100, y: 0, width: 600, height: 600 }, { kind: "rotate", turns: 1 },
       { kind: "flip", axis: "horizontal" }, { kind: "flip", axis: "vertical" }, { kind: "resize", width: 300, height: 300 },
     ] });
+
     const unmarked = expected.getContext("2d").getImageData(0, 0, expected.width, expected.height).data;
     let annotationPixels = 0;
+
     for (let i = 0; i < data.length; i += 4) if (Math.max(Math.abs(data[i] - unmarked[i]), Math.abs(data[i+1] - unmarked[i+1]), Math.abs(data[i+2] - unmarked[i+2])) > 20) annotationPixels++;
     expected.width = expected.height = clean.width = clean.height = 0;
+
     return { width: canvas.width, height: canvas.height, dark, annotationPixels };
   }, { bytes: [...readFileSync(savedFile)], asset });
+
   assert.deepEqual([savedPixels.width, savedPixels.height], [300,300]);
   console.log("photo edit: saved pixels", savedPixels);
   assert.ok(savedPixels.annotationPixels > 20, "existing annotated text disappeared from the edited photo");

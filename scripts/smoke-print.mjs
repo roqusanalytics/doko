@@ -7,14 +7,22 @@ import path from "node:path";
 import assert from "node:assert/strict";
 import { electronPath } from "./electron-path.mjs";
 import { readerPage } from "./reader-page.mjs";
+
 const root = path.resolve(import.meta.dirname, "..");
-const shots = path.join(root, "release", "smoke-print"); mkdirSync(shots, { recursive: true });
+const shots = path.join(root, "release", "smoke-print");
+
+ mkdirSync(shots, { recursive: true });
+
 const env = { ...process.env, FOLIO_TEST_USER_DATA: mkdtempSync(path.join(tmpdir(), "folio-print-test-")), FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const chromiumSandbox = process.platform !== "linux" || process.getuid?.() !== 0;
 const app = await electron.launch({ chromiumSandbox, executablePath: electronPath(env), args: [root, "--mute-audio"], env, timeout: 60000 });
+
 try {
   assert.ok(await app.evaluate(({ app }) => app.commandLine.hasSwitch("mute-audio")));
+
   if (chromiumSandbox) assert.equal(await app.evaluate(({ app }) => app.commandLine.hasSwitch("no-sandbox")), false);
   // Intercept every printing window before its handler can call print. No printer or native dialog is invoked.
   await app.evaluate(({ app }) => {
@@ -60,6 +68,7 @@ try {
   assert.equal(captured.options.pagesPerSheet, 1);
   writeFileSync(path.join(shots, "multiple-output.pdf"), Buffer.from(captured.pdf, "base64"));
   const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+
   const checkOutput = async (name, count, duplex) => {
     await page.getByRole("button", { name: "Continue to print…" }).click();
     await page.waitForFunction(() => document.querySelector(".print-status")?.textContent?.includes("Printing cancelled.") || document.querySelector(".print-dialog .form-error"), null, { timeout: 60000 });
@@ -74,6 +83,7 @@ try {
     assert.deepEqual(dimensions, capture.options.landscape ? [0, 0, 792, 612] : [0, 0, 612, 792]);
     await output.loadingTask.destroy();
   };
+
   const pdf = await getDocument({ data: new Uint8Array(Buffer.from(captured.pdf, "base64")), useSystemFonts: true }).promise;
   assert.equal(pdf.numPages, 2);
   assert.deepEqual((await pdf.getPage(1)).view.map(Math.round), [0, 0, 792, 612]);
@@ -139,17 +149,24 @@ try {
   activePdf.addPage([200, 200]).drawText("Synthetic print isolation probe");
   activePdf.addJavaScript("print-launch-url", "try { app.launchURL('https://print-probe.invalid/open',false); } catch (_) {}");
   activePdf.addJavaScript("print-submit-form", "try { this.submitForm({cURL:'https://print-probe.invalid/submit',cSubmitAs:'HTML'}); } catch (_) {}");
+
   const isolation = await app.evaluate(({ BrowserWindow, dialog, shell }) => {
     globalThis.printNetwork = []; globalThis.printLinks = []; globalThis.printPrompts = [];
     const contents = BrowserWindow.getAllWindows()[0].webContents;
     contents.session.webRequest.onBeforeRequest({ urls: ["*://print-probe.invalid/*"] }, (request, callback) => {
       globalThis.printNetwork.push(request.url); callback({ cancel: true });
     });
-    dialog.showMessageBox = async (...args) => { globalThis.printPrompts.push(args.at(-1).title); return { response: 1 }; };
+    dialog.showMessageBox = async (...args) => { globalThis.printPrompts.push(args.at(-1).title);
+
+ return { response: 1 }; };
+
     shell.openExternal = async url => { globalThis.printLinks.push(url); };
+
     const prefs = contents.getLastWebPreferences();
+
     return { sandbox: prefs.sandbox, contextIsolation: prefs.contextIsolation, nodeIntegration: prefs.nodeIntegration };
   });
+
   assert.deepEqual(isolation, { sandbox: true, contextIsolation: true, nodeIntegration: false });
   await page.evaluate(async data => {
     const frame = document.createElement("iframe"); frame.id = "print-isolation-probe";
@@ -157,29 +174,38 @@ try {
     frame.src = URL.createObjectURL(new Blob([new Uint8Array(data)], { type: "application/pdf" }));
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("Native PDF frame did not load")), 10000);
-      frame.onload = () => { clearTimeout(timer); resolve(); }; document.body.append(frame);
+      frame.onload = () => { clearTimeout(timer); resolve(); };
+
+ document.body.append(frame);
     });
   }, [...await activePdf.save()]);
+
   const viewerLoaded = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.mainFrame.framesInSubtree
     .some(frame => frame.url.startsWith("chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/")));
+
   for (let tries = 0; !await viewerLoaded(); tries++) {
     assert.ok(tries < 100, "Chromium's native PDF viewer was not observed");
     await new Promise(resolve => setTimeout(resolve, 100));
   }
+
   // shortcut: Electron 45 viewer readiness uses private fields; update this probe when upgrading Electron.
   const documentReady = () => app.evaluate(async ({ BrowserWindow }) => {
     const frame = BrowserWindow.getAllWindows()[0].webContents.mainFrame.framesInSubtree
       .find(frame => frame.url.startsWith("chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/"));
+
     if (!frame) return false;
+
     return frame.executeJavaScript(`(() => {
       const viewer = document.querySelector('pdf-viewer');
       return viewer?.loadState_ === 'success' && viewer?.loadProgress_ === 100 && viewer?.docLength_ === 1;
     })()`);
   });
+
   for (let tries = 0; !await documentReady(); tries++) {
     assert.ok(tries < 100, "Native PDF viewer did not successfully parse its one-page document");
     await new Promise(resolve => setTimeout(resolve, 100));
   }
+
   await new Promise(resolve => setTimeout(resolve, 1000));
   assert.deepEqual(await app.evaluate(() => ({ network: globalThis.printNetwork, links: globalThis.printLinks, prompts: globalThis.printPrompts })),
     { network: [], links: [], prompts: [] }, "Loading PDF JavaScript triggered a remote action");
@@ -189,9 +215,12 @@ try {
   await page.evaluate(() => {
     const create = document.createElement.bind(document);
     window.restorePrintFrame = () => { document.createElement = create; };
+
     document.createElement = (tag, ...args) => {
       const element = create(tag, ...args);
+
       if (tag.toLowerCase() === "iframe") Object.defineProperty(element, "contentWindow", { get: () => ({ focus() {}, print() { throw new Error("Synthetic print refusal"); } }) });
+
       return element;
     };
   });
@@ -201,14 +230,18 @@ try {
     globalThis.printFallback = { choices: [null, "error", file], calls: 0 };
     dialog.showSaveDialog = async () => {
       const next = globalThis.printFallback.choices.shift(); globalThis.printFallback.calls++;
+
       if (next === "error") throw new Error("Synthetic save failure");
+
       return { canceled: !next, filePath: next || undefined };
     };
   }, fallback);
+
   for (let index = 1; index <= 3; index++) {
     await page.locator(".viewer-container").focus();
     await app.evaluate(({ Menu }) => {
       const item = Menu.getApplicationMenu().items.find(item => item.label === "File").submenu.items.find(item => item.label === "Print…");
+
       if (!item?.enabled) throw new Error("Native Print command is not ready after the previous dialog");
       item.click();
     });
@@ -216,23 +249,30 @@ try {
     await printDialog.waitFor();
     await page.getByRole("tab", { name: "Basic", exact: true }).click();
     await printDialog.getByRole("button", { name: "Print…", exact: true }).click();
+
     for (let tries = 0; await app.evaluate(() => globalThis.printFallback.calls) !== index; tries++) {
       assert.ok(tries < 100, "Refused print did not reach its native save fallback");
       await new Promise(resolve => setTimeout(resolve, 50));
     }
+
     await printDialog.waitFor({ state: "detached" });
+
     if (index === 1) assert.equal(existsSync(fallback), false, "Cancelling print fallback must not create a copy");
+
     if (index === 2) {
       await page.getByText("Synthetic save failure", { exact: true }).waitFor();
       await page.getByText("Synthetic save failure", { exact: true }).click();
     }
+
     if (index === 3) {
       await page.getByText("Couldn't print — saved a copy instead", { exact: true }).waitFor();
       assert.equal((await PDFDocument.load(readFileSync(fallback))).getPageCount(), sourcePages);
     }
+
     assert.equal(await app.evaluate(() => globalThis.printCalls.length), callCount, "Basic fallback sent a real print job");
     assert.equal(await page.getByRole("textbox", { name: "Page number", exact: true }).isVisible(), true, "Print fallback lost the source reader");
   }
+
   await page.evaluate(() => window.restorePrintFrame());
   console.log("ok Basic print refusal retains source; native copy cancellation, write failure and successful retry preserve its prepared PDF; no print job sent");
   await assertHidden(app);

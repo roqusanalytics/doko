@@ -78,21 +78,27 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
         const line = current.state.doc.lineAt(current.lineBlockAtHeight(Math.max(0, current.scrollDOM.scrollTop + 36)).from).number;
         let index = 0;
         latestSections.current.forEach((section, next) => { if (section.line <= line) index = next; });
+
         if (current.scrollDOM.scrollTop > 0 && current.scrollDOM.scrollTop + current.scrollDOM.clientHeight >= current.scrollDOM.scrollHeight - 2) index = Math.max(0, latestSections.current.length - 1);
+
         return index;
       },
       write(index) { if (currentMode.current === "source") setActive(index); },
     });
   };
+
   const previewSection = () => {
     const root = rendered.current;
+
     if (!root) return;
     const top = root.getBoundingClientRect().top + 36;
     let index = 0;
     sections.forEach((section, next) => {
       const heading = root.querySelector<HTMLElement>(`#${section.id}`);
+
       if (heading && heading.getBoundingClientRect().top <= top) index = next;
     });
+
     if (root.scrollTop > 0 && root.scrollTop + root.clientHeight >= root.scrollHeight - 2) index = Math.max(0, sections.length - 1);
     setActive(index);
   };
@@ -116,6 +122,7 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
       EditorView.contentAttributes.of({ "aria-label": plain ? "Text document" : sheet ? "CSV source" : svg ? "SVG source" : "Markdown source", spellcheck: "false" }),
       EditorView.updateListener.of(update => {
         if (update.docChanged) change.current(update.state.doc.toString());
+
         if (update.viewportChanged || update.docChanged) sourceSection(update.view);
       }),
       EditorView.domEventHandlers({ scroll: (_event, current) => { sourceSection(current); } }),
@@ -123,6 +130,7 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
     // View can accept edits before the lazy editor exists. Replay those transactions into its undo history.
     const queued = viewEdits.current.at(-1)?.after === latestText.current ? viewEdits.current : [];
     let initial = EditorState.create({ doc: queued[0]?.before ?? latestText.current, extensions: extensions.current });
+
     for (const { changes } of queued) initial = initial.update({
       changes, userEvent: "input.markdownEdit", annotations: loaded.isolateHistory.of("full"),
     }).state;
@@ -130,20 +138,24 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
     view = new EditorView({ parent: host.current, state: initial });
     editor.current = view;
     setReady(true);
+
     if (currentMode.current === "source") sourceSection(view);
     }).catch(() => { if (!disposed) setLoadError(true); });
+
     return () => { disposed = true; editor.current = null; view?.destroy(); };
   }, [requested, attempt]);
 
   useLayoutEffect(() => {
     if (viewEdits.current.at(-1)?.after !== text) viewEdits.current = [];
     const view = editor.current;
+
     // Reloading a document must discard undo entries from its previous contents.
     if (view && text !== view.state.doc.toString()) view.setState(modules.current!.EditorState.create({ doc: text, extensions: extensions.current }));
   }, [text]);
 
   useLayoutEffect(() => {
     setLabel(null);
+
     if (mode === "source" && editor.current) sourceSection(editor.current);
     else previewSection();
   }, [mode, sections]);
@@ -151,23 +163,31 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
   const selectedText = () => {
     if (mode === "source") {
       const view = editor.current;
+
       if (!view) return "";
       const { from, to } = view.state.selection.main;
+
       return view.state.sliceDoc(from, Math.min(to, from + 12_000)).trim();
     }
+
     const selection = window.getSelection();
+
     return selection?.anchorNode && selection.focusNode && rendered.current?.contains(selection.anchorNode) && rendered.current.contains(selection.focusNode)
       ? selection.toString().trim().slice(0, 12_000) : "";
   };
 
   useLayoutEffect(() => {
     if (reveal === undefined) return;
+
     if (mode === "view") {
       rendered.current?.querySelector(".markdown-edit-highlight")?.scrollIntoView({ block: "center", behavior: "instant" });
+
       return;
     }
+
     const view = editor.current;
     const loaded = modules.current;
+
     if (!view || !loaded) return;
     const anchor = Math.min(reveal.offset, view.state.doc.length);
     view.dispatch({
@@ -182,9 +202,11 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
     selectedText,
     applyMarkdownEdits(current, changes) {
       const first = changes[0];
+
       if (!first) return;
       const view = editor.current;
       const loaded = modules.current;
+
       if (view && loaded) {
         if (view.state.doc.toString() !== current) throw new Error(STALE_MARKDOWN_EDIT);
         view.dispatch({ changes, userEvent: "input.markdownEdit", annotations: loaded.isolateHistory.of("full") });
@@ -194,12 +216,14 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
         change.current(after);
         setRequested(true);
       }
+
       if (mode === "source") view?.focus();
       else rendered.current?.focus({ preventScroll: true });
       setReveal({ offset: first.from });
       window.clearTimeout(revealTimer.current);
       revealTimer.current = window.setTimeout(() => {
         setReveal(undefined);
+
         if (editor.current && modules.current) editor.current.dispatch({ effects: modules.current.revealMarkdownLine.of(null) });
       }, 1_600);
     },
@@ -208,42 +232,52 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
   const undoView = (event: React.KeyboardEvent) => {
     if (!onSelection || !(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "z") return;
     const view = editor.current;
+
     if (view && modules.current) {
       event.preventDefault();
       (event.shiftKey ? modules.current.redo : modules.current.undo)(view);
     } else if (!event.shiftKey) {
       const last = viewEdits.current.pop();
+
       if (!last || last.after !== latestText.current) return;
       event.preventDefault();
       change.current(last.before);
     }
+
     setReveal(undefined);
   };
 
   const csvRows = useMemo(() => csv?.rows.map(row => row.cells.map(cell => cell.value)) ?? [], [csv]);
   // Rows shorter than the widest row; a blank line is not a short row.
   const ragged = useMemo(() => !!csv && csv.rows.some(row => row.cells.length < csv.columns && !(row.cells.length === 1 && row.to === row.from)), [csv]);
+
   const applyEdit = (edit: TableEdit) => {
     const view = editor.current;
+
     if (!view || !csv) return;
     // Offsets must match the editor's text exactly, so a table that is one update behind is parsed again.
     const current = view.state.doc.toString();
     const table = current === text ? csv : parseCsv(current, csv.delimiter);
     const last = table.rows.length;
     let changes: CsvChange[];
+
     if (edit.type === "cell") changes = edit.row < last ? setCell(table, edit.row, edit.col, edit.value) : [];
     else if (edit.type === "insertRow") changes = edit.index <= last ? insertRow(table, current, edit.index) : [];
     else if (edit.type === "deleteRow") changes = edit.index < last ? deleteRow(table, edit.index) : [];
     else if (edit.type === "insertColumn") changes = insertColumn(table, edit.index);
     else changes = deleteColumn(table, edit.index);
+
     // One transaction per table operation, and its own undo step.
     if (changes.length) view.dispatch({ changes, userEvent: "input.table", annotations: modules.current!.isolateHistory.of("full") });
   };
+
   // Ctrl/Cmd+Z and redo in the table run the editor's history; inside a cell the field has its own native undo.
   const tableKeys = (event: React.KeyboardEvent) => {
     const view = editor.current;
+
     if (!view || !(event.metaKey || event.ctrlKey) || event.altKey || (event.target as HTMLElement).closest("textarea")) return;
     const key = event.key.toLowerCase();
+
     if (key === "z" || key === "y") {
       event.preventDefault();
       (key === "y" || event.shiftKey ? modules.current!.redo : modules.current!.undo)(view);
@@ -252,10 +286,13 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
 
   const jump = (index: number) => {
     const section = sections[index];
+
     if (!section) return;
     setActive(index);
+
     if (mode === "source") {
       const view = editor.current;
+
       if (!view) return;
       const line = view.state.doc.line(Math.min(section.line, view.state.doc.lines));
       view.dispatch({ selection: { anchor: line.from }, effects: modules.current!.EditorView.scrollIntoView(line.from, { y: "start", yMargin: 24 }) });
@@ -263,9 +300,11 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
     } else {
       const root = rendered.current;
       const heading = root?.querySelector<HTMLElement>(`#${section.id}`);
+
       if (root && heading) root.scrollTo({ top: root.scrollTop + heading.getBoundingClientRect().top - root.getBoundingClientRect().top - 24, behavior: "instant" });
     }
   };
+
   const showLabel = (index: number, target: HTMLButtonElement) => {
     const bounds = target.getBoundingClientRect();
     setLabel({ index, top: Math.max(8, Math.min(bounds.top, window.innerHeight - 40)), left: bounds.right + 4 });
@@ -288,12 +327,15 @@ export default function MarkdownPane({ text, onChange, renderPreview, editorRef,
         onPointerMove={event => {
           // Fractional tick index under the pointer drives the CSS lens, so moving never re-renders.
           const first = event.currentTarget.querySelector("button")?.getBoundingClientRect();
+
           if (first) event.currentTarget.style.setProperty("--pointer", String((event.clientY - first.top) / first.height - .5));
         }} onKeyDown={event => {
         const buttons = Array.from(event.currentTarget.querySelectorAll("button"));
         const index = buttons.indexOf(event.target as HTMLButtonElement);
+
         const next = event.key === "ArrowDown" ? Math.min(index + 1, buttons.length - 1)
           : event.key === "ArrowUp" ? Math.max(index - 1, 0) : event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : -1;
+
         if (next >= 0) { event.preventDefault(); buttons[next]?.focus(); }
       }}>
         {sections.map((section, index) => <button key={section.id} className="markdown-section-button" aria-label={section.title}

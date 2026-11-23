@@ -13,22 +13,28 @@ initializeAppearance();
 
 const root = document.getElementById("root")!;
 const reader = (window.frameElement as ReaderFrame | null)?.readerContext;
+
 if (reader) {
   const desktop = window.parent.folioDesktop;
+
   if (desktop) {
     window.folioDesktop = desktop;
     document.documentElement.classList.add("desktop", `platform-${desktop.platform}`);
   }
+
   // No StrictMode: the pdf.js viewer binds imperatively to its container once.
   const content = reader.tabs.contentFor(reader.key);
   const frame = window.frameElement as ReaderFrame;
   const app = createRoot(root);
   frame.disposeReader = () => app.unmount();
+
   const renderReader = (children: React.ReactNode) => {
     if (frame.isConnected) app.render(<ReaderErrorBoundary onError={() => reader.tabs.readerFailed(reader.key)}
       onRecover={() => reader.tabs.recover(reader.key)}>{children}</ReaderErrorBoundary>);
   };
+
   const failedImport = () => renderReader(<FailedReaderImport />);
+
   // Separate imports let Vite preload each reader's own styles.
   if (content?.kind === "canvasDocument") {
     window.EXCALIDRAW_ASSET_PATH = new URL("./excalidraw/", location.href).href;

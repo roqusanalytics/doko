@@ -11,36 +11,51 @@ import { assertHidden, closeHidden } from "./hidden-window.mjs";
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "folio-menus-"));
 const shots = path.join(root, "release", "smoke");
+
 mkdirSync(shots, { recursive: true });
+
 const env = { ...process.env, FOLIO_TEST_USER_DATA: path.join(temp, "profile"), FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const app = await electron.launch({ executablePath: electronPath(env), env,
   args: [root, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
+
 try {
   const page = readerPage(await app.firstWindow());
   const errors = [];
   page.on("pageerror", error => errors.push(String(error)));
   await page.getByRole("button", { name: /Try a sample/ }).click();
   await page.locator('.page canvas').first().waitFor();
+
   const geometry = async label => {
     await page.waitForFunction(label => {
       const trigger = [...document.querySelectorAll('button')].find(button => button.getAttribute('aria-label') === label || button.title === label);
       const popup = document.getElementById(trigger.getAttribute('aria-controls'));
+
       return popup?.matches(':popover-open') && popup.dataset.positioned === "true";
     }, label);
+
     const bounds = await page.evaluate(label => {
       const trigger = [...document.querySelectorAll('button')].find(button => button.getAttribute('aria-label') === label || button.title === label);
       const popup = document.getElementById(trigger.getAttribute('aria-controls'));
-      const box = element => { const { left, right, top, bottom, width, height } = element.getBoundingClientRect(); return { left, right, top, bottom, width, height }; };
+
+      const box = element => { const { left, right, top, bottom, width, height } = element.getBoundingClientRect();
+
+ return { left, right, top, bottom, width, height }; };
+
       return { trigger: box(trigger), popup: box(popup), width: innerWidth, height: innerHeight, open: popup.matches(':popover-open') };
     }, label);
+
     assert.ok(bounds.open, `${label} is closed`);
     const { trigger: t, popup: p, width, height } = bounds;
     assert.ok(p.width > 0 && p.height > 0);
     assert.ok(p.left >= 7 && p.right <= width - 7 && p.top >= 7 && p.bottom <= height - 7, `${label} leaves the viewport: ${JSON.stringify(bounds)}`);
     assert.ok(p.bottom <= t.top - 5 || p.top >= t.bottom + 5, `${label} overlaps its trigger: ${JSON.stringify(bounds)}`);
+
     return bounds;
   };
+
   await page.getByRole("button", { name: "Draw", exact: true }).click();
   const tool = page.getByLabel("Drawing tool", { exact: true });
   await tool.focus(); await page.keyboard.press("ArrowDown");
@@ -67,11 +82,13 @@ try {
   assert.equal(await page.evaluate(() => document.querySelectorAll(':popover-open').length), 0, "outside click did not dismiss");
   await page.getByRole("button", { name: "Done", exact: true }).click();
   const zoom = page.getByTitle("Zoom", { exact: true });
+
   for (const edge of ['top', 'bottom']) {
     await zoom.evaluate((element, edge) => { element.style.cssText = `position:fixed;right:8px;${edge}:8px;z-index:1000`; }, edge);
     await zoom.click(); await geometry("Zoom");
     await page.keyboard.press("Escape");
   }
+
   await zoom.evaluate(element => element.removeAttribute('style'));
   await zoom.focus(); await page.keyboard.press("Enter");
   await page.getByRole("menuitem", { name: "Automatic", exact: true }).waitFor();
@@ -96,10 +113,12 @@ try {
   assert.ok(await english.evaluate(element => element === document.activeElement), "Tab did not reach the language checkbox");
   assert.equal(await page.evaluate(() => document.querySelectorAll(':popover-open').length), 1, "Tab closed the language dialog");
   const choices = page.locator('.scan-picker-options input[type="checkbox"]');
+
   for (let i = 1; i < await choices.count(); i++) {
     await page.keyboard.press("Tab");
     assert.ok(await choices.nth(i).evaluate(element => element === document.activeElement), "Tab skipped a visible language");
   }
+
   await page.keyboard.press("Tab");
   assert.ok(await page.getByRole("button", { name: "Apply", exact: true }).evaluate(element => element === document.activeElement), "Tab did not reach Apply");
   await page.keyboard.press("Shift+Tab");

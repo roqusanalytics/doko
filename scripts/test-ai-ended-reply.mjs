@@ -5,6 +5,7 @@ import path from "node:path";
 import { createServer } from "vite";
 
 const server = await createServer({ root: path.resolve(import.meta.dirname, ".."), server: { middlewareMode: true }, appType: "custom" });
+
 try {
   globalThis.window ??= globalThis; // AiPanel's imports touch window when they load.
   const { endedReply } = await server.ssrLoadModule("/src/AiPanel.tsx");

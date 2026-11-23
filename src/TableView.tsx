@@ -40,11 +40,14 @@ const TEXT_MAX = 500;
 
 export function columnName(index: number) {
   let name = "";
+
   for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) name = String.fromCharCode(65 + (n - 1) % 26) + name;
+
   return name;
 }
 
 type Pos = { row: number; col: number };
+
 type Menu = { element: HTMLElement; kind: "cell" | "row" | "column"; row: number; col: number };
 
 function CellEditor({ initial, readOnly, textarea, onCommit, onCancel }: {
@@ -56,28 +59,33 @@ function CellEditor({ initial, readOnly, textarea, onCommit, onCancel }: {
 }) {
   const field = useRef<HTMLTextAreaElement>(null);
   useImperativeHandle(textarea, () => field.current!, []);
+
   const resize = () => {
     const el = field.current!;
     el.style.height = "auto";
     el.style.height = `${Math.min(Math.max(el.scrollHeight, ROW_H), 220)}px`;
   };
+
   useLayoutEffect(() => {
     const el = field.current!;
     el.focus({ preventScroll: true });
     el.setSelectionRange(el.value.length, el.value.length);
     resize();
   }, []);
+
   return <textarea ref={field} className="tv-editor" rows={1} defaultValue={initial} readOnly={readOnly} aria-readonly={readOnly || undefined} spellCheck={false} aria-label="Cell value"
     onInput={resize}
     onBlur={event => onCommit(event.currentTarget.value)}
     onKeyDown={event => {
       if (event.nativeEvent.isComposing) return;
       const el = event.currentTarget;
+
       if (readOnly) {
         // Nothing to commit: these keys just close the viewer and return to the cell. Copy and select all stay native.
         if (event.key === "Enter" || event.key === "Tab" || event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onCancel(); }
       } else if (event.key === "Enter") {
         event.preventDefault();
+
         if (event.altKey) { el.setRangeText("\n", el.selectionStart, el.selectionEnd, "end"); resize(); }
         else onCommit(el.value, { row: event.shiftKey ? -1 : 1, col: 0 });
       } else if (event.key === "Tab") {
@@ -117,34 +125,44 @@ export default function TableView({ rows, columns, readOnly = false, label, empt
   const c1 = Math.min(colCount - 1, Math.ceil((view.left + view.width) / COL_W) + OVERSCAN_COLS);
   // The active cell is always rendered, even after wheel scrolling moved it away, so Tab can still reach the grid.
   const visibleRows: number[] = [];
+
   for (let r = r0; r <= r1; r++) visibleRows.push(r);
+
   if (rowCount && (ar < r0 || ar > r1)) visibleRows.push(ar);
   const visibleCols: number[] = [];
+
   for (let c = c0; c <= c1; c++) visibleCols.push(c);
+
   if (colCount && (ac < c0 || ac > c1)) visibleCols.push(ac);
 
   useLayoutEffect(() => {
     const el = scroller.current;
+
     if (!el) return;
     const measure = () => setView({ top: el.scrollTop, left: el.scrollLeft, width: el.clientWidth, height: el.clientHeight });
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
+
     return () => observer.disconnect();
   }, [rowCount > 0]);
 
   // Runs after every render: keyboard moves and edits ask for the new cell to be scrolled into view and focused.
   useLayoutEffect(() => {
     const el = scroller.current;
+
     if (reveal.current && el && rowCount) {
       reveal.current = false;
       const top = ar * ROW_H, bottom = top + ROW_H;
+
       if (top < el.scrollTop) el.scrollTop = top;
       else if (bottom > el.scrollTop + el.clientHeight - ROW_H) el.scrollTop = Math.max(0, bottom - el.clientHeight + ROW_H);
       const left = ac * COL_W, right = left + COL_W;
+
       if (left < el.scrollLeft) el.scrollLeft = left;
       else if (right > el.scrollLeft + el.clientWidth - rnW) el.scrollLeft = Math.max(0, right - el.clientWidth + rnW);
     }
+
     if (pendingFocus.current && !editing) {
       pendingFocus.current = false;
       el?.querySelector<HTMLElement>(`[data-r="${ar}"][data-c="${ac}"]`)?.focus({ preventScroll: true });
@@ -163,15 +181,20 @@ export default function TableView({ rows, columns, readOnly = false, label, empt
     finished.current = false;
     setEditing({ row, col, original, initial: initial ?? original });
   };
+
   const finish = (value: string | null, move?: Pos) => {
     const current = editing;
+
     if (!current || finished.current) return;
     finished.current = true;
     setEditing(null);
+
     if (!readOnly && value !== null && value !== current.original && current.row < rowCount) onEdit?.({ type: "cell", row: current.row, col: current.col, value });
+
     // A blur (a click elsewhere) must not pull focus back; every other way of finishing returns it to the grid.
     if (move || document.activeElement === textarea.current) go(current.row + (move?.row ?? 0), current.col + (move?.col ?? 0));
   };
+
   useImperativeHandle(handle, () => ({
     commit() { if (textarea.current) finish(textarea.current.value); },
     focus() { pendingFocus.current = true; setActive(a => ({ ...a })); },
@@ -181,20 +204,24 @@ export default function TableView({ rows, columns, readOnly = false, label, empt
     onEdit?.(next);
     go(focus.row, focus.col, false);
   };
+
   const openMenu = (element: HTMLElement, kind: Menu["kind"], row: number, col: number) => {
     if (!readOnly) setMenu({ element, kind, row, col });
   };
+
   const menuItems = (m: Menu): MoreItem[] => {
     const rowItems: MoreItem[] = [
       { kind: "action", icon: "plus", label: "Insert row above", onSelect: () => edit({ type: "insertRow", index: m.row }, { row: m.row, col: ac }) },
       { kind: "action", icon: "plus", label: "Insert row below", onSelect: () => edit({ type: "insertRow", index: m.row + 1 }, { row: m.row + 1, col: ac }) },
       { kind: "action", icon: "trash", label: "Delete row", onSelect: () => edit({ type: "deleteRow", index: m.row }, { row: m.row, col: ac }) },
     ];
+
     const colItems: MoreItem[] = [
       { kind: "action", icon: "plus", label: "Insert column left", onSelect: () => edit({ type: "insertColumn", index: m.col }, { row: ar, col: m.col }) },
       { kind: "action", icon: "plus", label: "Insert column right", onSelect: () => edit({ type: "insertColumn", index: m.col + 1 }, { row: ar, col: m.col + 1 }) },
       { kind: "action", icon: "trash", label: "Delete column", onSelect: () => edit({ type: "deleteColumn", index: m.col }, { row: ar, col: m.col }) },
     ];
+
     return m.kind === "row" ? rowItems : m.kind === "column" ? colItems : [...rowItems, { kind: "divider" }, ...colItems];
   };
 
@@ -202,17 +229,21 @@ export default function TableView({ rows, columns, readOnly = false, label, empt
   // those are text; Ctrl/Cmd and (off macOS) Alt-only combinations are shortcuts or menu accelerators.
   const isTyped = (event: KeyboardEvent) => {
     const native = event.nativeEvent, altGraph = native.getModifierState("AltGraph");
+
     if (native.isComposing || native.keyCode === 229 || [...event.key].length !== 1) return false;
+
     return !(event.metaKey || (event.ctrlKey && !altGraph) || (event.altKey && !altGraph && !IS_MAC));
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
+
     if (target.closest("textarea") || !target.matches(".tv-cell")) return;
     const jump = event.metaKey || event.ctrlKey;
     const page = Math.max(1, Math.floor((view.height - ROW_H) / ROW_H) - 1);
     const key = event.key;
     let handled = true;
+
     if (key === "ArrowDown") go(jump ? rowCount - 1 : ar + 1, ac);
     else if (key === "ArrowUp") go(jump ? 0 : ar - 1, ac);
     else if (key === "ArrowRight") go(ar, jump ? colCount - 1 : ac + 1);
@@ -227,6 +258,7 @@ export default function TableView({ rows, columns, readOnly = false, label, empt
     else if (key === "Delete" || key === "Backspace") { if ((rows[ar]?.[ac] ?? "") !== "") onEdit?.({ type: "cell", row: ar, col: ac, value: "" }); }
     else if (isTyped(event)) startEdit(ar, ac, key);
     else handled = false;
+
     if (handled) event.preventDefault();
   };
 
@@ -254,6 +286,7 @@ export default function TableView({ rows, columns, readOnly = false, label, empt
             const value = rows[r]?.[c] ?? "";
             const isActive = r === ar && c === ac;
             const isEditing = editing?.row === r && editing.col === c;
+
             return <div key={c} role="gridcell" aria-colindex={c + 2} aria-selected={isActive} aria-readonly={readOnly || undefined}
               tabIndex={isActive ? 0 : -1} className="tv-cell" data-active={isActive || undefined} data-editing={isEditing || undefined}
               style={{ left: rnW + c * COL_W, width: COL_W }} title={isEditing || !value ? undefined : value.length > TITLE_MAX ? value.slice(0, TITLE_MAX) + "…" : value}
@@ -282,6 +315,7 @@ export default function TableView({ rows, columns, readOnly = false, label, empt
         setMenu(null);
         // Focus goes back to the active cell, unless a click outside the menu already put it on another control.
         const focus = document.activeElement;
+
         if (!focus || focus === document.body || focus === menu.element || focus.closest("[role=menu]")) pendingFocus.current = true;
       }} />}
   </div>;

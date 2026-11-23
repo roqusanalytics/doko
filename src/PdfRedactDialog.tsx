@@ -16,6 +16,7 @@ export default function PdfRedactDialog({ bytes, name, onApply, onClose }: PdfSe
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     root.current?.closest(".modal")?.querySelector<HTMLElement>("button")?.focus();
+
     return () => { job.current?.abort(); previous?.focus(); };
   }, []);
   useEffect(() => {
@@ -23,7 +24,10 @@ export default function PdfRedactDialog({ bytes, name, onApply, onClose }: PdfSe
     const timer = setTimeout(() => controller.abort(new Error("Preview timed out. Retry with a smaller PDF.")), 60_000);
     let loaded: PDFDocumentProxy | null = null;
     setPdf(null); setError("");
-    void import("./pdfSecurity").then(({ loadRedactionPdf }) => loadRedactionPdf(bytes, controller.signal)).then(doc => { loaded = doc; if (!controller.signal.aborted) setPdf(doc); else void doc.loadingTask.destroy(); }).catch(error => { if (!controller.signal.aborted || controller.signal.reason instanceof Error) setError(controller.signal.aborted ? controller.signal.reason.message : error.message || "Couldn't open this PDF. Retry."); }).finally(() => clearTimeout(timer));
+    void import("./pdfSecurity").then(({ loadRedactionPdf }) => loadRedactionPdf(bytes, controller.signal)).then(doc => { loaded = doc;
+
+ if (!controller.signal.aborted) setPdf(doc); else void doc.loadingTask.destroy(); }).catch(error => { if (!controller.signal.aborted || controller.signal.reason instanceof Error) setError(controller.signal.aborted ? controller.signal.reason.message : error.message || "Couldn't open this PDF. Retry."); }).finally(() => clearTimeout(timer));
+
     return () => { clearTimeout(timer); controller.abort(); void loaded?.loadingTask.destroy(); };
   }, [bytes, reload]);
   useEffect(() => {
@@ -35,30 +39,43 @@ export default function PdfRedactDialog({ bytes, name, onApply, onClose }: PdfSe
       const page = await pdf.getPage(pageNumber); controller.signal.throwIfAborted();
       const original = page.getViewport({ scale: 1 });
       const view = page.getViewport({ scale: Math.min(2, 900 / original.width) });
+
       if (view.width * view.height > 20_000_000 || view.height > 16384) throw new Error("This page is too large to preview safely.");
       const target = canvas.current!; target.width = Math.ceil(view.width); target.height = Math.ceil(view.height);
       const task = page.render({ canvas: target, viewport: view, background: "white", intent: "display" });
       const abort = () => task.cancel(); controller.signal.addEventListener("abort", abort, { once: true });
+
       try { await task.promise; controller.signal.throwIfAborted(); setReady(true); }
       finally { controller.signal.removeEventListener("abort", abort); }
     })().catch(error => { if (!controller.signal.aborted || controller.signal.reason instanceof Error && controller.signal.reason.name !== "AbortError") setError(controller.signal.aborted ? controller.signal.reason.message : error.message || "Couldn't render this page."); }).finally(() => clearTimeout(timer));
+
     return () => { clearTimeout(timer); controller.abort(); };
   }, [pdf, pageNumber, reload]);
+
   const position = (event: PointerEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
+
     return { x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) };
   };
+
   const region = (from: { x: number; y: number }, to: { x: number; y: number }): RedactionArea => ({ page: pageNumber, x: Math.min(from.x, to.x), y: Math.min(from.y, to.y), width: Math.abs(from.x - to.x), height: Math.abs(from.y - to.y) });
+
   const add = () => {
     const [x, y, width, height] = coordinates;
-    if (![x, y, width, height].every(Number.isFinite) || x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > 100 || y + height > 100) { setError("Enter an area inside the page (0–100%)."); return; }
+
+    if (![x, y, width, height].every(Number.isFinite) || x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > 100 || y + height > 100) { setError("Enter an area inside the page (0–100%).");
+
+ return; }
+
     setAreas(current => [...current, { page: pageNumber, x: x / 100, y: y / 100, width: width / 100, height: height / 100 }]); setError("");
   };
+
   const apply = async () => {
     if (busy || !confirmed || !areas.length) return;
     const controller = new AbortController(); job.current = controller;
     const timer = setTimeout(() => controller.abort(new Error("Redaction timed out. Split the PDF into smaller files and retry.")), 120_000);
     setBusy(true); setError("");
+
     try {
       const { redactPdf } = await import("./pdfSecurity");
       const result = prepared.current?.areas === areas ? prepared.current.bytes : await redactPdf(bytes, areas, controller.signal, (page, total) => setStatus(`Flattening page ${page} of ${total}…`));
@@ -68,6 +85,7 @@ export default function PdfRedactDialog({ bytes, name, onApply, onClose }: PdfSe
     } catch (error) { setError(controller.signal.aborted ? controller.signal.reason?.message || "Redaction cancelled." : (error as Error).message || "Couldn't save the redacted copy. Try again."); }
     finally { clearTimeout(timer); job.current = null; setBusy(false); setSaving(false); }
   };
+
   return <Modal title="Redact a copy" onClose={saving ? () => {} : onClose}>
     <div className="pdf-security pdf-redact" ref={root}>
       <p className="pdf-security-name">{name}</p>
@@ -82,6 +100,7 @@ export default function PdfRedactDialog({ bytes, name, onApply, onClose }: PdfSe
         }} onPointerMove={event => { if (start.current) setDraft(region(start.current, position(event))); }} onPointerCancel={() => { start.current = null; setDraft(null); }} onPointerUp={event => {
           if (!start.current) return;
           const area = region(start.current, position(event)); start.current = null; setDraft(null);
+
           if (area.width > 0.002 && area.height > 0.002) setAreas(current => [...current, area]);
         }}>
           <canvas ref={canvas} style={{ visibility: ready ? "visible" : "hidden" }} />

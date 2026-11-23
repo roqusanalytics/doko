@@ -31,10 +31,12 @@ export function SearchBar({
   // Search as you type, debounced so large documents stay responsive.
   useEffect(() => {
     if (!query && !searched.current) return;
+
     const t = window.setTimeout(() => {
       searched.current = !!query;
       onFind(query, { caseSensitive, entireWord });
     }, 160);
+
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, caseSensitive, entireWord]);

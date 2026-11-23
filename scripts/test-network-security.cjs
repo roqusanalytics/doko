@@ -11,9 +11,11 @@ function resolver(...addresses) {
 
 test("unknown, local, mixed and transition addresses cannot silently become public", async () => {
   const url = new URL("https://document.test");
+
   for (const ip of ["0.1.2.3", "100.64.0.2", "127.0.0.1", "::ffff:7f00:1", "64:ff9b::7f00:1", "2002:7f00:1::", "fe80::1"]) {
     assert.equal((await resolveDestination(url, resolver("8.8.8.8", ip))).local, true, ip);
   }
+
   assert.equal((await resolveDestination(new URL("https://printer.local./"), resolver("8.8.8.8"))).local, true);
   await assert.rejects(resolveDestination(url, resolver()), /resolve/);
   await assert.rejects(resolveDestination(url, resolver("not-an-address")), /resolve/);
@@ -23,10 +25,13 @@ test("two origins sharing a SOCKS address cannot substitute their grants or rout
   const publicUrl = new URL("http://alias.test:8000/doc");
   const localUrl = new URL("http://alias.test.:8000/doc");
   const local = await resolveDestination(localUrl, resolver("127.0.0.1"));
+
   const session = { ...resolver("8.8.8.8"), setProxy: async () => {},
     webRequest: { onBeforeRequest: fn => { session.authorize = url => new Promise(resolve => fn({ url: url.href }, resolve)); } } };
+
   const system = { resolveProxy: async () => "DIRECT" };
   const guard = await guardSession(session, system, local, new EventEmitter());
+
   try {
     assert.deepEqual(await session.authorize(publicUrl), {});
     session.resolveHost = resolver("127.0.0.1").resolveHost;
@@ -54,12 +59,15 @@ test("the system proxy gets a pinned numeric CONNECT; Chromium's tunnel stays tr
   upstream.listen(0, "127.0.0.1");
   await once(upstream, "listening");
   const url = new URL("https://origin.test/one");
+
   // The check also works on machines where the test IPv4 range belongs to a local interface.
   const session = { ...resolver("8.8.8.8"), setProxy: async config => { session.config = config; },
     webRequest: { onBeforeRequest: listener => { session.authorize = listener; } } };
+
   const system = { resolveProxy: async () => "PROXY 127.0.0.1:" + upstream.address().port };
   const guard = await guardSession(session, system, await resolveDestination(url, session), new EventEmitter());
   const client = new net.Socket();
+
   try {
     const result = await new Promise(resolve => session.authorize({ url: url.href }, resolve));
     assert.deepEqual(result, {});
@@ -69,14 +77,17 @@ test("the system proxy gets a pinned numeric CONNECT; Chromium's tunnel stays tr
     await once(client, "connect");
     let got = Buffer.alloc(0);
     const payload = Buffer.from("transparent tunnel");
+
     const complete = new Promise((resolve, reject) => {
       client.on("data", bytes => {
         got = Buffer.concat([got, bytes]);
+
         if (got.length >= 12 + payload.length) resolve();
       });
       client.on("error", reject);
       client.on("close", resolve);
     });
+
     // Pipeline the greeting, domain-format request and payload. The proxy cannot consume the first TLS/HTTP bytes.
     const host = Buffer.from(url.hostname);
     client.write(Buffer.concat([Buffer.from([5, 1, 0, 5, 1, 0, 3, host.length]), host, Buffer.from([1, 187]), payload]));
@@ -88,6 +99,7 @@ test("the system proxy gets a pinned numeric CONNECT; Chromium's tunnel stays tr
   } finally {
     client.destroy();
     guard.close();
+
     for (const peer of peers) peer.destroy();
     upstream.close();
   }
@@ -96,15 +108,20 @@ test("the system proxy gets a pinned numeric CONNECT; Chromium's tunnel stays tr
 test("only the import session and its active TLS destinations decline client identities", async () => {
   const app = new EventEmitter();
   let authorize;
+
   const session = { ...resolver("8.8.8.8"), setProxy: async () => {},
     webRequest: { onBeforeRequest: fn => { authorize = url => new Promise(done => fn({ url }, done)); } } };
+
   const guard = await guardSession(session, { resolveProxy: async () => "DIRECT" }, null, app);
+
   const challenge = (contents, authority) => {
     const calls = [];
     app.emit("select-client-certificate", { preventDefault: () => calls.push("prevented") }, contents, authority,
       [{}], (...certificates) => calls.push(certificates));
+
     return calls;
   };
+
   try {
     assert.deepEqual(await authorize("https://paper.test/"), {});
     assert.deepEqual(await authorize("https://[2606:4700:4700::1111]:8443/"), {});
@@ -115,5 +132,6 @@ test("only the import session and its active TLS destinations decline client ide
     assert.deepEqual(challenge(null, "paper.test:8443"), []);
     assert.deepEqual(challenge(null, "other.test:443"), []);
   } finally { guard.close(); }
+
   assert.deepEqual(challenge(null, "paper.test:443"), []);
 });

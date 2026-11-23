@@ -13,6 +13,7 @@ export function ContextMenu({ target, label, items, onClose }: {
     menu.showPopover();
     const anchor = target.element.getBoundingClientRect();
     let frame = 0;
+
     const position = () => {
       if (!menu.matches(":popover-open")) return;
       const current = target.element.getBoundingClientRect();
@@ -22,29 +23,41 @@ export function ContextMenu({ target, label, items, onClose }: {
       menu.style.top = `${Math.max(edge, current.top - gap - menu.offsetHeight)}px`;
       frame = requestAnimationFrame(position);
     };
+
     position();
     menu.querySelector<HTMLElement>('button:not(:disabled)')?.focus({ preventScroll: true });
     const dismiss = () => close.current();
+
     const scroll = (event: Event) => {
       if (!(event.target instanceof Node) || menu.contains(event.target)) return;
       const current = target.element.getBoundingClientRect();
+
       // Focus can queue a scroll event before opening; dismiss only if the anchor actually moved.
       if (Math.abs(current.top - anchor.top) > 1 || Math.abs(current.left - anchor.left) > 1) dismiss();
     };
+
     const toggle = () => { if (!menu.matches(":popover-open")) dismiss(); };
+
     window.addEventListener("resize", dismiss);
     window.addEventListener("blur", dismiss);
     document.addEventListener("scroll", scroll, true);
     menu.addEventListener("toggle", toggle);
+
     return () => { cancelAnimationFrame(frame); window.removeEventListener("resize", dismiss); window.removeEventListener("blur", dismiss); document.removeEventListener("scroll", scroll, true); menu.removeEventListener("toggle", toggle); };
   }, [target]);
   const dismiss = () => { onClose(); target.element.focus({ preventScroll: true }); };
+
   return createPortal(<div ref={panel} popover="auto" role="menu" aria-label={label} className="menu file-context-menu" onKeyDown={event => {
     event.stopPropagation();
-    if (event.key === "Escape" || event.key === "Tab") { event.preventDefault(); dismiss(); return; }
+
+    if (event.key === "Escape" || event.key === "Tab") { event.preventDefault(); dismiss();
+
+ return; }
+
     const buttons = [...panel.current!.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
     const next = event.key === "ArrowDown" ? (index + 1) % buttons.length : event.key === "ArrowUp" ? (index - 1 + buttons.length) % buttons.length : event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : -1;
+
     if (next >= 0) { event.preventDefault(); buttons[next]?.focus(); }
   }}>{items.map((item, index) => item.kind === "divider" ? <hr key={index} /> : <button key={item.label} role="menuitem"
     disabled={item.kind === "action" && item.disabled} onClick={() => { dismiss(); item.onSelect(); }}><Icon name={item.icon} size={16} /><span>{item.label}</span></button>)}</div>, document.body);

@@ -13,6 +13,7 @@ const { systemPowerShell } = require("../electron/windows-powershell.cjs");
 async function folder(t) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "folio-word-test-"));
   t.after(() => fs.rm(dir, { recursive: true, force: true }));
+
   return dir;
 }
 
@@ -22,6 +23,7 @@ test("only the exact source and PDF can reuse an export", async (t) => {
   const data = Buffer.from("folio PDF");
   await fs.writeFile(word, "original");
   await fs.writeFile(ready, data, { mode: 0o600 });
+
   if (process.platform === "darwin") execFileSync("/bin/chmod", ["+a", "everyone allow read", ready]);
   const staged = await stageWord(word, path.join(root, "source.docx"));
   const unrelated = path.join(root, "Report.pdf");
@@ -29,21 +31,27 @@ test("only the exact source and PDF can reuse an export", async (t) => {
   assert.equal(await cachedPdf(root, staged), null);
   const cwd = process.cwd();
   let index;
+
   try { index = await publish({ location: staged.location, ready }); } finally { process.chdir(cwd); }
+
   assert.equal(index, 2);
   const output = path.join(root, "Report (2).pdf");
   assert.equal(await fs.readFile(unrelated, "utf8"), "different");
   assert.deepEqual(await fs.readFile(output), data);
+
   if (process.platform === "win32") {
     const acl = execFileSync(systemPowerShell(), ["-NoProfile", "-NonInteractive", "-Command",
       "$acl = [IO.File]::GetAccessControl($env:FOLIO_FILE); $id = [Security.Principal.WindowsIdentity]::GetCurrent().User; " +
       "$acl.AreAccessRulesProtected -and ($acl.Access.Count -eq 1) -and ($acl.Access[0].IdentityReference.Translate([Security.Principal.SecurityIdentifier]) -eq $id)"],
       { env: { ...process.env, FOLIO_FILE: output }, encoding: "utf8", windowsHide: true });
+
     assert.equal(acl.trim(), "True");
   } else {
     assert.equal((await fs.stat(output)).mode & 0o777, 0o600);
+
     if (process.platform === "darwin") assert.doesNotMatch(execFileSync("/bin/ls", ["-le", output], { encoding: "utf8" }), /allow read/);
   }
+
   await rememberPdf(root, staged, index, data);
   assert.deepEqual(await cachedPdf(root, staged), { name: "Report (2).pdf", data });
   await fs.writeFile(output, "other PDF");
@@ -61,8 +69,10 @@ test("a symlink never authorizes a neighboring export, and files cannot redirect
   const root = await folder(t);
   const privateDoc = path.join(root, "private.docx"), link = path.join(root, "shared.docx");
   await fs.writeFile(privateDoc, "private");
+
   try { await fs.symlink(privateDoc, link); }
   catch (error) { if (error.code === "EPERM" && process.platform === "win32") return t.skip("symlink privilege unavailable"); throw error; }
+
   const staged = await stageWord(link, path.join(root, "copy.docx"));
   assert.equal(staged.location, null);
   await assert.rejects(readRegular(link), /regular file/);
@@ -79,9 +89,12 @@ test("a PDF that grows after its descriptor is sized is rejected", async (t) => 
     handle.stat = async (...options) => {
       const before = await stat(...options);
       const writer = await open(file, "a");
+
       try { await writer.write("5"); } finally { await writer.close(); }
+
       return before;
     };
+
     return handle;
   });
   await assert.rejects(readRegular(file, 4), /changed/);
@@ -98,8 +111,10 @@ test("replacing the source directory before publication cancels the save", async
   await fs.rename(dir, path.join(root, "original"));
   await fs.symlink(newDir, dir, process.platform === "win32" ? "junction" : "dir");
   const cwd = process.cwd();
+
   try { assert.equal(await publish({ location: staged.location, ready: word }), null); }
   finally { process.chdir(cwd); }
+
   assert.deepEqual(await fs.readdir(newDir), []);
 });
 
@@ -112,7 +127,9 @@ test("cross-volume export requires an enforceable private file", { skip: process
   t.mock.method(fs, "link", async () => { throw Object.assign(new Error("different volume"), { code: "EXDEV" }); });
   const cwd = process.cwd();
   let index;
+
   try { index = await publish({ location: staged.location, ready }); } finally { process.chdir(cwd); }
+
   if (process.platform === "darwin") {
     assert.equal(index, null);
     await assert.rejects(fs.stat(path.join(root, "input.pdf")), { code: "ENOENT" });
@@ -138,8 +155,10 @@ test("a working-directory PowerShell namesake cannot run", { skip: process.platf
   const cwd = await folder(t);
   await fs.writeFile(path.join(cwd, "powershell.exe"), "not an executable");
   const file = systemPowerShell();
+
   const actual = execFileSync(file, ["-NoProfile", "-NonInteractive", "-Command", "[Diagnostics.Process]::GetCurrentProcess().MainModule.FileName"],
     { cwd, encoding: "utf8", windowsHide: true });
+
   assert.equal(actual.trim().toLowerCase(), file.toLowerCase());
 });
 
@@ -165,6 +184,7 @@ test("actual part bytes, archive totals, repeated image reads and UTF-8 HTML are
 
 test("directory records are counted before duplicate or aliased ZIP names can be merged", async () => {
   const zip = new JSZip();
+
   for (const name of ["a", "b", "c"]) zip.file(name, name);
   zip.comment = "a normal ZIP comment";
   const valid = await zip.generateAsync({ type: "nodebuffer", streamFiles: true });
@@ -174,11 +194,13 @@ test("directory records are counted before duplicate or aliased ZIP names can be
   const duplicates = Buffer.from(valid);
   const end = duplicates.lastIndexOf(Buffer.from([0x50, 0x4b, 5, 6]));
   let offset = duplicates.readUInt32LE(end + 16);
+
   for (let i = 0; i < 3; i++) {
     const local = duplicates.readUInt32LE(offset + 42);
     duplicates[local + 30] = duplicates[offset + 46] = 97;
     offset += 46 + duplicates.readUInt16LE(offset + 28) + duplicates.readUInt16LE(offset + 30) + duplicates.readUInt16LE(offset + 32);
   }
+
   await assert.rejects(boundedParts(duplicates, limits), /ZIP directory/);
   duplicates.writeUInt16LE(1, end + 8);
   duplicates.writeUInt16LE(1, end + 10);

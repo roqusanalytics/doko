@@ -8,14 +8,19 @@ import { electronPath } from './electron-path.mjs';
 import { readerPage } from './reader-page.mjs';
 import { assertHidden, closeHidden } from './hidden-window.mjs';
 import { captureSave } from './capture-save.mjs';
+
 const root = path.resolve(import.meta.dirname, '..');
 const temp = mkdtempSync(path.join(tmpdir(), 'doko-screenshot-'));
 const env = { ...process.env, FOLIO_TEST_USER_DATA: temp, FOLIO_TEST_HIDDEN: '1', FOLIO_TEST_SCREENSHOT: '1' };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const app = await electron.launch({ executablePath: electronPath(env), args: [root, '--mute-audio', ...(process.platform === 'linux' && process.getuid?.() === 0 ? ['--no-sandbox'] : [])], env, timeout: 60_000 });
+
 try {
   const window = await app.firstWindow(), page = readerPage(window);
   await page.getByRole('button', { name: /Try a sample/ }).waitFor();
+
   const mockClipboard = async () => page.evaluate(() => {
     window.screenshotWrites = []; window.screenshotDeny = false;
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write: async items => {
@@ -23,6 +28,7 @@ try {
       window.screenshotWrites.push(await items[0].getType('image/png'));
     } } });
   });
+
   await page.getByRole('button', { name: /Try a sample/ }).click();
   await page.locator('.textLayer span:not(.markedContent)').first().waitFor();
   await mockClipboard();
@@ -43,11 +49,15 @@ try {
   await page.getByRole('button', { name: 'Try again', exact: true }).click();
   const retryOverlay = await retried;
   await retryOverlay.locator('#capture:focus').waitFor();
+
   try { await retryOverlay.keyboard.press('Escape'); } catch (error) { if (!retryOverlay.isClosed()) throw error; }
+
   await page.getByRole('alert').waitFor({ state: 'detached' });
+
   const closeKey = async (overlay, key) => {
     try { await overlay.keyboard.press(key); } catch (error) { if (!overlay.isClosed()) throw error; }
   };
+
   const start = async () => {
     const opened = app.waitForEvent('window');
     await page.getByRole('button', { name: 'Take a screenshot' }).click();
@@ -55,20 +65,25 @@ try {
     await overlay.locator('#screens img').first().waitFor();
     await overlay.locator('#capture:focus').waitFor();
     await assertHidden(app);
+
     return overlay;
   };
+
   const drag = async (overlay, from, to) => {
     await overlay.mouse.move(...from); await overlay.mouse.down();
     await overlay.mouse.move(...to, { steps: 12 }); await overlay.mouse.up();
     await page.getByRole('toolbar', { name: 'Screenshot actions' }).waitFor();
   };
+
   const image = () => page.evaluate(async () => {
     const blob = window.screenshotWrites.at(-1), bitmap = await createImageBitmap(blob);
     const canvas = Object.assign(document.createElement('canvas'), { width: bitmap.width, height: bitmap.height });
     const context = canvas.getContext('2d'); context.drawImage(bitmap, 0, 0);
+
     return { type: blob.type, width: bitmap.width, height: bitmap.height,
       left: [...context.getImageData(0, 0, 1, 1).data], right: [...context.getImageData(bitmap.width - 1, 0, 1, 1).data] };
   });
+
   // All four drag directions cross the synthetic negative-coordinate 1× and 2× displays.
   for (const [from, to] of [[[420,380],[180,160]], [[180,160],[420,380]], [[420,160],[180,380]], [[180,380],[420,160]]]) {
     await drag(await start(), from, to);
@@ -85,6 +100,7 @@ try {
     assert.deepEqual(png, { type: 'image/png', width: 480, height: 440, left: [220,30,20,255], right: [30,220,20,255] });
     await page.keyboard.press('Escape'); await page.locator('.screenshot-overlay').waitFor({ state: 'detached' });
   }
+
   await drag(await start(), [101,101], [102,102]);
   await page.getByRole('button', { name: 'Copied', exact: true }).waitFor();
   assert.deepEqual(await image(), { type: 'image/png', width: 1, height: 1, left: [220,30,20,255], right: [220,30,20,255] });

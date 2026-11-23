@@ -22,17 +22,22 @@ function ModelPicker({ ai }: { ai: FolioAi }) {
       setError(result.error ?? "");
     }).catch(() => { if (current) setError("Couldn't load models. You can enter a model ID."); })
       .finally(() => { if (current) setLoading(false); });
+
     return () => { current = false; };
   }, [ai, editing]);
+
   const select = (id: string) => {
     saveAiPreference(MODEL_KEY, id);
     setModel(id); setEditing(false); setQuery("");
   };
+
   const typed = query.trim();
   const matches = models.filter(m => (m.name + " " + m.id).toLowerCase().includes(typed.toLowerCase()));
   const custom = /^[a-z\d_~@.-]+\/[a-z\d_:./~@-]+$/i.test(typed) && !models.some(m => m.id === typed);
+
   if (!editing) return <div className="settings-row"><div className="settings-label"><span>Model</span><small>{model}</small></div>
     <button className="btn ghost" onClick={() => setEditing(true)}>Change model</button></div>;
+
   return <div className="router-model-picker">
     <label htmlFor="router-model">Model</label>
     <input id="router-model" type="search" placeholder="Search models or enter an ID" maxLength={256} value={query}
@@ -57,20 +62,29 @@ export function OpenRouterSettings({ ai, configured, onConfigured }: { ai: Folio
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+
   const act = async (action: "save" | "check" | "remove") => {
     const value = action === "save" ? key.current?.value.trim() : undefined;
+
     if (key.current) key.current.value = "";
     setNotice(""); setError(""); setBusy(true);
+
     try {
       const result = await ai.openRouterKey(action, value);
-      if (!result.ok) { setError(result.error || "Couldn't update the OpenRouter key."); return; }
+
+      if (!result.ok) { setError(result.error || "Couldn't update the OpenRouter key.");
+
+ return; }
+
       onConfigured(!!result.configured);
       setEditing(false);
       setNotice(action === "check" ? "Connection verified." : "");
+
       if (action !== "check") saveAiPreference("folio:ai-key-revision", crypto.randomUUID());
     } catch { setError("Couldn't update the OpenRouter key. Try again."); }
     finally { setBusy(false); }
   };
+
   return <div className="router-settings">
     <p className="settings-hint">OpenRouter bills your account. When you ask, OpenRouter and the provider serving your model receive the text you ask about and the conversation.</p>
     {configured && !editing ? <div className="settings-row">

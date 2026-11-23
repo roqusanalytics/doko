@@ -13,29 +13,41 @@ import { assertHidden, closeHidden } from "./hidden-window.mjs";
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "doko-command-blocking-"));
 const shots = path.join(root, "release", "smoke");
+
 mkdirSync(shots, { recursive: true });
+
 const env = { ...process.env, FOLIO_TEST_USER_DATA: temp, FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const app = await electron.launch({ executablePath: electronPath(env), env,
   args: [root, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
+
 const errors = [];
 let page;
+
 try {
   page = readerPage(await app.firstWindow());
   page.on("pageerror", error => errors.push(String(error)));
   await page.getByRole("button", { name: /Try a sample/ }).waitFor({ timeout: 30_000 });
+
   const png = await page.evaluate(() => {
     const canvas = Object.assign(document.createElement("canvas"), { width: 400, height: 400 });
     const context = canvas.getContext("2d");
     context.fillStyle = "#3a7"; context.fillRect(0, 0, 400, 400);
+
     return canvas.toDataURL("image/png").split(",")[1];
   });
+
   const pdf = await PDFDocument.create();
   const image = await pdf.embedPng(Buffer.from(png, "base64"));
   pdf.addPage([600, 800]).drawImage(image, { x: 150, y: 200, width: 300, height: 400 }); // The image menu skips full-page (scanned) images.
   await app.evaluate(({ BrowserWindow, dialog }, bytes) => {
     globalThis.commandBlockingTest = { saveDialogs: 0 };
-    dialog.showSaveDialog = async () => { globalThis.commandBlockingTest.saveDialogs++; return { canceled: true }; };
+    dialog.showSaveDialog = async () => { globalThis.commandBlockingTest.saveDialogs++;
+
+ return { canceled: true }; };
+
     BrowserWindow.getAllWindows()[0].webContents.send("folio:open-file", { name: "Image page.pdf", data: Buffer.from(bytes) });
   }, [...await pdf.save()]);
   await page.window.waitForFunction(() => document.title.startsWith("Image page.pdf"));
@@ -44,6 +56,7 @@ try {
 
   const menuEnabled = label => app.evaluate(({ Menu }, label) =>
     Menu.getApplicationMenu().items.find(item => item.label === "File").submenu.items.find(item => item.label === label)?.enabled, label);
+
   const command = name => app.evaluate(({ BrowserWindow }, name) => BrowserWindow.getAllWindows()[0].webContents.send("folio:file-command", name), name);
 
   await sheet.click({ force: true }); // The text layer sits on top; the reader finds the image by position.

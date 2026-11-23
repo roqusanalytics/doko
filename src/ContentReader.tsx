@@ -35,8 +35,11 @@ const MAX_PIXELS = 80_000_000;
 
 // Errors thrown in the main process arrive with Electron's "Error invoking remote method" prefix; users see the plain message.
 function failure(error: unknown) { return error instanceof Error ? error.message.replace(IPC_PREFIX, "") : "Couldn't read this file. Try again."; }
+
 function relativeImage(src: string) { return !!src && !/^[a-z][a-z\d+.-]*:|^[\\/#]/i.test(src); }
+
 function webLink(href: string) { return /^https?:\/\//i.test(href) || href.startsWith("#"); }
+
 const delimiterLabel = (delimiter: string) => delimiter === "\t" ? "Tab" : delimiter === " " ? "Space" : delimiter;
 
 // DOM text nodes escape every cell, so a cell can never inject markup into the print view.
@@ -45,17 +48,22 @@ function tableMarkup(rows: readonly (readonly string[])[]) {
   const table = document.createElement("table");
   const body = document.createElement("tbody");
   table.append(body);
+
   for (const row of rows) {
     const line = document.createElement("tr");
+
     for (const cell of row) {
       const td = document.createElement("td");
       td.textContent = cell;
       line.append(td);
     }
+
     body.append(line);
   }
+
   return table.outerHTML;
 }
+
 const csvMarkup = (text: string, delimiter: string) => tableMarkup(parseCsv(text, delimiter).rows.map(row => row.cells.map(cell => cell.value)));
 
 function LocalImage({ id, src, alt }: { id?: string; src: string; alt: string }) {
@@ -66,16 +74,28 @@ function LocalImage({ id, src, alt }: { id?: string; src: string; alt: string })
     let stopped = false;
     let objectUrl = "";
     setUrl(""); setError("");
-    if (!relativeImage(src)) { setError("Remote and absolute image paths are blocked."); return; }
-    if (!id || !window.folioDesktop) { setError("Local images are available in the desktop edition."); return; }
+
+    if (!relativeImage(src)) { setError("Remote and absolute image paths are blocked.");
+
+ return; }
+
+    if (!id || !window.folioDesktop) { setError("Local images are available in the desktop edition.");
+
+ return; }
+
     void window.folioDesktop.content.asset(id, src).then(result => {
       if (stopped) return;
+
       if (result.data.byteLength > MAX_BYTES) throw new Error("Image is larger than 100 MiB.");
       objectUrl = URL.createObjectURL(new Blob([new Uint8Array(result.data)], { type: result.mime }));
       setUrl(objectUrl);
     }).catch(error => { if (!stopped) setError(failure(error)); });
-    return () => { stopped = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+
+    return () => { stopped = true;
+
+ if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [id, src, attempt]);
+
   return <span className="markdown-image">
     {error ? <span role="status">{alt || "Image"}: {error} {relativeImage(src) && id && <button className="content-inline-button" onClick={() => setAttempt(attempt + 1)}>Retry</button>}</span>
       : url ? <img src={url} alt={alt} onError={() => setError("Couldn't decode this image.")} onLoad={event => {
@@ -87,13 +107,17 @@ function LocalImage({ id, src, alt }: { id?: string; src: string; alt: string })
 function headingAnchors(ids: readonly string[]) {
   return () => (tree: { type: string; children?: unknown[]; data?: { hProperties?: Record<string, unknown> } }) => {
     let index = 0;
+
     const visit = (node: typeof tree) => {
       if (node.type === "heading") {
         const id = ids[index++];
+
         if (id) node.data = { ...node.data, hProperties: { ...node.data?.hProperties, id } };
       }
+
       node.children?.forEach(child => visit(child as typeof tree));
     };
+
     visit(tree);
   };
 }
@@ -105,32 +129,42 @@ function highlightMarkdownBlock(offset: number | undefined) {
     if (offset === undefined) return;
     let target: Element | undefined;
     let previous: Element | undefined;
+
     const visit = (node: Root | Element) => {
       const start = node.position?.start.offset;
       const end = node.position?.end.offset;
+
       if (node.type === "element" && PREVIEW_BLOCK.test(node.tagName) && start !== undefined) {
         if (start <= offset && end !== undefined && end > offset) target = node;
+
         if (!previous || start <= offset) previous = node;
       }
+
       node.children.forEach(child => { if (child.type === "element") visit(child); });
     };
+
     visit(tree);
     const block = target ?? previous;
+
     if (block) block.properties.className = [...(Array.isArray(block.properties.className) ? block.properties.className : []), "markdown-edit-highlight"];
   };
 }
 
 function MarkdownPreview({ doc, text, headingIds, reveal }: { doc: MarkdownDocument; text: string; headingIds: readonly string[]; reveal?: number }) {
   const anchors = useMemo(() => headingAnchors(headingIds), [headingIds]);
+
   const components = useMemo(() => ({
     a: ({ href, children }: { href?: string; children?: import("react").ReactNode }) => href && webLink(href)
       ? <a href={href} target={href.startsWith("#") ? undefined : "_blank"} rel="noreferrer noopener">{children}</a> : <span>{children}</span>,
     img: ({ src, alt }: { src?: string | Blob; alt?: string }) => <LocalImage id={doc.id} src={typeof src === "string" ? src : ""} alt={alt ?? ""} />,
   }), [doc.id]);
+
   let offset: number | undefined;
+
   const normalized = normalizeMathDelimiters(text, reveal === undefined ? undefined : (source, rendered) => {
     if (source <= reveal) offset = rendered;
   });
+
   return <section className="markdown-preview" aria-label="Markdown preview" tabIndex={0}>
     {!text ? <p className={reveal === undefined ? "content-empty" : "content-empty markdown-edit-highlight"}>Your preview appears here.</p> : <ReactMarkdown skipHtml
       remarkPlugins={[[remarkMath, { singleDollarTextMath: false }], anchors]}
@@ -176,24 +210,30 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
   const state = useRef({ doc, text, saved });
   state.current = { doc, text, saved };
   const markdownText = useCallback(() => state.current.text, []);
+
   const readAiText = useCallback(async (signal: AbortSignal) => {
     signal.throwIfAborted();
     const current = markdownText();
     const truncated = current.length > MAX_DOC_CHARS;
     // Keep source offsets intact and avoid sending half a surrogate pair at the limit.
     const end = truncated && /[\uD800-\uDBFF]/.test(current[MAX_DOC_CHARS - 1]) ? MAX_DOC_CHARS - 1 : MAX_DOC_CHARS;
+
     return { text: truncated ? current.slice(0, end) : current, truncated };
   }, [markdownText]);
+
   const applyAiEdits = (edits: readonly MarkdownEdit[]) => {
     if (state.current.doc.readOnly) throw new Error("This document is read-only.");
     const current = markdownText();
     let changes;
+
     try { changes = locateMarkdownEdits(current, edits); }
     catch { throw new Error(STALE_MARKDOWN_EDIT); }
+
     if (!editor.current) throw new Error("The Markdown document is still loading.");
     editor.current.applyMarkdownEdits(current, changes);
     setAiSelection(null);
   };
+
   const pendingSave = useRef<Promise<boolean> | null>(null);
   const closeAnswer = useRef<((answer: boolean) => void) | null>(null);
   const actions = useRef({ save: (_copy = false): Promise<boolean> => Promise.resolve(false), canClose: (): Promise<boolean> => Promise.resolve(true) });
@@ -209,11 +249,15 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
   // Parsing a large file takes hundreds of milliseconds, so it is skipped while only the source editor is on screen.
   const [tableVisible, setTableVisible] = useState(true);
   const lastTable = useRef<ReturnType<typeof parseCsv> | null>(null);
+
   const csvTable = useMemo(() => {
     if (!sheet) return null;
+
     if (!tableVisible && dialog !== "properties" && lastTable.current) return lastTable.current;
     const table = parseCsvPinned(text, delimiter.current);
+
     if (table.columns > 1) delimiter.current = table.delimiter;
+
     return lastTable.current = table;
     // `doc` changes on every reload, so a reload that returns identical text still parses again.
   }, [sheet, doc, text, tableVisible, dialog === "properties"]);
@@ -222,24 +266,30 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
   useEffect(() => { tabs.markDirty(tabKey, dirty); }, [tabs, tabKey, dirty]);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+
     if (tabs.active === tabKey) window.folioDesktop?.setTheme(nativeAppearanceTheme(theme));
   }, [theme, tabs.active, tabKey, tabs]);
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key === "folio:theme" && (event.newValue === "light" || event.newValue === "dark")) setTheme(event.newValue);
     };
+
     window.addEventListener("storage", onStorage);
+
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const save = (copy = false, utf8 = false): Promise<boolean> => {
     editor.current?.flush();
+
     if (pendingSave.current) return pendingSave.current;
     const current = state.current;
+
     if (current.doc.kind !== "markdown" || workbook || html) return Promise.resolve(true);
     const markdown = current.doc;
     let savedText = current.text;
     setSaving(true); setError(""); setUnencodable(null);
+
     const operation = (async () => {
       try {
         if (!markdown.id || !window.folioDesktop) {
@@ -249,38 +299,56 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         } else {
           const result = await window.folioDesktop.content.save(markdown.id, current.text, copy, utf8);
+
           if (result.cancelled) return false;
+
           if (!result.ok || !result.document) {
             setConflict(!!result.conflict);
             setUnencodable(result.unencodable ? { copy } : null);
             setError(result.error || (result.conflict ? "This file changed outside Doko. Save a copy or reload it." : "Couldn't save. Your changes are still here."));
+
             return false;
           }
+
           setDoc(result.document); tabs.contentSaved(tabKey, result.document);
+
           // Saving an SVG as UTF-8 rewrites its XML encoding declaration; the editor must hold what the file now holds.
           if (result.document.format === "svg" && result.document.text !== current.text) {
             savedText = result.document.text;
+
             if (state.current.text === current.text) { state.current.text = savedText; setText(savedText); }
           }
         }
+
         setSaved(savedText); state.current.saved = savedText;
         tabs.markDirty(tabKey, state.current.text !== savedText); setConflict(false);
+
         return true;
-      } catch (error) { setError(failure(error)); return false; }
+      } catch (error) { setError(failure(error));
+
+ return false; }
       finally { setSaving(false); }
     })();
+
     pendingSave.current = operation;
     void operation.finally(() => { pendingSave.current = null; });
+
     return operation;
   };
+
   const answerClose = (answer: boolean) => {
     setDialog(null); const resolve = closeAnswer.current; closeAnswer.current = null; resolve?.(answer);
+
     if (!answer) editor.current?.focus();
   };
+
   actions.current = { save, canClose: async () => {
     editor.current?.flush();
+
     if (pendingSave.current) await pendingSave.current;
+
     if (state.current.doc.kind !== "markdown" || state.current.text === state.current.saved) return true;
+
     return new Promise(resolve => { closeAnswer.current = resolve; setDialog("close"); });
   } };
   useEffect(() => {
@@ -293,25 +361,32 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
       },
       canClose: () => actions.current.canClose(),
     });
+
     return () => { closeAnswer.current?.(false); };
   }, [tabs, tabKey, chatId]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (tabs.active !== tabKey || dialog) return;
+
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && state.current.doc.kind === "markdown") {
         event.preventDefault(); void actions.current.save(event.shiftKey);
       }
     };
+
     window.addEventListener("keydown", onKey);
+
     return () => window.removeEventListener("keydown", onKey);
   });
+
   const openFiles = async (files: File[]) => {
     try { tabs.open(await localSources(files)); } catch (error) { setError(failure(error)); }
   };
+
   const reload = async () => {
     if (doc.kind !== "markdown" || !doc.id || !window.folioDesktop) return;
     setDialog(null); setSaving(true);
+
     try {
       const next = await window.folioDesktop.content.reload(doc.id);
       delimiter.current = undefined; lastTable.current = null;
@@ -321,84 +396,118 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
     } catch (error) { setError(failure(error)); }
     finally { setSaving(false); }
   };
+
   const exportMarkdown = async (format: "html" | "txt" | "csv" | "svg", printing = false) => {
     if (saving) return;
     editor.current?.flush();
     setSaving(true); setError("");
+
     try {
       const current = state.current;
       const content = format === "html" ? await (await import("./markdownExport")).markdownHtml(current.doc.name, current.text, current.doc.id) : format === "svg" ? xmlUtf8(current.text) : current.text;
       // Exported CSV is UTF-8 with a BOM, so Excel reads accented letters; both copies keep the file's own line endings.
       const output = format === "csv" ? restoreText(current.doc, content, true) : format === "html" ? content : restoreText(current.doc, content);
+
       if (printing) {
         // Plain text prints as-is; running it through the Markdown renderer would turn "#" lines into headings.
         setPrintMarkup(format === "csv" ? csvMarkup(content, delimiter.current ?? parseCsv(content).delimiter)
           : format === "txt" ? Object.assign(document.createElement("pre"), { textContent: content }).outerHTML
           : new DOMParser().parseFromString(content, "text/html").body.innerHTML);
         await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-        window.print(); setPrintMarkup(""); return;
+        window.print(); setPrintMarkup("");
+
+ return;
       }
+
       const name = current.doc.name.replace(/\.(md|markdown|txt|csv|svg)$/i, "") + "." + format;
+
       if (window.folioDesktop) {
         const result = await window.folioDesktop.saveFile({ name, format, data: new TextEncoder().encode(output), saveAs: true });
+
         if (result.cancelled) return;
+
         if (!result.ok) throw new Error(result.error || "Couldn't save this export. Try again.");
       } else {
         const url = URL.createObjectURL(new Blob([output], { type: format === "html" ? "text/html" : format === "csv" ? "text/csv" : format === "svg" ? "image/svg+xml" : "text/plain" }));
         const link = document.createElement("a"); link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
+
       setDialog(null);
     } catch (error) { setError(failure(error)); }
     finally { setSaving(false); }
   };
+
   // An <img> from a Blob URL prints the drawing as the Image view shows it, and runs nothing from the file.
   const printSvg = async () => {
     if (saving || printing.current) return;
-    if (!state.current.text.trim()) { setError("This SVG is empty, so there is nothing to print."); return; }
+
+    if (!state.current.text.trim()) { setError("This SVG is empty, so there is nothing to print.");
+
+ return; }
+
     printing.current = true; setError("");
     const url = URL.createObjectURL(new Blob([state.current.text], { type: "image/svg+xml" }));
     setPrintSvgUrl(url);
+
     try {
       await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
       const image = printImage.current;
+
       if (!image) throw new Error("The print view didn't open.");
+
       try { await image.decode(); }
-      catch { setError("This SVG can't be drawn, so it can't be printed. Check the source for errors."); return; }
+      catch { setError("This SVG can't be drawn, so it can't be printed. Check the source for errors.");
+
+ return; }
+
       window.print();
     } catch { setError("Couldn't print this SVG. Try again."); }
     finally { setPrintSvgUrl(""); URL.revokeObjectURL(url); printing.current = false; }
   };
+
   const printSheet = async () => {
     setPrintMarkup(tableMarkup(workbook!.sheets[sheetIndex].rows));
     await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     window.print(); setPrintMarkup("");
   };
+
   const fileCommand = (command: FileCommand) => {
     if (saving || dialog) return;
-    if (html) { if (command === "recent") tabs.library(); return; }
+
+    if (html) { if (command === "recent") tabs.library();
+
+ return; }
+
     if (workbook) {
       if (command === "print" && workbook.sheets.length) void printSheet();
       else if (command === "recent") tabs.library();
+
       return;
     }
+
     if (command === "save" || command === "save-as") void save(command === "save-as");
     else if (command === "export") setDialog("export");
     else if (command === "print") void (svg ? printSvg() : exportMarkdown(plain ? "txt" : sheet ? "csv" : "html", true));
     else if (command === "properties") setDialog("properties");
     else if (command === "recent") tabs.library();
   };
+
   useFileCommands(tabs.active === tabKey, html ? "html" : workbook ? "workbook" : "markdown", saving || !!dialog, fileCommand);
   const cancelDialog = () => dialog === "close" ? answerClose(false) : setDialog(null);
   useEffect(() => {
     if (!dialog) return;
+
     const trapFocus = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return;
       const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>(".modal button:not(:disabled)"));
       const first = buttons[0], last = buttons[buttons.length - 1];
+
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     };
+
     window.addEventListener("keydown", trapFocus);
+
     return () => window.removeEventListener("keydown", trapFocus);
   }, [dialog]);
 
@@ -428,8 +537,10 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
         {chatId && window.folioDesktop?.ai && <IconButton icon="sparkle" label="Ask AI" active={aiOpen} onClick={() => {
           if (!aiOpen) {
             const selection = editor.current?.selectedText();
+
             if (selection) setAiSelection({ text: selection });
           }
+
           setAiOpen(!aiOpen);
         }} />}
         <button className="icon-btn" aria-label="Open file" title="Open file" onClick={() => input.current?.click()}><Icon name="upload" /></button>

@@ -9,6 +9,7 @@ interface PrintInput {
   signal: AbortSignal;
   isCurrent(): boolean;
 }
+
 interface PrintSnapshot {
   pdf: PDFDocumentProxy;
   bytes: Uint8Array;
@@ -44,21 +45,33 @@ export function useReaderPrinting({ prepare, saveCopy, flash, onError, onPrepare
         }
       }, 250);
     };
+
     document.body.appendChild(frame);
     setTimeout(() => {
       frame.remove();
       URL.revokeObjectURL(url);
     }, 60_000);
   };
+
   const print = async () => {
     if (printCopy || preparingPrint.current) return;
     preparingPrint.current = true;
+
     try {
       const input = await prepare();
+
       if (!input) return;
-      if (!window.folioDesktop) { printPdfBytes(input.bytes); return; }
+
+      if (!window.folioDesktop) { printPdfBytes(input.bytes);
+
+ return; }
+
       const snapshot = await loadPdf(input.bytes, input.signal, input.password);
-      if (!input.isCurrent()) { void snapshot.loadingTask.destroy(); return; }
+
+      if (!input.isCurrent()) { void snapshot.loadingTask.destroy();
+
+ return; }
+
       setPrintCopy({ pdf: snapshot, bytes: input.bytes, page: input.page, name: input.name });
     } catch {
       onPrepareError();

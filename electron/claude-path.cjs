@@ -21,9 +21,11 @@ function findClaude({ platform, home, envPath, extraFolders = installFolders(pla
   const dirs = [path.join(home, ".local", "bin"), ...String(envPath ?? "").split(path.delimiter), ...extraFolders]
     .map((d) => d.trim().replace(/^"|"$/g, ""))
     .filter((d) => d && path.isAbsolute(d));
+
   const candidates = platform === "win32"
     ? dirs.flatMap((d) => [path.join(d, "claude.exe"), ...(isFile(path.join(d, "claude.cmd")) ? [path.join(d, NPM_WINDOWS_EXE)] : [])])
     : dirs.map((d) => path.join(d, "claude"));
+
   return candidates.find(isFile) ?? null;
 }
 
@@ -31,6 +33,7 @@ function findClaude({ platform, home, envPath, extraFolders = installFolders(pla
 function claudeChildPath(envPath, exe) {
   const dir = path.dirname(exe);
   const dirs = String(envPath ?? "").split(path.delimiter).filter(Boolean);
+
   return dirs.includes(dir) ? envPath : [...dirs, dir].join(path.delimiter);
 }
 

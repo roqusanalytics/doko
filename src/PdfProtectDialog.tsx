@@ -10,12 +10,15 @@ export default function PdfProtectDialog({ bytes, name, onApply, onClose }: PdfS
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     root.current?.querySelector("input")?.focus();
+
     return () => { job.current?.abort(); previous?.focus(); };
   }, []);
+
   const apply = async () => {
     if (busy) return;
     const controller = new AbortController(); job.current = controller;
     setBusy(true); setError("");
+
     try {
       const { protectPdf, validatePdfPassword } = await import("./pdfSecurity");
       validatePdfPassword(password, confirmation);
@@ -26,6 +29,7 @@ export default function PdfProtectDialog({ bytes, name, onApply, onClose }: PdfS
     } catch (error) { if (!controller.signal.aborted) setError((error as Error).message || "Couldn't save the protected copy. Try again."); }
     finally { setBusy(false); setSaving(false); job.current = null; }
   };
+
   return <Modal title="Protect a copy" onClose={saving ? () => {} : onClose}>
     <form className="pdf-security" ref={root} onSubmit={event => { event.preventDefault(); void apply(); }}>
       <p className="pdf-security-name">{name}</p>

@@ -14,6 +14,7 @@ class FakeWorker {
   }
   postMessage(packet) {
     this.packets.push(packet);
+
     if (packet.action === FakeWorker.pause) return;
     queueMicrotask(() => this.onmessage({ data: {
       ...packet,
@@ -29,6 +30,7 @@ test("OCR owns and terminates its physical worker throughout initialization", as
   const previousWindow = globalThis.window;
   globalThis.Worker = FakeWorker;
   globalThis.window = { location: { href: "https://doko.test/reader/index.html" } };
+
   try {
     for (const action of ["load", "loadLanguage", "initialize", "setParameters"]) {
       await t.test(`${action} failure terminates and a fresh retry reads text`, async () => {
@@ -66,6 +68,7 @@ test("OCR owns and terminates its physical worker throughout initialization", as
         FakeWorker.pause = undefined;
       });
     }
+
     await t.test("abort during recognition rejects the pending job and stops the worker", async () => {
       const controller = new AbortController();
       const ready = await startOcrWorker("/ocr", ["eng"], "cache", controller.signal);
@@ -119,9 +122,14 @@ test("OCR owns and terminates its physical worker throughout initialization", as
       const previousClearTimeout = globalThis.clearTimeout;
       let expire;
       let cleared = false;
-      globalThis.setTimeout = (callback, delay) => { assert.equal(delay, 60_000); expire = callback; return 123; };
+      globalThis.setTimeout = (callback, delay) => { assert.equal(delay, 60_000); expire = callback;
+
+ return 123; };
+
       globalThis.clearTimeout = timer => { assert.equal(timer, 123); cleared = true; };
+
       FakeWorker.pause = "loadLanguage";
+
       try {
         const started = startOcrWorker("/ocr", ["eng"], "cache", new AbortController().signal);
         const rejection = assert.rejects(started, /OCR initialization timed out/);
@@ -151,9 +159,14 @@ test("OCR owns and terminates its physical worker throughout initialization", as
       const native = FakeWorker.workers.at(-1);
       const originalSet = globalThis.setTimeout, originalClear = globalThis.clearTimeout;
       let expire, clears = 0;
-      globalThis.setTimeout = (callback, delay) => { assert.equal(delay, 60_000); expire = callback; return 987; };
+      globalThis.setTimeout = (callback, delay) => { assert.equal(delay, 60_000); expire = callback;
+
+ return 987; };
+
       globalThis.clearTimeout = id => { assert.equal(id, 987); clears++; };
+
       FakeWorker.pause = "recognize";
+
       try {
         const pending = assert.rejects(ready.recognize(new Uint8Array([1])), /OCR recognition timed out/);
         expire();
@@ -167,6 +180,7 @@ test("OCR owns and terminates its physical worker throughout initialization", as
         globalThis.setTimeout = originalSet; globalThis.clearTimeout = originalClear;
         FakeWorker.pause = undefined;
       }
+
       const retryController = new AbortController();
       const retry = await startOcrWorker("/ocr", ["eng"], "cache", retryController.signal);
       assert.equal((await retry.recognize(new Uint8Array([1]))).data.blocks[0].text, "Read again");

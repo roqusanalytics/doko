@@ -29,41 +29,53 @@ export default function DocumentExportDialog({ snapshot, mode, onClose, onSave }
     const focus = document.activeElement as HTMLElement | null;
     const dialog = root.current!.closest<HTMLElement>(".modal")!;
     dialog.querySelector<HTMLElement>("select,button")?.focus();
+
     const trap = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return;
       const controls = [...dialog.querySelectorAll<HTMLElement>("button:not(:disabled),input:not(:disabled),select:not(:disabled)")].filter(el => el.checkVisibility());
       const first = controls[0], last = controls.at(-1);
+
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+
       if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     };
+
     dialog.addEventListener("keydown", trap);
+
     return () => { job.current?.abort(); dialog.removeEventListener("keydown", trap); focus?.focus(); };
   }, []);
   const reset = () => { setResult(null); setError(""); };
+
   const prepare = async () => {
     if (busy || saving) return;
     const controller = new AbortController(); job.current = controller;
     const timeout = setTimeout(() => controller.abort(new Error("Export timed out. Try a smaller image or retry.")), 60_000);
     setBusy(true); setError(""); setResult(null);
+
     try {
       const output = isCanvasDocument
         ? await prepareCanvasExport(snapshot, { format: format as CanvasExportFormat, selectedOnly, background, darkMode, padding: Number(padding) }, controller.signal)
         : await (await import("./documentExport")).prepareDocumentExport(snapshot, { format: format as ExportFormat, compress, quality, maxEdge }, controller.signal);
+
       if (!controller.signal.aborted) setResult(output);
     } catch (error) {
       if (job.current === controller) setError(controller.signal.aborted ? controller.signal.reason instanceof Error ? controller.signal.reason.message : "Export cancelled." : (error as Error).message || "Couldn't prepare this export. Try again.");
     } finally {
       clearTimeout(timeout);
+
       if (job.current === controller) { job.current = null; setBusy(false); }
     }
   };
+
   const save = async () => {
     if (!result || saving) return;
     setSaving(true); setError("");
+
     try { if (await onSave(result.blob, result.name)) onClose(); }
     catch (error) { setError((error as Error).message || "Couldn't save this copy. Try again."); }
     finally { setSaving(false); }
   };
+
   return <Modal title={compress ? "Compress a copy" : "Export a copy"} onClose={saving ? () => {} : onClose}>
     <form className="document-export" ref={root} onSubmit={event => { event.preventDefault(); void (result ? save() : prepare()); }}>
       <p className="document-export-name">{snapshot.name}</p>

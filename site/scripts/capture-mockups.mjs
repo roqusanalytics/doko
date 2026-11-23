@@ -15,17 +15,25 @@ const root = path.resolve(import.meta.dirname, "../..");
 const photoSource = path.join(root, "site/public/photos");
 const out = path.join(root, "release/capture-fixtures/site");
 const temp = mkdtempSync(path.join(tmpdir(), "doko-mockups-"));
+
 mkdirSync(out, { recursive: true });
 
 // ---- Sample documents (all fictional) -------------------------------------------------------------------------
 const docs = path.join(temp, "docs");
 const photos = path.join(temp, "Coastal Photos");
-mkdirSync(docs); mkdirSync(photos);
+
+mkdirSync(docs);
+
+ mkdirSync(photos);
+
 for (const name of readdirSync(photoSource)) if (name.endsWith(".jpg")) copyFileSync(path.join(photoSource, name), path.join(photos, name));
+
 copyFileSync(path.join(photoSource, "lighthouse.jpg"), path.join(docs, "lighthouse.jpg"));
+
 copyFileSync(path.join(photoSource, "coast-sunset.jpg"), path.join(docs, "coast-sunset.jpg"));
 
 const pdfPath = path.join(docs, "Coastal Field Guide 2026.pdf");
+
 const html = `<!doctype html><meta charset="utf-8"><style>
 @page{size:A4;margin:0}
 *{box-sizing:border-box}body{margin:0;font:11pt/1.55 Georgia,"Times New Roman",serif;color:#1b2b2a}
@@ -81,10 +89,13 @@ th{text-align:left;background:#e3efec;color:#12403f;padding:6pt 8pt}td{padding:6
 <p>Every route in this guide was walked twice by our team this season, once in good weather and once in bad, so the notes you read are the ones you can rely on.</p>
 <div class="foot"><span>Saltmere Outfitters</span><span>2</span></div>
 </section>`;
+
 writeFileSync(path.join(docs, "guide.html"), html);
+
 copyFileSync(path.join(photoSource, "coast-sunset.jpg"), path.join(docs, "coast-sunset.jpg"));
 
 const mdPath = path.join(docs, "launch-checklist.md");
+
 writeFileSync(mdPath, `# Launch checklist
 
 A short list for the **Saltmere** spring release. Everything below is \`ready\` or on its way, and each item names its owner.
@@ -112,8 +123,11 @@ npm run release
 
 // ---- Launch the real app ---------------------------------------------------------------------------------------
 const env = { ...process.env, FOLIO_TEST_USER_DATA: path.join(temp, "profile"), FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 let app;
+
 // Writes <name>-2880.jpg (2x) and <name>-1440.jpg (1x), the sizes the landing page's srcset uses.
 const jpg = (png, name) => {
   const base = name.replace(/\.jpg$/, "");
@@ -122,9 +136,11 @@ const jpg = (png, name) => {
   rmSync(png);
   console.log("wrote", path.join("release/capture-fixtures/site", `${base}-{1440,2880}.jpg`));
 };
+
 try {
   // Render the PDF from HTML with Chromium.
   const browser = await chromium.launch();
+
   try {
     const p = await browser.newPage();
     await p.goto("file://" + path.join(docs, "guide.html"));
@@ -138,6 +154,7 @@ try {
   await page.getByRole("button", { name: /Try a sample/ }).waitFor({ timeout: 30_000 });
   await app.evaluate(({ BrowserWindow }) => { const w = BrowserWindow.getAllWindows()[0]; w.setContentSize(1440, 900); });
   await window.waitForTimeout(500);
+
   const setTheme = async name => {
     await page.locator("body").click({ position: { x: 5, y: 5 } });
     await page.keyboard.press(process.platform === "darwin" ? "Meta+Comma" : "Control+Comma");
@@ -147,13 +164,18 @@ try {
     await page.getByRole("dialog", { name: "Settings", exact: true }).waitFor({ state: "hidden" });
     await window.waitForTimeout(500);
   };
+
   const open = file => app.evaluate(({ app }, file) => app.emit("open-file", { preventDefault() {} }, file), file);
+
   const shot = async name => {
     await assertHidden(app);
+
     const palette = await page.evaluate(() => {
       const style = getComputedStyle(document.documentElement);
+
       return ["--frame", "--stage", "--accent"].map(token => style.getPropertyValue(token).trim());
     });
+
     assert.deepEqual(palette, ["#76736f", "#202327", "#c5e1cb"]);
     await window.mouse.move(1425, 450);
     await window.waitForTimeout(700);
@@ -169,6 +191,7 @@ try {
   await window.waitForTimeout(1500);
   const colors = ["Highlight yellow", "Highlight green", "Highlight pink"];
   const targets = ["pools", "Carry", "nesting"];
+
   for (const [i, target] of targets.entries()) {
     const line = page.locator(".page .textLayer span").filter({ hasText: target }).first();
     await line.scrollIntoViewIfNeeded();
@@ -181,6 +204,7 @@ try {
     await page.getByRole("button", { name: colors[i], exact: true }).click();
     await page.getByRole("dialog", { name: "Selected text", exact: true }).waitFor({ state: "hidden" });
   }
+
   await page.getByRole("tab", { name: /Notes/ }).click().catch(async () => {
     await page.getByRole("button", { name: /Toggle sidebar/ }).click();
     await page.getByRole("tab", { name: /Notes/ }).click();
@@ -188,7 +212,9 @@ try {
   await setTheme("Light");
   const notes = ["Best at low tide", "Pack for the weather", "Seasonal rule: April to July"];
   const fields = page.locator('[placeholder="Add a note…"]');
+
   for (const [i, note] of notes.entries()) { await fields.nth(i).fill(note); await fields.nth(i).blur(); }
+
   await page.evaluate(() => {
     document.getSelection().removeAllRanges();
     const span = [...document.querySelectorAll(".page .textLayer span")].find(s => s.textContent.includes("pools"));
@@ -214,10 +240,12 @@ try {
   await shot("markdown.jpg");
 } catch (error) {
   console.error(error);
+
   if (app) await window_debug(app).catch(() => {});
   process.exitCode = 1;
 } finally {
   if (app) await closeHidden(app).catch(() => {});
   rmSync(temp, { recursive: true, force: true });
 }
+
 async function window_debug() {}

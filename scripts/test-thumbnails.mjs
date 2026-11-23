@@ -14,13 +14,16 @@ function deferredPdf(numPages, sizeOf = () => ({ width: 612, height: 792 })) {
   const calls = [];
   let outstanding = 0;
   let peak = 0;
+
   const pdf = {
     numPages,
     getPage(n) {
       outstanding++;
       peak = Math.max(peak, outstanding);
+
       return new Promise((resolve, reject) => {
         const settle = () => { outstanding--; };
+
         calls.push({
           n,
           resolve: () => {
@@ -36,16 +39,19 @@ function deferredPdf(numPages, sizeOf = () => ({ width: 612, height: 792 })) {
       });
     },
   };
+
   return { pdf, calls, get outstanding() { return outstanding; }, get peak() { return peak; } };
 }
 
 try {
   const { thumbLayout, loadPageSizes, anchoredScrollTop, rowAt, SIZE_REQUEST_LIMIT, THUMB_W, THUMB_MAX_H, THUMB_MIN } = await server.ssrLoadModule("/src/thumbnails.ts");
+
   const check = async (name, test) => {
     await test();
     passed++;
     console.log(`ok  ${name}`);
   };
+
   const dims = (f) => `${f.width}x${f.height}`;
   const letter = { width: 612, height: 792 };
   const letterLandscape = { width: 792, height: 612 };
@@ -128,11 +134,13 @@ try {
     const loader = loadPageSizes(doc.pdf, () => {});
     loader.prioritize(0, 12);
     assert.equal(doc.outstanding, SIZE_REQUEST_LIMIT);
+
     for (let i = 0; i < 200; i++) {
       doc.calls.find((c) => !c.done && (c.done = true)).resolve();
       await tick();
       assert.ok(doc.outstanding <= SIZE_REQUEST_LIMIT, `${doc.outstanding} requests in flight`);
     }
+
     assert.equal(doc.peak, SIZE_REQUEST_LIMIT);
     assert.equal(doc.calls.length, 200 + SIZE_REQUEST_LIMIT);
     loader.stop();
@@ -143,10 +151,12 @@ try {
     const loader = loadPageSizes(doc.pdf, () => {});
     loader.prioritize(3000, 3010);
     assert.deepEqual(doc.calls.map((c) => c.n), [3001, 3002, 3003, 3004, 3005, 3006]);
+
     for (let i = 0; i < 10; i++) {
       doc.calls[i].resolve();
       await tick();
     }
+
     assert.deepEqual(doc.calls.slice(0, 10).map((c) => c.n), [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010]);
     assert.deepEqual(doc.calls.slice(10).map((c) => c.n), [1, 2, 3, 4, 5, 6]);
     loader.stop();
@@ -168,6 +178,7 @@ try {
     const loader = loadPageSizes(doc.pdf, (i) => seen.push(i));
     loader.prioritize(0, 12);
     loader.stop();
+
     for (const c of [...doc.calls]) c.resolve();
     await tick();
     assert.equal(doc.calls.length, SIZE_REQUEST_LIMIT);

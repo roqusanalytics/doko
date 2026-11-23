@@ -15,14 +15,21 @@ const readOnlyFile = path.join(temp, "Read-only plan.md");
 const plain = path.join(temp, "Notes.txt");
 const before = "# Launch plan\n\nInvite two pilot teams.\n\n## Review\n\nCheck feedback on Friday.\n";
 const after = before.replace("Invite two pilot teams.", "Invite three pilot teams.").replace("Check feedback on Friday.", "Review feedback on Thursday.");
+
 writeFileSync(file, before);
+
 writeFileSync(readOnlyFile, before);
+
 chmodSync(readOnlyFile, 0o444);
+
 writeFileSync(plain, before);
+
 const env = { ...process.env, FOLIO_TEST_USER_DATA: path.join(temp, "profile"), FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
 
 let app;
+
 try {
   app = await electron.launch({ executablePath: electronPath(env), env, args: [root, "--mute-audio",
     ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
@@ -34,16 +41,20 @@ try {
   await page.locator("canvas.excalidraw__canvas.interactive").waitFor();
   const toolbar = () => page.locator(".topbar-right");
   const toggle = () => toolbar().getByRole("button", { name: "Ask AI", exact: true });
+
   const position = async locator => {
     await locator.waitFor();
     const box = await locator.boundingBox();
     assert.ok(box);
+
     return box;
   };
+
   const toolbarPositions = async () => ({
     ai: await position(toggle()),
     update: await position(toolbar().locator(".update-btn")),
   });
+
   const canvas = await toolbarPositions();
   await page.getByRole("tab", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Try a sample document" }).click();
@@ -52,6 +63,7 @@ try {
 
   await app.evaluate(({ net, safeStorage }) => {
     safeStorage.isAsyncEncryptionAvailable = async () => true;
+
     if (process.platform === "linux") safeStorage.getSelectedStorageBackend = () => "gnome_libsecret";
     safeStorage.encryptStringAsync = async value => Buffer.from(value);
     safeStorage.decryptStringAsync = async bytes => ({ result: Buffer.from(bytes).toString() });
@@ -59,18 +71,23 @@ try {
     const state = globalThis.markdownRouterTest = { requests: [], cancelled: false };
     net.fetch = async (url, options) => {
       if (!String(url).startsWith("https://openrouter.ai/")) return originalFetch.call(net, url, options);
+
       if (options.headers.Authorization !== "Bearer fixture-only-markdown-key") return new Response(null, { status: 401 });
       const endpoint = new URL(url).pathname;
+
       if (endpoint === "/api/v1/key") return Response.json({ data: { label: "Test" } });
+
       if (endpoint === "/api/v1/models") return Response.json({ data: [
         { id: "sample/write", name: "Sample Write", context_length: 131072, architecture: { input_modalities: ["text"], output_modalities: ["text"] } },
       ] });
+
       if (endpoint !== "/api/v1/chat/completions") throw new Error("Unexpected OpenRouter endpoint");
       const request = JSON.parse(options.body);
       state.requests.push(request);
       const last = request.messages.at(-1).content;
       const question = last.startsWith("{") ? JSON.parse(last).question : last;
       const edit = (find, replacement) => "\n```doko-edit\n<<<<<<< FIND\n" + find + "\n=======\n" + replacement + "\n>>>>>>> REPLACE\n```";
+
       const responses = {
         "What is the plan?": ["Start with two pilot teams.", " Review their feedback on Friday."],
         "Update the launch plan": ["Increase the pilot to three teams and move the feedback review to Thursday.",
@@ -79,9 +96,11 @@ try {
         "Move the review": ["Move the review to Monday.", edit("Check feedback on Friday.", "Check feedback on Monday.")],
         "Stop this edit": ["Drafting a change.", edit("Invite two pilot teams.", "Invite five pilot teams.")],
       };
+
       const [first, second] = responses[question];
       const sse = value => new TextEncoder().encode("data: " + value + "\n\n");
       const part = value => sse(JSON.stringify({ choices: [{ delta: { content: value } }] }));
+
       return new Response(new ReadableStream({ start(controller) {
         const editStart = second.indexOf("```doko-edit");
         const boundary = editStart < 0 ? 0 : editStart + 15;
@@ -91,8 +110,10 @@ try {
           controller.enqueue(sse("[DONE]"));
           controller.close();
         };
+
         options.signal.addEventListener("abort", () => {
           state.cancelled = true;
+
           try { controller.error(new Error("Stopped")); } catch {}
         }, { once: true });
       } }));
@@ -110,6 +131,7 @@ try {
   await fileOpen(file);
   await preview().getByRole("heading", { name: "Launch plan", exact: true }).waitFor();
   const markdown = await toolbarPositions();
+
   for (const [kind, boxes] of [["PDF", pdf], ["Canvas", canvas]]) {
     for (const control of ["ai", "update"]) {
       for (const field of ["x", "y", "width", "height"]) {
@@ -118,6 +140,7 @@ try {
       }
     }
   }
+
   const trailing = await position(toolbar().getByRole("button", { name: "Use dark theme" }));
   assert.ok(trailing.x > markdown.ai.x);
   await toggle().click();
@@ -136,6 +159,7 @@ try {
     await panel.getByRole("textbox").fill(question);
     await panel.getByRole("button", { name: "Send", exact: true }).click();
   };
+
   const finish = () => app.evaluate(() => globalThis.markdownRouterTest.finish());
   const apply = panel.getByRole("button", { name: "Apply", exact: true });
   const discard = panel.getByRole("button", { name: "Discard", exact: true });
@@ -178,24 +202,31 @@ try {
     const luminance = color => {
       const values = color.match(/[\d.]+/g).slice(0, 3).map(n => Number(n) / 255);
       const linear = values.map(n => n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4);
+
       return .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2];
     };
+
     const style = getComputedStyle(row);
     const a = luminance(style.color), b = luminance(style.backgroundColor);
+
     return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
   }));
+
   const capture = async theme => {
     await page.waitForFunction(theme => document.documentElement.dataset.theme === theme, theme);
     assert.ok((await contrast()).every(ratio => ratio >= 4.5), `Diff contrast below AA in ${theme}`);
     const shots = process.env.DOKO_MARKDOWN_AI_SCREENSHOTS;
+
     if (shots) {
       mkdirSync(shots, { recursive: true });
       await page.screenshot({ path: path.join(shots, `markdown-ai-${theme}.png`), animations: "disabled" });
     }
   };
+
   await capture("light");
   await toolbar().getByRole("button", { name: "Use dark theme" }).click();
   await capture("dark");
+
   for (const [color, scheme] of [["#e4cfff", "light"], ["#51427a", "dark"]]) {
     // Write from the shell so the document iframe receives the same preference event as on a settings change.
     await window.evaluate(color => localStorage.setItem("folio:panel-color", color), color);

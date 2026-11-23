@@ -33,6 +33,7 @@ const canvasDocumentUi = {
     toggleTheme: false,
   },
 } as const;
+
 export default function CanvasReader({ tabs, tabKey, initial }: {
   tabs: ReaderContext["tabs"]; tabKey: number; initial: CanvasDocument;
 }) {
@@ -50,10 +51,12 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
   const [background, setBackground] = useState<string | null>(null);
   const registerEditor = useCallback((api: ExcalidrawImperativeAPI) => { editor.current = api; setReady(true); }, []);
   const focusEditor = () => stage.current?.querySelector<HTMLElement>(".excalidraw")?.focus({ preventScroll: true });
+
   const setActiveTool = (type: Exclude<AppState["activeTool"]["type"], "custom">, moveFocus: boolean) => {
     if (moveFocus) focusEditor();
     editor.current?.setActiveTool({ type });
   };
+
   const [properties, setProperties] = useState(false);
   const [exportSnapshot, setExportSnapshot] = useState<CanvasExportSnapshot | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">(() => document.documentElement.dataset.theme === "dark" ? "dark" : "light");
@@ -63,25 +66,34 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
   const [chatId] = useState(() => `canvasDocument:${initial.id ?? initial.draftId ?? crypto.randomUUID()}`);
   const flushAi = useCallback(async () => { stopAiForClose(chatId); await flushAiHistory(chatId); }, [chatId]);
   const file = useCanvasDocumentFile(tabs, tabKey, initial, editor, flushAi);
+
   const onSceneChange: NonNullable<Parameters<typeof Excalidraw>[0]["onChange"]> = (elements, state, files) => {
     if (tool.type !== state.activeTool.type || tool.locked !== state.activeTool.locked) {
       setTool({ type: state.activeTool.type, locked: state.activeTool.locked });
     }
+
     if (sidebar !== state.openSidebar?.tab) setSidebar(state.openSidebar?.tab);
     file.onChange(elements, state, files);
   };
+
   const readScene = useCallback(async () => {
     if (!editor.current) throw new Error("The drawing editor is still loading.");
+
     return summarizeScene(editor.current.getSceneElements(), editor.current.getAppState().selectedElementIds);
   }, []);
+
   const insertDrawing = useCallback(async (reply: string | PreparedDrawing, isCurrent: () => boolean, repeated = false) => {
     const target = editor.current;
+
     if (!target) throw new Error("The drawing editor is still loading.");
+
     const prepared = typeof reply === "string"
       ? await prepareCanvasDocumentDrawing(reply, target.getSceneElements(), repeated)
       : { description: "", drawing: reply };
+
     if (!isCurrent() || target !== editor.current) return null;
     insertCanvasDocumentDrawing(target, prepared.drawing, repeated);
+
     return prepared;
   }, []);
 
@@ -92,46 +104,62 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
     const syncTheme = (event: StorageEvent) => {
       if (event.key === "folio:theme" && (event.newValue === "light" || event.newValue === "dark")) setTheme(event.newValue);
     };
+
     window.addEventListener("storage", syncTheme);
+
     return () => window.removeEventListener("storage", syncTheme);
   }, []);
   const blocked = file.confirmClose || properties || !!exportSnapshot || openUrl || background !== null;
   useEffect(() => {
     if (!active || blocked || !window.folioDesktop) return;
+
     const onKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "s") return;
       event.preventDefault();
       event.stopPropagation();
+
       if (!event.repeat) void file.save(event.shiftKey);
     };
+
     window.addEventListener("keydown", onKey, true);
+
     return () => window.removeEventListener("keydown", onKey, true);
   }, [active, blocked, file.save]);
   const toggleSidebar = (tab: "library" | "search") => editor.current?.toggleSidebar({ name: "default", tab });
+
   const exportCanvas = () => {
     if (editor.current) setExportSnapshot(captureCanvasExport(editor.current, file.document.name));
   };
+
   const toggleFocus = async () => {
     const next = !focus;
     setFocus(next);
+
     try {
       if (next && !document.fullscreenElement) await document.documentElement.requestFullscreen();
+
       if (!next && document.fullscreenElement) await document.exitFullscreen();
     } catch {
       // Keep the Canvas chrome hidden if fullscreen is unavailable.
     }
   };
+
   useEffect(() => {
     const onFullscreenChange = () => { if (!document.fullscreenElement) setFocus(false); };
+
     document.addEventListener("fullscreenchange", onFullscreenChange);
+
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
   useEffect(() => {
     if (!active || !focus || blocked) return;
+
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !event.defaultPrevented && !document.fullscreenElement) setFocus(false);
     };
+
     window.addEventListener("keydown", onKey);
+
     return () => window.removeEventListener("keydown", onKey);
   }, [active, focus, blocked]);
   useFileCommands(active, "canvasDocument", file.saving || blocked, command => {
@@ -155,7 +183,9 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
         <CanvasToolGroup tool={tool} ready={ready} onTool={setActiveTool}
           onLock={() => {
             const api = editor.current;
+
             if (!api) return;
+
             if (tool.locked) api.setActiveTool({ type: "selection", locked: false });
             else api.updateScene({ appState: { activeTool: { ...api.getAppState().activeTool, locked: true } } });
           }}
@@ -176,6 +206,7 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
           { kind: "action", icon: "book", label: "Library", disabled: !ready, onSelect: () => toggleSidebar("library") },
           { kind: "action", icon: "highlight", label: "Canvas background", disabled: !ready, onSelect: () => {
             const color = editor.current?.getAppState().viewBackgroundColor;
+
             if (color) setBackground(color);
           } },
           { kind: "action", icon: "keyboard", label: "Help / keyboard shortcuts", shortcut: "?", disabled: !ready,

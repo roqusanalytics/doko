@@ -12,16 +12,32 @@ import { assertHidden, closeHidden } from "./hidden-window.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const temp = await realpath(mkdtempSync(path.join(tmpdir(), "folio-file-actions-")));
-const photos = path.join(temp, "Photos"); mkdirSync(photos);
-const shots = path.join(root, "release", "smoke"); mkdirSync(shots, { recursive: true });
+const photos = path.join(temp, "Photos");
+
+ mkdirSync(photos);
+
+const shots = path.join(root, "release", "smoke");
+
+ mkdirSync(shots, { recursive: true });
+
 const pdfPath = path.join(temp, "fixture.pdf"), savedPdf = path.join(temp, "saved.pdf");
 const markdown = path.join(temp, "notes.md");
-const pdf = await PDFDocument.create(); pdf.addPage([600, 800]);
-const originalPdf = await pdf.save(); writeFileSync(pdfPath, originalPdf);
+const pdf = await PDFDocument.create();
+
+ pdf.addPage([600, 800]);
+
+const originalPdf = await pdf.save();
+
+ writeFileSync(pdfPath, originalPdf);
+
 writeFileSync(markdown, "# File menu notes\n\nA **bold** paragraph with $x^2$.\n\n$$\ny=2x\n$$\n");
+
 const env = { ...process.env, FOLIO_TEST_USER_DATA: path.join(temp, "profile"), FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const app = await electron.launch({ executablePath: electronPath(env), env, args: [process.env.FOLIO_FILE_ACTIONS_APP || root, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
+
 try {
   const page = readerPage(await app.firstWindow());
   await page.getByRole("button", { name: /Try a sample/ }).waitFor({ timeout: 30_000 });
@@ -31,31 +47,44 @@ try {
     dialog.showSaveDialog = async (_window, options) => {
       const state = globalThis.fileActionTest;
       state.dialogs.push(options.defaultPath);
+
       if (!state.queue.length) throw new Error("Unexpected Save dialog");
       const filePath = state.queue.shift();
+
       if (filePath && !filePath.startsWith(temp)) throw new Error("Test tried saving outside its fixture directory");
+
       return { canceled: !filePath, filePath: filePath || undefined };
     };
+
     dialog.showMessageBox = async (_window, options) => {
       globalThis.fileActionTest.confirmations.push(options.message);
+
       return { response: globalThis.fileActionTest.answer };
     };
+
     shell.trashItem = async file => {
       if (!file.startsWith(temp)) throw new Error(`Test tried trashing outside its fixture directory: ${JSON.stringify({ file, temp })}`);
       globalThis.fileActionTest.trash.push(file);
     };
   }, temp + path.sep);
+
   const wait = async (check, message) => {
     const end = Date.now() + 20_000;
+
     while (Date.now() < end) { if (await check()) return; await new Promise(resolve => setTimeout(resolve, 100)); }
+
     throw new Error(message);
   };
+
   const state = () => app.evaluate(() => globalThis.fileActionTest);
   const queue = file => app.evaluate((_, file) => globalThis.fileActionTest.queue.push(file), file);
+
   const menuState = () => app.evaluate(({ Menu }) => {
     const menu = Menu.getApplicationMenu().items.find(item => item.label === "File").submenu;
+
     return Object.fromEntries(menu.items.filter(item => item.label).map(item => [item.label, item.enabled]));
   });
+
   const native = async label => {
     await wait(async () => (await menuState())[label], `Native File/${label} never became enabled`);
     await app.evaluate(({ Menu, BrowserWindow }, label) => {
@@ -63,13 +92,17 @@ try {
       item.click(item, BrowserWindow.getAllWindows()[0], {});
     }, label);
   };
+
   const open = async file => app.evaluate(({ app }, file) => app.emit("open-file", { preventDefault() {} }, file), file);
+
   const imageReady = async name => {
     await page.getByRole("button", { name: `View ${name}`, exact: true }).waitFor();
     await page.waitForFunction(name => document.querySelector(`[aria-label="View ${name}"]`)?.getAttribute("aria-current") === "true" && !document.querySelector('.photo-status') && !!document.querySelector('.page canvas'), name);
   };
+
   const outputReady = file => wait(() => existsSync(file), `Output missing: ${file}`);
   let drawIndex = 0;
+
   const draw = async () => {
     await page.getByRole("button", { name: "Draw", exact: true }).click();
     const layer = page.locator('.page[data-page-number="1"] .annotationEditorLayer.inkEditing'); await layer.waitFor();
@@ -79,6 +112,7 @@ try {
     await page.mouse.move(box.x + 130, box.y + y + 60, { steps: 8 }); await page.mouse.up();
     await page.getByRole("button", { name: "Done", exact: true }).click();
   };
+
   assert.equal((await menuState()).Save, false, "Save enabled without a document");
   assert.equal((await menuState())["Reduce File Size…"], false);
   await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, pdfPath);
@@ -133,10 +167,12 @@ try {
   writeFileSync(formPath, await form.save());
   const formTabs = () => page.getByRole("tablist", { name: "Open documents" }).getByRole("tab", { name: "form.pdf", exact: true }).count();
   const unsaved = page.getByRole("dialog", { name: "Unsaved changes", exact: true });
+
   const editForm = async () => {
     await open(formPath); await page.locator(".annotationLayer input").fill("Ada");
     await page.locator(".dirty-dot").waitFor();
   };
+
   await editForm(); await page.keyboard.press("ControlOrMeta+w");
   assert.match(await unsaved.innerText(), /Save a copy of “form\.pdf” with your changes before closing\? The original file is not changed\./);
   assert.ok(await unsaved.getByRole("button", { name: "Cancel", exact: true }).evaluate(el => el === el.ownerDocument.activeElement), "Cancel is not focused");
@@ -160,18 +196,24 @@ try {
 
   const sourceImages = await page.evaluate(() => ["#e03020", "#2040e0"].map(color => {
     const canvas = Object.assign(document.createElement("canvas"), { width: 200, height: 150 });
-    const context = canvas.getContext("2d"); context.fillStyle = color; context.fillRect(0, 0, 200, 150); return canvas.toDataURL().split(",")[1];
+    const context = canvas.getContext("2d"); context.fillStyle = color; context.fillRect(0, 0, 200, 150);
+
+ return canvas.toDataURL().split(",")[1];
   }));
+
   sourceImages.forEach((png, i) => writeFileSync(path.join(photos, `photo${i + 1}.png`), Buffer.from(png, "base64")));
+
   for (let i = 3; i <= 20; i++) writeFileSync(path.join(photos, `photo${i}.png`), Buffer.from(sourceImages[0], "base64"));
   await open(path.join(photos, "photo1.png")); await imageReady("photo1.png");
   // Native minimum height is 480; allow a shorter hidden viewport to exercise menu overflow.
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setMinimumSize(320, 240));
   const originalViewport = await page.window.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+
   for (const [width, height, name, keyboard] of [[1100, 800, "photo1.png", false], [1100, 800, "photo20.png", false], [420, 280, "photo20.png", true]]) {
     await page.window.setViewportSize({ width, height });
     const thumbnail = page.getByRole("button", { name: `View ${name}`, exact: true });
     await thumbnail.scrollIntoViewIfNeeded();
+
     if (keyboard) { await thumbnail.focus(); await page.keyboard.press("Shift+F10"); }
     else await thumbnail.click({ button: "right" });
     const menu = page.getByRole("menu", { name: `Actions for ${name}`, exact: true });
@@ -183,14 +225,18 @@ try {
       movement.pause(); movement.currentTime = 80;
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     });
+
     const geometry = await page.evaluate(name => {
       const anchor = document.querySelector(`[data-file="${name}"]`).getBoundingClientRect();
       const popup = document.querySelector('.file-context-menu');
       const box = popup.getBoundingClientRect();
+
       return { top: box.top, bottom: box.bottom, left: box.left, right: box.right, anchorTop: anchor.top, width: innerWidth, height: innerHeight, menuHeight: popup.clientHeight, contentHeight: popup.scrollHeight, scrollable: popup.scrollHeight > popup.clientHeight };
     }, name);
+
     assert.ok(geometry.bottom <= geometry.anchorTop - 7 && geometry.top >= 7, JSON.stringify(geometry));
     assert.ok(geometry.left >= 7 && geometry.right <= geometry.width - 7, JSON.stringify(geometry));
+
     if (keyboard) {
       assert.equal(geometry.scrollable, true, `Short viewport geometry: ${JSON.stringify(geometry)}`);
       await page.keyboard.press("End");
@@ -202,9 +248,11 @@ try {
       await page.screenshot({ path: path.join(shots, `carousel-menu-${name === "photo1.png" ? "left" : "right"}.png`) });
       await page.keyboard.press("Escape");
     }
+
     await menu.waitFor({ state: "detached" });
     await thumbnail.evaluate(element => element.getAnimations().find(animation => animation.id === "context-menu-anchor-regression")?.cancel());
   }
+
   await page.window.setViewportSize(originalViewport);
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setMinimumSize(420, 480));
   console.log("ok carousel menu stays above its thumbnail at both edges and scrolls in a short window; mouse and keyboard agree");
@@ -223,11 +271,15 @@ try {
   await page.getByRole("menuitem", { name: "Save As…", exact: true }).waitFor();
   await page.screenshot({ path: path.join(shots, "file-photo-context-menu.png") });
   await page.getByRole("menuitem", { name: "Save As…", exact: true }).click(); await outputReady(savedPhoto); await imageReady("photo2.png");
+
   const corner = await page.evaluate(async data => {
     const image = await createImageBitmap(new Blob([Uint8Array.from(data)], { type: "image/png" }));
     const canvas = Object.assign(document.createElement("canvas"), { width: image.width, height: image.height });
-    const context = canvas.getContext("2d"); context.drawImage(image, 0, 0); image.close(); return [...context.getImageData(10, 10, 1, 1).data];
+    const context = canvas.getContext("2d"); context.drawImage(image, 0, 0); image.close();
+
+ return [...context.getImageData(10, 10, 1, 1).data];
   }, [...readFileSync(savedPhoto)]);
+
   assert.deepEqual(corner, [32, 64, 224, 255], "Thumbnail Save As exported the previously selected photo");
   await page.getByRole("button", { name: "View photo1.png", exact: true }).click({ button: "right" });
   await page.getByRole("menuitem", { name: "Print…", exact: true }).click();
@@ -237,11 +289,13 @@ try {
   await page.keyboard.press("Escape");
   await imageReady("photo1.png");
   const trashName = "photo2.png";
+
   const trash = async answer => {
     await app.evaluate((_, answer) => { globalThis.fileActionTest.answer = answer; }, answer);
     await page.getByRole("button", { name: `View ${trashName}`, exact: true }).click({ button: "right" });
     await page.getByRole("menuitem", { name: "Move to Trash…", exact: true }).click();
   };
+
   await trash(0); await wait(async () => (await state()).confirmations.length === 1, "Trash cancel confirmation missing");
   assert.deepEqual((await state()).trash, []);
   await trash(1); await wait(async () => (await state()).trash.length === 1, "Trash confirm did not reach shell");
@@ -253,11 +307,13 @@ try {
   await wait(async () => (await menuState()).Save, "Markdown menu never activated");
   assert.equal((await menuState())["Reduce File Size…"], false, "Markdown compression must be disabled");
   const text = path.join(temp, "notes.txt"), html = path.join(temp, "notes.html");
+
   for (const [file, label] of [[text, "Save text…"], [html, "Save HTML…"]]) {
     await queue(file); await native("Export / Convert…");
     await page.getByRole("dialog", { name: "Export Markdown", exact: true }).getByRole("button", { name: label, exact: true }).click();
     await outputReady(file);
   }
+
   assert.equal(readFileSync(text, "utf8"), readFileSync(markdown, "utf8"));
   assert.match(readFileSync(html, "utf8"), /<strong>bold<\/strong>/);
   assert.ok((readFileSync(html, "utf8").match(/<math/g) || []).length >= 2, "Export HTML lost inline or display math");

@@ -8,6 +8,7 @@ export function OpenDocumentMenu({ onNewCanvas, onPick, onOpenUrl }: {
   onOpenUrl: () => void;
 }) {
   const desktop = !!window.folioDesktop;
+
   return <MoreMenu label="Open" toolbarIcon="folderOpen" items={[
     ...(desktop ? [
       { kind: "action", icon: newCanvasAction.icon, label: newCanvasAction.label,

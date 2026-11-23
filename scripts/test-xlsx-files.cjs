@@ -18,23 +18,30 @@ const inline = (ref, text) => `<c r="${ref}" t="inlineStr"><is><t>${text}</t></i
 // format (index 0 is the style a cell gets without an s attribute); `codes` maps custom ids to format codes.
 async function workbook({ sheets, strings, formats, codes = {}, date1904 = false, afterSheets = "", files = {} }) {
   const zip = new JSZip();
+
   const relationships = sheets.map(({ type = "worksheet", target }, i) =>
     `<Relationship Id="rId${i + 1}" Type="${REL}/${type}" Target="${target ?? `worksheets/sheet${i + 1}.xml`}"/>`);
+
   zip.file("xl/workbook.xml", `<?xml version="1.0"?><workbook ${NS}><workbookPr${date1904 ? ' date1904="1"' : ""}/><sheets>${
     sheets.map(({ name, state }, i) => `<sheet name="${name}" sheetId="${i + 1}"${state ? ` state="${state}"` : ""} r:id="rId${i + 1}"/>`).join("")}</sheets>${afterSheets}</workbook>`);
   sheets.forEach(({ xml, target }, i) => { if (!target) zip.file(`xl/worksheets/sheet${i + 1}.xml`, xml ?? worksheet("")); });
+
   if (strings) {
     relationships.push(`<Relationship Id="rIdS" Type="${REL}/sharedStrings" Target="sharedStrings.xml"/>`);
     zip.file("xl/sharedStrings.xml", `<sst ${NS}>${strings.map((si) => `<si>${si}</si>`).join("")}</sst>`);
   }
+
   if (formats) {
     relationships.push(`<Relationship Id="rIdT" Type="${REL}/styles" Target="styles.xml"/>`);
     zip.file("xl/styles.xml", `<styleSheet ${NS}><numFmts>${Object.entries(codes).map(([id, code]) =>
       `<numFmt numFmtId="${id}" formatCode="${code.replace(/"/g, "&quot;")}"/>`).join("")}</numFmts><cellXfs>${
       formats.map((id) => `<xf numFmtId="${id}"/>`).join("")}</cellXfs></styleSheet>`);
   }
+
   zip.file("xl/_rels/workbook.xml.rels", `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${relationships.join("")}</Relationships>`);
+
   for (const [name, data] of Object.entries(files)) zip.file(name, data);
+
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
@@ -47,6 +54,7 @@ test("sheets keep workbook order and names; hidden sheets are included; chart sh
     { name: "Hidden", state: "hidden", xml: worksheet(inline("A1", "secret")) },
     { name: "Empty" },
   ], files: { "xl/chartsheets/sheet1.xml": `<chartsheet ${NS}/>` } });
+
   assert.deepEqual(await parseWorkbook(bytes), { truncated: false, sheets: [
     { name: "Second & last", rows: [["b"]], truncated: false },
     { name: "Hidden", rows: [["secret"]], truncated: false },
@@ -63,6 +71,7 @@ test("shared, rich-text, inline and formula strings, with phonetic runs ignored 
       `<row r="2"><c r="A2" t="inlineStr"><is><r><t>in</t></r><r><t>line</t></r><rPh><t>x</t></rPh></is></c>` +
       `<c r="B2" t="str"><f>A1&amp;"!"</f><v>plain!</v></c><c r="C2"><f>1+1</f></c><c r="D2" t="inlineStr"><is><t xml:space="preserve"> kept </t></is></c></row>`) }],
   });
+
   assert.deepEqual(sheet.rows, [
     ["plain", "Rich text", "漢字", "a & b <c> AB", "line\rbreak _x0041_"],
     ["inline", "plain!", "", " kept "],
@@ -72,6 +81,7 @@ test("shared, rich-text, inline and formula strings, with phonetic runs ignored 
 test("numbers lose float noise; booleans, errors and cached formula values show as text", async () => {
   const sheet = await only({ sheets: [{ name: "S", xml: worksheet(`<row r="1">${cell("A1", "0.30000000000000004")}${cell("B1", 100)}${cell("C1", "1E-3")}${cell("D1", "-0")}${cell("E1", "123456789.123456789")}${cell("F1", "abc")}</row>` +
     `<row r="2">${cell("A2", 1, ' t="b"')}${cell("B2", 0, ' t="b"')}${cell("C2", "#DIV/0!", ' t="e"')}<c r="D2"><f>SUM(A1:B1)</f><v>100.30000000000001</v></c></row>`) }] });
+
   assert.deepEqual(sheet.rows, [["0.3", "100", "0.001", "0", "123456789.123457", "abc"], ["TRUE", "FALSE", "#DIV/0!", "100.3"]]);
 });
 
@@ -79,10 +89,12 @@ test("dates: 1900 system with Excel's leap-year bug, 1904 system, date-time, tim
   const codes = { 164: "yyyy\\-mm\\-dd", 165: "dd/mm/yyyy hh:mm", 166: "[$-409]mmmm d, yyyy;@", 167: "[h]:mm:ss", 168: "h:mm AM/PM", 169: "mmm" };
   const formats = [0, 14, 22, 21, 164, 165, 166, 167, 168, 169];
   const row = (...cells) => `<row r="1">${cells.map(([ref, value, style]) => cell(ref, value, ` s="${style}"`)).join("")}</row>`;
+
   const rows = [
     row(["A1", 44927, 1], ["B1", 44927.5, 2], ["C1", 0.5, 3], ["D1", 44927, 4], ["E1", 44927.75, 5], ["F1", 44927, 6], ["G1", 1.5, 7], ["H1", 0.75, 8], ["I1", 44927, 9]),
     `<row r="2">${[[1, 1], [59, 1], [60, 1], [61, 1], [0, 1], [0.999999, 3], [-5, 1], [3000000, 1]].map(([value, style], i) => cell(`${"ABCDEFGH"[i]}2`, value, ` s="${style}"`)).join("")}</row>`,
   ].join("");
+
   const sheet = await only({ formats, codes, sheets: [{ name: "S", xml: worksheet(rows) }] });
   assert.deepEqual(sheet.rows, [
     ["2023-01-01", "2023-01-01 12:00:00", "12:00:00", "2023-01-01", "2023-01-01 18:00:00", "2023-01-01", "36:00:00", "18:00:00", "2023-01-01"],
@@ -91,6 +103,7 @@ test("dates: 1900 system with Excel's leap-year bug, 1904 system, date-time, tim
 
   const in1904 = await only({ date1904: true, formats, codes, sheets: [{ name: "S", xml: worksheet(
     `<row r="1">${cell("A1", 43465, ' s="1"')}${cell("B1", 0, ' s="1"')}${cell("C1", 43465.25, ' s="2"')}</row>`) }] });
+
   assert.deepEqual(in1904.rows, [["2023-01-01", "1904-01-01", "2023-01-01 06:00:00"]]);
 });
 
@@ -102,8 +115,10 @@ test("an extension's prefixed workbookPr does not reset the 1904 date system", a
 
 test("a number format with a quoted literal or color tag is not a date", async () => {
   const codes = { 164: '0.00 "days"', 165: '#,##0 "yd" "mm"', 166: "[Red]0.0", 167: '[$USD] #,##0.00', 168: "0.00E+00", 169: "General", 170: "0 \\d" };
+
   const sheet = await only({ formats: [0, 164, 165, 166, 167, 168, 169, 170], codes, sheets: [{ name: "S", xml: worksheet(
     `<row r="1">${[1, 2, 3, 4, 5, 6, 7].map((style, i) => cell(`${"ABCDEFG"[i]}1`, 44927, ` s="${style}"`)).join("")}</row>`) }] });
+
   assert.deepEqual(sheet.rows, [Array(7).fill("44927")]);
 });
 
@@ -116,6 +131,7 @@ test("cells are placed by reference; sparse rows and columns become empty string
     `<row><c><v>0</v></c></row>` +
     `<row r="9"><c><v>8</v></c><c r="C9"><v>9</v></c><c><v>10</v></c></row>`,
   `<mergeCells count="1"><mergeCell ref="A6:C6"/></mergeCells>`) }] });
+
   assert.deepEqual(sheet.rows, [[], ["", "", "x"], [], ["z", "", "", "", "y"], [], ["merged"], ["1", "2", "3"], ["0"], ["8", "", "9", "10"]]);
 });
 
@@ -128,6 +144,7 @@ test("prefixed element names and relationship targets: absolute and relative are
     "xl/worksheets/prefixed.xml": `<x:worksheet xmlns:x="${MAIN}"><x:sheetData><x:row r="1"><x:c r="A1" t="inlineStr"><x:is><x:t>ok</x:t></x:is></x:c></x:row></x:sheetData></x:worksheet>`,
     "xl/worksheets/dots.xml": worksheet(inline("A1", "dots")),
   } });
+
   const zip = await JSZip.loadAsync(bytes);
   zip.file("xl/_rels/workbook.xml.rels", (await zip.file("xl/_rels/workbook.xml.rels").async("string")).replace('Target="https://example.com/sheet.xml"', 'Target="https://example.com/sheet.xml" TargetMode="External"'));
   const result = await parseWorkbook(await zip.generateAsync({ type: "nodebuffer" }));
@@ -171,6 +188,7 @@ test("references outside Excel's limits are rejected", async () => {
   for (const ref of ["XFE1", "A1048577", "A0", "1A", "AAAA1"]) {
     await assert.rejects(only({ sheets: [{ name: "S", xml: worksheet(inline(ref, "x")) }] }), (error) => /outside Excel's limits/.test(error.message) && /valid \.xlsx/.test(error.userMessage), ref);
   }
+
   await assert.rejects(only({ sheets: [{ name: "S", xml: worksheet(`<row r="1048577"/>`) }] }), /outside Excel's limits/);
 });
 
@@ -210,6 +228,7 @@ test("files that are not workbooks fail with a message the user can act on", asy
 test("the worker reads the staged file and writes the tables as JSON, and reports failures with their userMessage", async (t) => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "folio-xlsx-test-"));
   t.after(() => fs.rm(dir, { recursive: true, force: true }));
+
   // Stands in for Electron's utility-process port: one message in, one message out.
   const harness = `
     const { EventEmitter } = require("node:events");
@@ -219,6 +238,7 @@ test("the worker reads the staged file and writes the tables as JSON, and report
     require(process.argv[1]);
     port.emit("message", { data: { source: process.argv[2], output: process.argv[3] } });
   `;
+
   const run = (source, output) => JSON.parse(execFileSync(process.execPath, ["-e", harness, require.resolve("../electron/xlsx-worker.cjs"), source, output], { timeout: 20000, encoding: "utf8" }));
 
   const good = path.join(dir, "good.xlsx"), goodOutput = path.join(dir, "good.json");
@@ -226,6 +246,7 @@ test("the worker reads the staged file and writes the tables as JSON, and report
   await fs.writeFile(good, bytes);
   assert.deepEqual(run(good, goodOutput), {});
   assert.deepEqual(JSON.parse(await fs.readFile(goodOutput, "utf8")), await parseWorkbook(bytes));
+
   if (process.platform !== "win32") assert.equal((await fs.stat(goodOutput)).mode & 0o777, 0o600);
 
   const old = path.join(dir, "old.xls");
@@ -241,7 +262,9 @@ async function finishesQuickly(bytes, limits) {
   const start = Date.now();
   const outcome = await parseWorkbook(bytes, limits).then((result) => ({ result }), (error) => ({ error }));
   assert.ok(Date.now() - start < 2000, `took ${Date.now() - start} ms`);
+
   if (outcome.error) assert.match(outcome.error.userMessage, /valid \.xlsx/);
+
   return outcome;
 }
 
@@ -260,10 +283,12 @@ test("a long unclosed tag name is rejected in linear time", async () => {
 
 test("number formats with huge or bracket-heavy codes are classified once and in linear time", async () => {
   const many = (code, count) => workbook({ formats: Array(count).fill(164), codes: { 164: code }, sheets: [{ name: "S", xml: worksheet(`<row r="1">${cell("A1", 44927, ' s="1"')}</row>`) }] });
+
   for (const [code, count] of [["[".repeat(1_000_000), 20_000], ["[".repeat(20_000), 50]]) {
     const { result } = await finishesQuickly(await many(code, count));
     assert.deepEqual(result.sheets[0].rows, [["44927"]]);
   }
+
   assert.deepEqual((await only({ formats: [0, 164, 164], codes: { 164: "[Red]yyyy-mm-dd" }, sheets: [{ name: "S", xml: worksheet(`<row r="1">${cell("A1", 44927, ' s="1"')}${cell("B1", 44927, ' s="2"')}</row>`) }] })).rows, [["2023-01-01", "2023-01-01"]]);
 });
 

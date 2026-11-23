@@ -6,10 +6,13 @@ export function useAnchoredPopover(trigger: RefObject<HTMLButtonElement | null>,
   useEffect(() => {
     const popup = panel.current;
     const button = trigger.current;
+
     if (!popup || !button) return;
     let frame = 0;
+
     const menuButtons = () => [...popup.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")]
       .filter(item => item.checkVisibility());
+
     const position = () => {
       if (!popup.matches(":popover-open")) return;
       const anchor = button.getBoundingClientRect();
@@ -24,25 +27,32 @@ export function useAnchoredPopover(trigger: RefObject<HTMLButtonElement | null>,
       popup.style.top = `${Math.max(edge, Math.min(top, window.innerHeight - bounds.height - edge))}px`;
       popup.dataset.positioned = "true";
     };
+
     const trackAnchor = () => {
       position();
+
       if (popup.matches(":popover-open")) frame = requestAnimationFrame(trackAnchor);
     };
+
     const toggle = () => {
       const visible = popup.matches(":popover-open");
       cancelAnimationFrame(frame);
       setOpen(visible);
+
       if (visible) {
         // Toolbars animate on entry; follow the anchor until this popup closes.
         trackAnchor();
+
         if (popup.getAttribute("role") === "menu") {
           const items = menuButtons();
           (items.find(item => item.getAttribute("aria-checked") === "true") ?? items[0])?.focus();
         } else popup.querySelector<HTMLElement>("[data-autofocus]")?.focus();
       } else delete popup.dataset.positioned;
     };
+
     const key = (event: KeyboardEvent) => {
       if (!popup.matches(":popover-open")) return;
+
       if (event.key === "Escape") {
         event.preventDefault(); event.stopPropagation();
         popup.hidePopover(); button.focus();
@@ -52,6 +62,7 @@ export function useAnchoredPopover(trigger: RefObject<HTMLButtonElement | null>,
         const items = menuButtons();
         const index = items.indexOf(document.activeElement as HTMLButtonElement);
         let next: number;
+
         if (event.key === "ArrowDown") next = (index + 1) % items.length;
         else if (event.key === "ArrowUp") next = (index - 1 + items.length) % items.length;
         else if (event.key === "Home") next = 0;
@@ -60,14 +71,17 @@ export function useAnchoredPopover(trigger: RefObject<HTMLButtonElement | null>,
         event.preventDefault(); event.stopPropagation(); items[next]?.focus();
       }
     };
+
     popup.addEventListener("toggle", toggle);
     // Capture Escape before document-reader shortcuts can leave the active tool or close Settings.
     window.addEventListener("keydown", key, true);
+
     return () => {
       cancelAnimationFrame(frame);
       popup.removeEventListener("toggle", toggle);
       window.removeEventListener("keydown", key, true);
     };
   }, [trigger, panel]);
+
   return open;
 }

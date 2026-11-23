@@ -23,6 +23,7 @@ const notesAt = args.indexOf("--notes");
 const notes = notesAt >= 0 ? args[notesAt + 1] : "";
 const publishOnly = args.includes("--publish-only");
 const bump = releaseBump(args);
+
 if (!/^(patch|minor|major|\d+\.\d+\.\d+)$/.test(bump)) {
   console.error(`Unknown version bump "${bump}". Use patch, minor, major, or an exact version like 2.0.0.`);
   process.exit(1);
@@ -30,8 +31,11 @@ if (!/^(patch|minor|major|\d+\.\d+\.\d+)$/.test(bump)) {
 
 // ELECTRON_RUN_AS_NODE (set by some hosts) makes Electron tooling behave like plain Node.
 const env = { ...process.env };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const run = (cmd) => execSync(cmd, { stdio: "inherit", env });
+
 // Arguments are passed directly (no shell), so values like release notes can contain any characters.
 const gh = (ghArgs, opts = {}) => execFileSync("gh", ghArgs, { env: { ...env, GH_HOST: "github.com" }, encoding: "utf8", ...opts });
 const api = (endpoint) => JSON.parse(gh(["api", "--hostname", "github.com", `repos/${SOURCE_REPO}${endpoint ? `/${endpoint}` : ""}`]));
@@ -46,46 +50,63 @@ if (!publishOnly) {
     console.error("Commit or stash your changes first — a release is built from committed code.");
     process.exit(1);
   }
+
   // Releases come from main as pushed. Compare commits rather than branch names, since a worktree's branch
   // often isn't called "main".
   execFileSync("git", ["fetch", "--quiet", sourceUrl, "main"], { env, stdio: "inherit" });
+
   if (git("rev-parse", "HEAD") !== git("rev-parse", "FETCH_HEAD")) {
     console.error("This checkout isn't at the latest main. Merge your work into main, then release from it, for example:\n"
       + "  git worktree add ../doko-release origin/main && cd ../doko-release && npm run release");
     process.exit(1);
   }
+
   verifyReleaseNotes(readFileSync("CHANGELOG.md", "utf8"), JSON.parse(readFileSync("package.json", "utf8")).version, bump);
   run(`npm version ${bump} -m "Release v%s"`);
 }
+
 const { version } = JSON.parse(readFileSync("package.json", "utf8"));
+
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error("Expected a numeric release version.");
+
 const tag = `v${version}`;
 const ref = `refs/tags/${tag}`;
 const tagObject = git("rev-parse", "--verify", ref);
 const commit = git("rev-parse", "--verify", `${tagObject}^{commit}`);
+
 if (JSON.parse(git("show", `${commit}:package.json`)).version !== version) throw new Error("The tagged source has a different package version.");
+
 if (!publishOnly) {
   if (git("rev-parse", "HEAD") !== commit) throw new Error("The release tag differs from the commit being pushed.");
   // Use the configured Doko source repository even if this checkout has another push URL.
   execFileSync("git", ["push", "--atomic", sourceUrl, "HEAD:refs/heads/main", ref], { env, stdio: "inherit" });
 }
+
 verifyReleaseTag(api, tag, tagObject, commit);
+
 const query = new URLSearchParams({ event: "push", branch: tag, head_sha: commit, per_page: "2" });
 const findBuild = () => selectBuild(api(`actions/workflows/${WORKFLOW}/runs?${query}`), tag, commit);
 
 // Find the build for this tag (it can take a few seconds to appear), then wait for it.
 console.log(`\nWaiting for the ${tag} build on GitHub Actions…`);
+
 let build = null;
+
 for (let i = 0; i < 60 && !build; i++) {
   build = findBuild();
+
   if (!build) await sleep(5000);
 }
+
 if (!build) {
   console.error(`No "${WORKFLOW}" run found for ${tag}. Check https://github.com/${SOURCE_REPO}/actions`);
   process.exit(1);
 }
+
 const runId = build.id;
+
 console.log(`Build: https://github.com/${SOURCE_REPO}/actions/runs/${runId}`);
+
 try {
   gh(["run", "watch", String(runId), "--repo", SOURCE_REPO, "--exit-status", "--interval", "20"], { stdio: "inherit" });
 } catch {
@@ -96,15 +117,23 @@ try {
 const attempt = successfulAttempt(findBuild(), runId);
 const ciQuery = new URLSearchParams({ event: "push", branch: "main", head_sha: commit, per_page: "100" });
 const findCI = () => selectCI(api(`actions/workflows/${CI_WORKFLOW}/runs?${ciQuery}`), commit);
+
 console.log(`\nWaiting for full CI on main at ${commit}…`);
+
 let ci = null;
+
 for (let i = 0; i < 60 && !ci; i++) {
   ci = findCI();
+
   if (!ci) await sleep(5000);
 }
+
 if (!ci) successfulCI(ci);
+
 gh(["run", "watch", String(ci.id), "--repo", SOURCE_REPO, "--exit-status", "--interval", "20"], { stdio: "inherit" });
+
 successfulCI(findCI());
+
 const getArtifactIds = () => artifactIds(api(`actions/runs/${runId}/artifacts?per_page=100`), build);
 const ids = getArtifactIds();
 
@@ -117,13 +146,16 @@ const body = [
   "- **Linux:** **Doko-linux-amd64.deb** for Ubuntu/Debian (after that, updates arrive with your system updates), or **Doko-linux-x86_64.AppImage** (updates itself) for other distributions.",
   "- **Repository migration:** copies configured for the retired doko-fork feed need one manual install. Copies already using doko update normally. Keep the existing profile to retain saved documents and settings.",
 ].join("\n");
+
 const folder = mkdtempSync(path.join(tmpdir(), "doko-release-"));
+
 try {
   gh(["run", "download", String(runId), "--repo", SOURCE_REPO, "--dir", folder], { stdio: "inherit" });
   const files = releaseFiles(folder);
   const notesFile = path.join(folder, "release-notes.md");
   writeFileSync(notesFile, body);
   verifyReleaseTag(api, tag, tagObject, commit);
+
   if (successfulAttempt(findBuild(), runId) !== attempt || getArtifactIds() !== ids) throw new Error("The build changed during download. Run --publish-only again.");
   successfulCI(findCI());
   verifyPublicReleaseRepository(api);
@@ -134,10 +166,12 @@ try {
 
 // Double-check what actually got published: every file present, every update feed at this version.
 const { problems } = await checkRelease(tag);
+
 if (problems.length) {
   console.error(`\nPublished, but the release is incomplete:\n- ${problems.join("\n- ")}`);
   process.exit(1);
 }
 
 console.log(`\nDoko ${version} is live for Windows, macOS, and Linux: https://github.com/${RELEASES_REPO}/releases/tag/${tag}`);
+
 console.log("Copies using the doko update feed will see it within a few hours. Copies using the retired doko-fork feed need one manual install.");

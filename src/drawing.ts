@@ -7,8 +7,10 @@ export function keepDrawingPointer(container: HTMLElement) {
     if (active?.pointerId !== event.pointerId) return;
     const { layer, pointerId } = active;
     active = null;
+
     if (layer.hasPointerCapture(pointerId)) layer.releasePointerCapture(pointerId);
   };
+
   const cancel = () => {
     if (!active) return;
     const { layer, pointerId, pointerType } = active;
@@ -17,6 +19,7 @@ export function keepDrawingPointer(container: HTMLElement) {
 
   container.addEventListener("pointerdown", event => {
     const layer = event.target;
+
     if (active || !event.isPrimary || event.button !== 0 || !(layer instanceof HTMLElement)
       || !layer.matches(".annotationEditorLayer.inkEditing.drawing")) return;
     layer.setPointerCapture(event.pointerId);
@@ -28,5 +31,6 @@ export function keepDrawingPointer(container: HTMLElement) {
   window.addEventListener("pointerup", finish, { signal });
   window.addEventListener("pointercancel", finish, { signal });
   window.addEventListener("blur", cancel, { signal });
+
   return () => { cancel(); controller.abort(); };
 }

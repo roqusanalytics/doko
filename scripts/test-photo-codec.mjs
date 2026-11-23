@@ -12,25 +12,36 @@ import { assertHidden, closeHidden } from "./hidden-window.mjs";
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "folio-photo-codec-"));
 const env = { ...process.env, FOLIO_TEST_USER_DATA: temp, FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const asset = readdirSync(path.join(root, "dist/assets")).find(name => /^documentExport-.*\.js$/.test(name));
+
 assert.ok(asset, "Build Doko before running the photo codec test");
+
 const app = await electron.launch({ executablePath: electronPath(env), env, args: [root, "--mute-audio",
   ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
+
 try {
   const page = readerPage(await app.firstWindow());
   await page.getByRole("button", { name: /Try a sample/ }).waitFor({ timeout: 30_000 });
+
   const result = await page.evaluate(async asset => {
     const { photoPdf, prepareDocumentExport } = await import(new URL(`./assets/${asset}`, location.href).href);
+
     const photoPng = async (bytes, signal) => (await prepareDocumentExport({ bytes, name: "photo.png", photo: true, page: 1 },
       { format: "png", compress: false, quality: 1, maxEdge: 0 }, signal)).blob;
+
     const reject = async (operation, pattern) => {
       try { await operation(); } catch (error) {
         if (!pattern.test(String(error))) throw error;
+
         return;
       }
+
       throw new Error("Invalid input was accepted");
     };
+
     await reject(() => photoPdf(new Blob()), /decode|source|image/i);
     await reject(() => photoPdf(new Blob(["not an image"], { type: "image/png" })), /decode|source|image/i);
     await reject(() => photoPdf({ size: 100 * 1024 * 1024 + 1 }), /100 MB/);
@@ -55,8 +66,10 @@ try {
     const wideBitmap = await createImageBitmap(wideCopy);
     const wideDimensions = [wideBitmap.width, wideBitmap.height]; wideBitmap.close();
     source.width = source.height = 0;
+
     return { dimensions, pixels, bytes: [...bytes], wideDimensions };
   }, asset);
+
   assert.deepEqual(result.dimensions, [2, 3]);
   assert.deepEqual(result.wideDimensions, [40_000, 1], "wide photo dimensions changed");
   assert.deepEqual(result.pixels.slice(0, 4), [255, 0, 0, 255], "photo color changed");
@@ -67,25 +80,34 @@ try {
   const rotated = [...await pdf.save()];
   assert.deepEqual(await page.evaluate(async ({ asset, bytes }) => {
     const { prepareDocumentExport } = await import(new URL(`./assets/${asset}`, location.href).href);
+
     const { blob } = await prepareDocumentExport({ bytes: new Uint8Array(bytes), name: "photo.png", photo: true, page: 1 },
       { format: "png", compress: false, quality: 1, maxEdge: 0 }, new AbortController().signal);
+
     const bitmap = await createImageBitmap(blob);
-    const dimensions = [bitmap.width, bitmap.height]; bitmap.close(); return dimensions;
+    const dimensions = [bitmap.width, bitmap.height]; bitmap.close();
+
+ return dimensions;
   }, { asset, bytes: rotated }), [3, 2]);
   const huge = await PDFDocument.create(); huge.addPage([10_000, 8_001]);
   const multiple = await PDFDocument.create(); multiple.addPage(); multiple.addPage();
+
   for (const [bytes, expected] of [[await huge.save(), "80 million"], [await multiple.save(), "single photo"]]) {
     const error = await page.evaluate(async ({ asset, bytes }) => {
       const { prepareDocumentExport } = await import(new URL(`./assets/${asset}`, location.href).href);
+
       try {
         await prepareDocumentExport({ bytes: new Uint8Array(bytes), name: "photo.png", photo: true, page: 1 },
           { format: "png", compress: false, quality: 1, maxEdge: 0 }, new AbortController().signal);
+
         return "accepted";
       }
       catch (error) { return error.message; }
     }, { asset, bytes: [...bytes] });
+
     assert.ok(error.includes(expected), error);
   }
+
   await assertHidden(app);
   console.log("PASS photo codec: corrupt/empty/oversized input, abort, original pixels, transparency, rotation, pixel budget and single-page limit");
 } finally {

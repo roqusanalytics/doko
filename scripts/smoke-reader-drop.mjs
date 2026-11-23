@@ -10,8 +10,11 @@ import { assertHidden, closeHidden } from "./hidden-window.mjs";
 
 const root = path.resolve(import.meta.dirname, ".."), profile = mkdtempSync(path.join(tmpdir(), "doko-drop-"));
 const env = { ...process.env, FOLIO_TEST_USER_DATA: profile, FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 let app;
+
 try {
   app = await electron.launch({ executablePath: electronPath(env), env,
     args: [root, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])] });
@@ -23,21 +26,29 @@ try {
     window.dropOpenedUrls = 0;
     // Fail safely if a regression skips the URL review gate; never contact the URL fixture.
     tabs.open = sources => {
-      if (sources.some(source => source.kind === "url")) { window.dropOpenedUrls++; return tabs.active; }
+      if (sources.some(source => source.kind === "url")) { window.dropOpenedUrls++;
+
+ return tabs.active; }
+
       return open(sources);
     };
   });
+
   const gesture = (type, value = "https://example.invalid/review.pdf") => page.evaluate(({ type, value }) => {
     const data = new DataTransfer(); data.setData("text/plain", value);
     window.dispatchEvent(new DragEvent(type, { dataTransfer: data, bubbles: true, cancelable: true }));
   }, { type, value });
+
   const review = page.getByRole("dialog", { name: "Open from URL" });
+
   for (const value of ["", "not a valid URL", "javascript:alert(1)"]) {
     await gesture("drop", value);
     assert.equal(await review.count(), 0, "Invalid text must not open the URL review");
     assert.equal(await page.evaluate(() => window.dropOpenedUrls), 0);
+
     if (await page.locator(".toast.error").isVisible()) await page.locator(".toast.error").click();
   }
+
   const long = "https://example.invalid/" + "x".repeat(12_000);
   await gesture("dragenter", long);
   await page.locator(".drop-overlay").waitFor();

@@ -3,6 +3,7 @@ function fileMenuTemplate({ platform, send, open, state = { kind: 'none', busy: 
   // Workbooks and HTML are read-only. Canvases use Export instead of Print.
   const writable = active && !['workbook', 'html'].includes(state.kind);
   const action = (label, command, accelerator, enabled = active) => ({ label, enabled, accelerator, click: () => send('folio:file-command', command) });
+
   return [
     ...(platform === 'darwin' ? [{ role: 'appMenu', label: 'Doko', submenu: [
       { role: 'about', label: 'About Doko' }, { type: 'separator' }, { role: 'services' },
@@ -31,4 +32,5 @@ function fileMenuTemplate({ platform, send, open, state = { kind: 'none', busy: 
     { role: 'windowMenu' },
   ];
 }
+
 module.exports = { fileMenuTemplate };

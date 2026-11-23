@@ -11,19 +11,28 @@ import { assertHidden, closeHidden } from "./hidden-window.mjs";
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(tmpdir(), "folio-markdown-modes-"));
 const shots = path.join(root, "release", "smoke");
+
 mkdirSync(shots, { recursive: true });
+
 const file = path.join(temp, "Sections.md");
 const plain = path.join(temp, "Plain.md");
 const math = path.join(temp, "Math.md");
 const paragraph = "A section paragraph for scrolling and navigation. ".repeat(12);
 const document = ["# Opening", "", "**Bold** and [a link](https://example.com).", "", "> A quote with `inline code`.", "", "```python", "def greet(name):", '    return "Hello " + name', "# Not a section", "```", "", ...Array.from({ length: 8 }, (_, i) => `${i % 2 ? "###" : "##"} Repeated section\n\n${Array(5).fill(paragraph).join("\n\n")}\n`), "Setext ending", "============", "", "The final section.", ""].join("\n");
+
 writeFileSync(file, document);
+
 writeFileSync(plain, "A document without headings.\n");
+
 writeFileSync(math, "\\[\n# x+y\n\\]\n\n# Actual section\n");
+
 const env = { ...process.env, FOLIO_TEST_USER_DATA: path.join(temp, "profile"), FOLIO_TEST_HIDDEN: "1" };
+
 delete env.ELECTRON_RUN_AS_NODE;
+
 const app = await electron.launch({ executablePath: electronPath(env), env,
   args: [root, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
+
 try {
   const page = readerPage(await app.firstWindow());
   const errors = [];
@@ -32,37 +41,45 @@ try {
   const preview = () => page.getByLabel("Markdown preview", { exact: true });
   const editor = () => page.getByRole("textbox", { name: "Markdown source", exact: true });
   const navigation = () => page.getByRole("navigation", { name: "Document sections", exact: true });
+
   const open = async file => {
     await app.evaluate(({ app }, file) => app.emit("open-file", { preventDefault() {} }, file), file);
     await preview().waitFor();
   };
+
   const source = async () => {
     await page.getByRole("button", { name: "View source", exact: true }).click();
     await editor().waitFor();
     assert.equal(await preview().isVisible(), false);
   };
+
   const view = async () => {
     await page.getByRole("button", { name: "View", exact: true }).click();
     await preview().waitFor();
     assert.equal(await editor().isVisible(), false);
   };
+
   const fullWidth = async locator => {
     const width = await locator.evaluate(element => element.getBoundingClientRect().width);
     const paneWidth = await page.locator(".markdown-pane").evaluate(element => element.getBoundingClientRect().width);
     assert.ok(width >= paneWidth - 100, `active Markdown pane occupies only ${width}/${paneWidth}px`);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "Markdown causes window overflow");
   };
+
   const activeSection = async index => {
     await page.waitForFunction(index => {
       const buttons = [...document.querySelectorAll('[aria-label="Document sections"] button')];
+
       return buttons[index]?.getAttribute("aria-current") === "location";
     }, index);
     assert.equal(await navigation().locator('[aria-current="location"]').count(), 1);
   };
+
   const renderedSectionVisible = async index => {
     await page.waitForFunction(index => {
       const section = document.querySelector(`#md-section-${index}`)?.getBoundingClientRect();
       const viewport = document.querySelector(".markdown-rendered")?.getBoundingClientRect();
+
       return section && viewport && section.top >= viewport.top - 1 && section.top < viewport.bottom;
     }, index);
   };
@@ -116,25 +133,31 @@ try {
   assert.equal(await pythonToken.count(), 1, "Python fenced code has no highlighted keyword");
   const keywordColor = await pythonToken.evaluate(element => getComputedStyle(element).color);
   assert.notEqual(keywordColor, await editor().evaluate(element => getComputedStyle(element).color), "Python keyword uses plain source color");
+
   // Source uses distinct syntax colors for headings, marks, link text, URLs, inline code and quotes.
   // The color of the element that directly holds this text on the source line.
   const tokenColor = (line, text) => editor().locator(".cm-line").filter({ hasText: line }).first().evaluate((element, text) => {
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       if (node.textContent.trim() === text.trim()) return getComputedStyle(node.parentElement).color;
     }
+
     throw new Error(`No source token "${text}"`);
   }, text);
+
   const colors = {
     heading: await tokenColor("# Opening", "Opening"), mark: await tokenColor("# Opening", "#"),
     link: await tokenColor("a link", "a link"), url: await tokenColor("a link", "https://example.com"),
     code: await tokenColor("A quote with", "inline code"), quote: await tokenColor("A quote with", "A quote with"),
   };
+
   assert.equal(new Set(Object.values(colors)).size, Object.keys(colors).length, `Markdown source colors are not distinct: ${JSON.stringify(colors)}`);
   await end.click();
   await activeSection(9);
   await page.waitForFunction(() => {
     const scroll = document.querySelector(".cm-scroller");
+
     return scroll && scroll.scrollTop > 0;
   });
   assert.ok((await editor().innerText()).includes("Setext ending"), "source navigation did not reveal the final heading");
@@ -162,16 +185,20 @@ try {
   await editor().focus();
   await page.keyboard.press("ControlOrMeta+s");
   const saved = document + "\n## Added during editing";
+
   try { await eventually(() => readFileSync(file, "utf8") === saved, "source edit was not saved byte-for-byte"); }
   catch (error) { const actual = readFileSync(file, "utf8"); console.error({ actualLength: actual.length, expectedLength: saved.length, actualTail: actual.slice(-130), expectedTail: saved.slice(-130), firstDifference: [...saved].findIndex((character, index) => character !== actual[index]) }); throw error; }
+
   console.log("ok  full-width source, line numbers, Python syntax highlighting, minimap scrolling and undo/redo across mode changes");
 
   for (const [width, height] of [[390, 844], [1280, 900]]) {
     await page.window.setViewportSize({ width, height });
+
     for (const theme of ["dark", "light"]) {
       if (await page.evaluate(() => document.documentElement.dataset.theme) !== theme) {
         await page.getByRole("button", { name: theme === "dark" ? "Use dark theme" : "Use light theme", exact: true }).click();
       }
+
       await page.waitForFunction(theme => document.documentElement.dataset.theme === theme, theme);
       await fullWidth(page.locator(".markdown-source"));
       assert.ok(await navigation().isVisible());
@@ -187,6 +214,7 @@ try {
       await source();
     }
   }
+
   await page.getByRole("tablist", { name: "Open documents" }).getByRole("button", { name: "Close Sections.md", exact: true }).click();
   await open(file);
   await preview().getByRole("heading", { name: "Added during editing", exact: true }).waitFor();
@@ -220,9 +248,11 @@ try {
 
 async function eventually(check, message) {
   const deadline = Date.now() + 10_000;
+
   while (Date.now() < deadline) {
     if (await check()) return;
     await new Promise(resolve => setTimeout(resolve, 50));
   }
+
   assert.fail(message);
 }

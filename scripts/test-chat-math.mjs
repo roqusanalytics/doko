@@ -15,6 +15,7 @@ try {
   const render = (text) => renderToStaticMarkup(React.createElement(AiMarkdown, { text, onPage: () => {} }));
   const mathCount = (html) => [...html.matchAll(/class="katex"/g)].length;
   const pageRefCount = (html) => [...html.matchAll(/<button\b[^>]*class="[^"]*\bpage-ref\b/g)].length;
+
   const check = (name, test) => {
     test();
     passed++;
@@ -31,6 +32,7 @@ Equilibrium expected returns:
 \[
 \boxed{\mu=\mu_m\beta_m-\frac{\bar d}{a}g}
 \]`);
+
     assert.equal(mathCount(html), 2);
     assert.equal([...html.matchAll(/class="katex-display"/g)].length, 2);
     assert.match(html, /<math\b/);
@@ -43,6 +45,7 @@ Equilibrium expected returns:
 $$
 \mu=\alpha+\beta x
 $$`);
+
     assert.equal(mathCount(html), 3);
     assert.equal([...html.matchAll(/class="katex-display"/g)].length, 1);
     assert.match(html, /Here /);
@@ -63,6 +66,7 @@ $$`);
       assert.match(html, /<\/button><br\/>\s*• Second point/);
       assert.equal(pageRefCount(html), 1);
     }
+
     assert.equal(render("First line\nSecond line"), "<p>First line<br/>\nSecond line</p>");
   });
 
@@ -79,6 +83,7 @@ $$`);
     ]) {
       assert.equal(render(text), `<p>${label}</p>`, text);
     }
+
     const html = render("See (p. 2), then [(p. 3)](https://example.test/paper.pdf).");
     assert.equal(pageRefCount(html), 1);
     assert.match(html, /Go to page 2/);
@@ -95,6 +100,7 @@ $$`);
       assert.equal(normalizeMathDelimiters(text), text);
       assert.equal(mathCount(render(text)), 0, text);
     }
+
     assert.equal(mathCount(render("https://example.test/$x$ followed by $y_i$.")), 1);
   });
 
@@ -122,6 +128,7 @@ $$`);
       assert.match(html, /<li>[\s\S]*class="katex"[\s\S]*<\/li>/);
       assert.doesNotMatch(html, /<pre>/);
     }
+
     for (const text of [
       String.raw`    Code \(literal\)` + "\n\n" + String.raw`After: \(y\).`,
       String.raw`- First` + "\n\n" + String.raw`      Code \(literal\)` + "\n\n" + String.raw`After: \(y\).`,
@@ -156,6 +163,7 @@ $$`);
   check("inline equations may wrap across source lines", () => {
     const html = render(String.raw`One: \(x_i
  + y_i\).`);
+
     assert.equal(mathCount(html), 1);
     assert.match(html, /<annotation encoding="application\/x-tex">x_i \+ y_i<\/annotation>/);
     assert.doesNotMatch(html, /<(?:ul|code|br)\b/);
@@ -197,6 +205,7 @@ $$`);
     const html = render(String.raw`A result (p.4), another result (pp.2–3).
 
 \(\text{(p. 7)}\) and ` + "`(p. 8)`");
+
     assert.equal(pageRefCount(html), 2);
     assert.match(html, /Go to page 4/);
     assert.match(html, /Go to page 2/);
@@ -216,6 +225,7 @@ $$`);
 \(\includegraphics{https://example.test/image.png}\)
 
 \(\htmlClass{injected-class}{x}\)`);
+
     assert.doesNotMatch(html, /<a\b[^>]*href="javascript:/i);
     assert.doesNotMatch(html, /<img\b/i);
     assert.doesNotMatch(html, /class="[^"]*injected-class/);
@@ -226,12 +236,14 @@ $$`);
       const html = render(text);
       assert.ok(html.length > 0, text);
     }
+
     const pending = render(String.raw`\[
 \boxed{\mu
 =
 \mu_m\beta_m
 -
 \frac{\bar d}{a}`);
+
     assert.match(pending, /<pre><code/);
     assert.doesNotMatch(pending, /<h[1-6]\b/);
     assert.match(pending, /\\boxed/);
@@ -243,6 +255,7 @@ $$`);
 \boxed{\mu=\mu_m\beta_m-\frac{\bar d}{a}g}
 \]
 See (p. 4). The example costs $5 and $10. Code: ` + "`$literal$`";
+
     for (let end = 0; end <= text.length; end++) {
       assert.doesNotThrow(() => render(text.slice(0, end)), `stream prefix ${end}`);
     }

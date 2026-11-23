@@ -32,10 +32,13 @@ export interface ImageRegion {
 /** Where images are drawn on a rendered page, normalized to its canvas (empty until pdf.js has recorded them). */
 export function imageRegions(page: PageLike | null | undefined, rotation: number): ImageRegion[] {
   const coords = page?.imageCoordinates;
+
   if (!page || !coords || coords.length < 6) return [];
+
   if (!capturedRotation.has(page)) capturedRotation.set(page, rotation);
   const delta = (((rotation - capturedRotation.get(page)!) % 360) + 360) % 360;
   const regions: ImageRegion[] = [];
+
   for (let i = 0; i + 5 < coords.length; i += 6) {
     // Three corners of the image's parallelogram; the fourth follows from them.
     const p0 = [coords[i], coords[i + 1]];
@@ -50,6 +53,7 @@ export function imageRegions(page: PageLike | null | undefined, rotation: number
       right: Math.min(1, Math.max(...xs)), bottom: Math.min(1, Math.max(...ys)),
     });
   }
+
   return regions;
 }
 
@@ -57,27 +61,34 @@ export function imageRegions(page: PageLike | null | undefined, rotation: number
 export function paintImageOverlay(host: Element, source: HTMLCanvasElement, page: PageLike | null | undefined, rotation: number) {
   const coords = page?.imageCoordinates;
   let overlay = host.querySelector<HTMLCanvasElement>(":scope > canvas.folio-image-overlay");
+
   if (!page || !coords || coords.length < 6 || !source.width || !source.height) {
     overlay?.remove();
+
     return;
   }
+
   if (!overlay) {
     overlay = document.createElement("canvas");
     overlay.className = "folio-image-overlay";
     overlay.setAttribute("aria-hidden", "true");
     host.append(overlay);
   }
+
   const { width, height } = source;
   overlay.width = width;
   overlay.height = height;
   const ctx = overlay.getContext("2d");
+
   if (!ctx) return;
   ctx.clearRect(0, 0, width, height);
+
   for (const r of imageRegions(page, rotation)) {
     const left = Math.floor(r.left * width);
     const top = Math.floor(r.top * height);
     const right = Math.ceil(r.right * width);
     const bottom = Math.ceil(r.bottom * height);
+
     if (right - left < 2 || bottom - top < 2) continue;
     ctx.drawImage(source, left, top, right - left, bottom - top, left, top, right - left, bottom - top);
   }
@@ -88,6 +99,7 @@ export function trackPageImages(eventBus: EventBus) {
   eventBus.on("pagerendered", ({ source }: { source: { canvas?: HTMLCanvasElement | null; pdfPage?: PageLike; viewport?: { rotation: number } } }) => {
     const canvas = source.canvas;
     const host = canvas?.parentElement;
+
     if (!canvas || !host) return;
     paintImageOverlay(host, canvas, source.pdfPage, source.viewport?.rotation ?? 0);
   });

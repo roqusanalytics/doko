@@ -5,20 +5,28 @@ import { Icon } from "./icons";
 
 export function AppearanceSettings({ dark }: { dark: boolean }) {
   // A saved preset that no longer exists falls back to the default, matching how it renders.
-  const [selected, setSelected] = useState(() => { const saved = readSetting(APPEARANCE_KEY); return saved && appearanceColor(saved) ? saved : DEFAULT_BACKGROUND; });
+  const [selected, setSelected] = useState(() => { const saved = readSetting(APPEARANCE_KEY);
+
+ return saved && appearanceColor(saved) ? saved : DEFAULT_BACKGROUND; });
+
   const [custom, setCustom] = useState(() => normalizeColor(selected) || "#e4eaf2");
   const [error, setError] = useState("");
+
   const choose = (value: string) => {
     setSelected(value);
     setError(saveAppearance(value) ? "" : "Preview applied. Couldn't save this appearance on this device. Try again.");
   };
+
   const customSelected = !!normalizeColor(selected);
+
   const updateCustom = (value: string) => {
     setCustom(value);
     const valid = normalizeColor(value);
+
     if (valid) choose(valid);
     else setError("Enter a color like #A1B2C3 or #ABC.");
   };
+
   return <div className="appearance-settings">
     <div className="appearance-heading"><div><strong>Background</strong><p>Choose a palette. Changes apply instantly to every tab.</p></div>
       <button type="button" className="btn ghost" onClick={() => { setCustom(DEFAULT_BACKGROUND); choose(DEFAULT_BACKGROUND); }}>Reset</button>
@@ -54,12 +62,15 @@ function SurfaceColor({ surface: { key: storageKey, property, label } }: { surfa
   const current = () => getComputedStyle(document.documentElement).getPropertyValue(property).trim();
   const id = `surface-${property.slice(2)}`;
   const color = normalizeColor(value);
+
   const save = (next: string | null) => {
     setValue(next ?? "");
     const valid = next === null ? null : normalizeColor(next);
+
     if (next !== null && !valid) return setError("Enter a color like #A1B2C3 or #ABC.");
     setError(saveSurfaceColor(storageKey, valid) ? "" : "Preview applied. Couldn't save this color on this device. Try again.");
   };
+
   return <div className="appearance-color">
     <label htmlFor={id}>{label}</label>
     <input aria-label={`Choose ${label.toLowerCase()} color`} type="color" value={color || normalizeColor(current()) || "#808080"} onChange={event => save(event.target.value)} />

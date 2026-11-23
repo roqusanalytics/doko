@@ -3,10 +3,12 @@ import path from "node:path";
 import { createServer } from "vite";
 
 const server = await createServer({ root: path.resolve(import.meta.dirname, ".."), server: { middlewareMode: true }, appType: "custom" });
+
 try {
   const { markdownSections } = await server.ssrLoadModule("/src/markdownSections.ts");
   assert.deepEqual(markdownSections(""), []);
   assert.deepEqual(markdownSections("ordinary text\n\nno headings"), []);
+
   const sections = markdownSections([
     "# Overview", "", "## **Details** and [links](https://example.test) `code`", "",
     "Setext title", "---", "", "> ### Nested quote", "", "- #### Nested list", "",
@@ -14,6 +16,7 @@ try {
     "    # Indented code", "", "$$", "# Math content", "$$", "", "# Overview", "", "###", "",
     "## <em>HTML</em> ![Image label](local.png)",
   ].join("\n"));
+
   assert.deepEqual(sections.map(({ title, depth, line }) => ({ title, depth, line })), [
     { title: "Overview", depth: 1, line: 1 },
     { title: "Details and links code", depth: 2, line: 3 },

@@ -11,9 +11,11 @@ export function UpdateButton() {
   const [app, setApp] = useState<{ version: string; notifyOnly: boolean } | null>(null);
   useEffect(() => desktop?.onUpdateStatus(setStatus), [desktop]);
   useEffect(() => { void desktop?.getAppInfo().then(setApp).catch(() => {}); }, [desktop]);
+
   if (!desktop) return null;
 
   const { state, version, percent = 0, notes } = status;
+
   const step: { label: string; hint: string; icon: IconName; run?: () => void } =
     state === "ready" ? { label: `Restart and install ${version}`, hint: "Click to restart and install.", icon: "install", run: () => desktop.installUpdate() }
     : state === "available" ? (app?.notifyOnly
@@ -23,6 +25,7 @@ export function UpdateButton() {
     : state === "checking" ? { label: "Checking for updates", hint: "", icon: "rotate" }
     : state === "unsupported" ? { label: "Updates", hint: "", icon: "rotate" }
     : { label: state === "error" ? "Try checking for updates again" : "Check for updates", hint: "Click to check for updates.", icon: "rotate", run: () => desktop.checkForUpdates() };
+
   const offered = state === "available" || state === "ready" || state === "downloading";
 
   return (

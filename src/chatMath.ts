@@ -11,40 +11,53 @@ interface MarkdownNode {
 export function normalizeMathDelimiters(text: string, position?: (sourceOffset: number, renderedOffset: number) => void): string {
   const code: { start: number; end: number }[] = [];
   const containers: { start: number; end: number; prefix: string; quotes: number }[] = [];
+
   const visit = (node: MarkdownNode, prefix = "", quotes = 0) => {
     const start = node.position?.start.offset;
     const end = node.position?.end.offset;
+
     if (start !== undefined && end !== undefined) {
       if (["code", "inlineCode", "html", "definition"].includes(node.type)) {
         code.push({ start, end });
+
         return;
       }
+
       if (node.type === "blockquote" || node.type === "listItem") {
         const marker = node.type === "blockquote" ? "> " : " ".repeat(/^([-+*]|\d+[.)])[ \t]+/.exec(text.slice(start))?.[0].length ?? 2);
         prefix += " ".repeat(Math.max(0, node.position!.start.column - 1 - prefix.length)) + marker;
+
         if (node.type === "blockquote") quotes++;
         containers.push({ start, end, prefix, quotes });
       }
     }
+
     node.children?.forEach((child) => visit(child, prefix, quotes));
   };
+
   visit(fromMarkdown(text));
 
   let result = "";
   let i = 0;
   let codeIndex = 0;
+
   const closingDelimiter = (start: number, delimiter: string, multiline: boolean) => {
     for (let j = start; j < text.length; j++) {
       if (!multiline && text[j] === "\n") return -1;
+
       if (text.startsWith(delimiter, j)) return j;
+
       if (text[j] === "\\") j++;
     }
+
     return -1;
   };
 
   while (i < text.length) {
     position?.(i, result.length);
+
     while (code[codeIndex]?.end <= i) codeIndex++;
+
     if (code[codeIndex]?.start <= i) {
       const end = code[codeIndex++].end;
       result += text.slice(i, end);
@@ -59,15 +72,18 @@ export function normalizeMathDelimiters(text: string, position?: (sourceOffset: 
       i += url.length;
       continue;
     }
+
     if (text[i] === "(" && text[i - 1] === "]") {
       let end = i + 1;
       let depth = 1;
+
       while (end < text.length && depth) {
         if (text[end] === "\\") end++;
         else if (text[end] === "(") depth++;
         else if (text[end] === ")") depth--;
         end++;
       }
+
       result += text.slice(i, end);
       i = end;
       continue;
@@ -75,6 +91,7 @@ export function normalizeMathDelimiters(text: string, position?: (sourceOffset: 
 
     if (text[i] === "\\") {
       const open = text.slice(i, i + 2);
+
       if (open === "\\(" || open === "\\[") {
         const display = open === "\\[";
         const end = closingDelimiter(i + 2, display ? "\\]" : "\\)", true);
@@ -82,6 +99,7 @@ export function normalizeMathDelimiters(text: string, position?: (sourceOffset: 
         const prefix = context?.prefix ?? "";
         const quotePrefix = new RegExp(`^[ \\t]*(?:>[ \\t]*){${context?.quotes ?? 0}}`);
         const stripQuotes = (source: string) => source.split("\n").map((line, n) => n && context?.quotes ? line.replace(quotePrefix, "") : line).join("\n");
+
         if (end >= 0) {
           const math = stripQuotes(text.slice(i + 2, end)).trim();
           result += display
@@ -90,6 +108,7 @@ export function normalizeMathDelimiters(text: string, position?: (sourceOffset: 
           i = end + 2;
           continue;
         }
+
         // Keep partial streamed equations literal instead of parsing their lines as Markdown.
         const pending = stripQuotes(text.slice(i));
         const longestTicks = Math.max(0, ...[...pending.matchAll(/`+/g)].map((m) => m[0].length));
@@ -99,6 +118,7 @@ export function normalizeMathDelimiters(text: string, position?: (sourceOffset: 
           : `${ticks} ${pending.replace(/\s*\n\s*/g, " ")} ${ticks}`;
         break;
       }
+
       result += text.slice(i, i + 2);
       i += 2;
       continue;
@@ -114,6 +134,7 @@ export function normalizeMathDelimiters(text: string, position?: (sourceOffset: 
 
     if (text[i] === "$" && !/\s/.test(text[i + 1] ?? " ")) {
       const end = closingDelimiter(i + 1, "$", false);
+
       // A closing dollar cannot touch a price: '$5 and $10' is prose.
       if (end > i + 1 && !/\s/.test(text[end - 1]) && !/[\d$]/.test(text[end + 1] ?? "")) {
         result += `$$${text.slice(i + 1, end)}$$`;
@@ -124,5 +145,6 @@ export function normalizeMathDelimiters(text: string, position?: (sourceOffset: 
 
     result += text[i++];
   }
+
   return result;
 }

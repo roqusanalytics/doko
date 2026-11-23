@@ -18,12 +18,14 @@ const guardedHighlighters = new WeakSet<object>();
 
 export function prepareOcrHighlighter(view: PDFPageView) {
   const highlighter = view._textHighlighter;
+
   if (!highlighter || guardedHighlighters.has(highlighter)) return;
   guardedHighlighters.add(highlighter);
   highlighter.findController = new Proxy(highlighter.findController, { get(target, key) {
     // PDF.js enables a new native text layer before Doko can populate its OCR mapping.
     if (key === "pageMatches" && !highlighter.textDivs?.[0]?.hasAttribute?.("data-ocr-word")) return [];
     const value = Reflect.get(target, key, target);
+
     return typeof value === "function" ? value.bind(target) : value;
   } });
 }
@@ -37,6 +39,7 @@ export async function hasPageImage(page: PDFPageProxy) {
   if (page.imageCoordinates?.length) return true;
   // pdf.js records locations for ordinary images but not for stencil masks used by some monochrome scans.
   const { fnArray } = await page.getOperatorList({ annotationMode: AnnotationMode.DISABLE });
+
   return fnArray.some(op => IMAGE_OPS.has(op));
 }
 
@@ -44,10 +47,13 @@ export async function startWorker(languages: ScanLanguage[], signal: AbortSignal
   if (languages.some(code => code !== "eng")) {
     const installed = await installedScanLanguages();
     const missing = SCAN_LANGUAGES.find(({ id }) => languages.includes(id) && !installed.has(id));
+
     if (missing) throw new MissingScanPack(`Download the ${missing.name} pack in Settings to read this scan.`);
   }
+
   const { startOcrWorker } = await import("./ocrWorker");
   const base = `${import.meta.env.BASE_URL}ocr`;
+
   return startOcrWorker(base, languages, OCR_CACHE_PATH, signal);
 }
 
@@ -65,15 +71,18 @@ export async function readWords(page: PDFPageProxy, worker: PageOcrWorker, signa
   const render = page.render({ canvas, viewport });
   const cancel = () => render.cancel();
   signal.addEventListener("abort", cancel, { once: true });
+
   try {
     await render.promise;
     signal.throwIfAborted();
+
     // A language switch or document close can terminate the worker during image encoding.
     // Encode here so we can check ownership before Tesseract posts its recognition job.
     const png = await new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => {
       if (blob) resolve(blob);
       else reject(new Error("Couldn't prepare the scan image."));
     }));
+
     signal.throwIfAborted();
     const bytes = new Uint8Array(await png.arrayBuffer());
     signal.throwIfAborted();
@@ -84,10 +93,13 @@ export async function readWords(page: PDFPageProxy, worker: PageOcrWorker, signa
     const [xMin, yMin, xMax, yMax] = page.view;
     const words: Word[] = [];
     const lines = (data.blocks ?? []).flatMap(block => block.paragraphs.flatMap(p => p.lines));
+
     for (const line of lines) {
       const height = line.bbox.y1 - line.bbox.y0;
+
       for (const [i, word] of line.words.entries()) {
         const width = ctx.measureText(word.text).width;
+
         if (!width || !height) continue;
         // pdf.js sizes its text layer in unrotated PDF units and rotates the whole layer for display.
         const [x, y] = viewport.convertToPdfPoint(word.bbox.x0, line.bbox.y0);
@@ -99,6 +111,7 @@ export async function readWords(page: PDFPageProxy, worker: PageOcrWorker, signa
         });
       }
     }
+
     return words;
   } finally {
     signal.removeEventListener("abort", cancel);
@@ -109,15 +122,18 @@ export async function readWords(page: PDFPageProxy, worker: PageOcrWorker, signa
 export function addWords(view: PDFPageView, words: Word[]) {
   const layer = view.textLayer?.div;
   const end = layer?.querySelector(":scope > .endOfContent");
+
   if (!end || layer?.textContent.trim()) return;
   const spans: HTMLSpanElement[] = [];
   const strings = wordStrings(words);
   const fragment = document.createDocumentFragment();
   let lineStart = true;
+
   for (const [i, word] of words.entries()) {
     const span = document.createElement("span");
     span.className = lineStart ? "ocr-word ocr-line-start" : "ocr-word";
     span.dataset.ocrWord = "";
+
     if (lineStart) span.dataset.ocrLineStart = "";
     span.textContent = strings[i];
     spans.push(span);
@@ -130,13 +146,16 @@ export function addWords(view: PDFPageView, words: Word[]) {
     span.style.setProperty("--scale-x", String(word.scaleX));
     span.style.setProperty("--rotate", `${-view.pdfPage.rotate}deg`);
     fragment.append(span);
+
     if (word.endOfLine) {
       const br = document.createElement("br");
       br.className = "ocr-break";
       fragment.append(br);
     }
+
     lineStart = word.endOfLine;
   }
+
   end.before(fragment);
   const highlighter = view.textLayer?.highlighter;
   highlighter?.disable();

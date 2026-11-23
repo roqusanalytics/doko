@@ -24,45 +24,58 @@ export function SearchResults({ pdf, controller, bus, onSelect }: {
   useEffect(() => {
     let generation = 0;
     let timer = 0;
+
     const refresh = async () => {
       const request = ++generation;
+
       const pages = (controller.pageMatches ?? []).flatMap((matches: number[], index: number) =>
         matches?.length ? [{ page: index + 1, offset: matches[0], count: matches.length, length: controller.pageMatchesLength?.[index]?.[0] ?? 0 }] : []);
+
       setPageCount(pages.length);
       const next: PageResult[] = [];
+
       for (const entry of pages.slice(0, 100)) {
         if (request !== generation) return;
+
         const content = await controller.getPageText(entry.page).then(text =>
           text.items.map(item => "str" in item ? item.str : "").join("")).catch(() => "");
+
         const offset = entry.offset;
         next.push({ page: entry.page, count: entry.count,
           before: (offset > 55 ? "..." : "") + content.slice(Math.max(0, offset - 55), offset),
           match: content.slice(offset, offset + entry.length),
           after: content.slice(offset + entry.length, offset + entry.length + 100) + (content.length > offset + entry.length + 100 ? "..." : "") });
+
         if (next.length % 10 === 0 && request === generation) {
           setResults([...next]);
           await new Promise(resolve => window.setTimeout(resolve, 0));
         }
       }
+
       if (request === generation) setResults(next);
     };
+
     const schedule = () => {
       generation++;
       window.clearTimeout(timer);
       timer = window.setTimeout(() => void refresh(), 100);
     };
+
     const clear = () => {
       generation++;
       window.clearTimeout(timer);
       setResults([]);
       setPageCount(0);
     };
+
     const textChanged = () => { clear(); schedule(); };
+
     bus.on("updatetextlayermatches", schedule);
     bus.on("updatefindmatchescount", schedule);
     bus.on("find", clear);
     bus.on("searchtextchanged", textChanged);
     schedule();
+
     return () => {
       generation++;
       window.clearTimeout(timer);

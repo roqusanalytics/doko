@@ -15,6 +15,7 @@ export function SelectMenu({ label, value, options, onChange, className = "", di
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const open = useAnchoredPopover(trigger, panel);
+
   return <>
     <button ref={trigger} type="button" className={`select-trigger ${className}`} aria-label={label} title={title}
       aria-haspopup="menu" aria-expanded={open} aria-controls={id} popoverTarget={id} disabled={disabled}

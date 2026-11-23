@@ -8,6 +8,7 @@ import { linkHistoryPdf } from "./smoke-reader-tools.mjs";
 const root = path.resolve(import.meta.dirname, "..");
 const server = await preview({ root, preview: { host: "127.0.0.1", port: 0 } });
 let browser;
+
 try {
   browser = await chromium.launch({ headless: true, args: ["--enable-automation", "--mute-audio"] });
   const cdp = await browser.newBrowserCDPSession();
@@ -19,6 +20,7 @@ try {
   const cards = page.getByRole("group", { name: "Document types" });
   await cards.waitFor();
   assert.equal(await cards.getByRole("button").count(), 4);
+
   for (const [name, accept] of [
     ["PDF", "application/pdf,.pdf"], ["Markdown", ".md,.markdown"],
     ["Photos", ".jpg,.jpeg,.png,.webp,.gif,.bmp,.avif"], ["CSV", ".csv"],
@@ -27,10 +29,12 @@ try {
       tab.waitForEvent("filechooser"),
       cards.getByRole("button", { name, exact: true }).click(),
     ]);
+
     assert.equal(await chooser.element().getAttribute("accept"), accept);
     assert.equal(chooser.isMultiple(), true);
     await chooser.setFiles([]);
   }
+
   await page.getByRole("button", { name: /Try a sample/ }).click();
   assert.equal(await page.evaluate(() => !!window.folioDesktop), false);
   const open = page.getByRole("toolbar", { name: "Tools" }).getByRole("button", { name: "Open", exact: true });
@@ -38,10 +42,12 @@ try {
   const menu = page.getByRole("menu", { name: "Open", exact: true });
   await menu.waitFor();
   assert.deepEqual(await menu.getByRole("menuitem").allTextContents(), ["PDF", "Markdown", "Photos", "CSV", "From URL…"]);
+
   const [csv] = await Promise.all([
     tab.waitForEvent("filechooser"),
     menu.getByRole("menuitem", { name: "CSV", exact: true }).click(),
   ]);
+
   assert.equal(await csv.element().getAttribute("accept"), ".csv");
   await csv.setFiles([]);
   console.log("ok  Browser Edition PDF Open menu offers CSV and opens the filtered picker");
@@ -72,6 +78,7 @@ try {
     }, true);
   });
   const mac = process.platform === "darwin";
+
   const press = async (key, shouldPrevent) => {
     const length = await page.evaluate(() => window.observedArrows.length);
     await tab.keyboard.press("Alt+" + key);
@@ -84,8 +91,10 @@ try {
   const search = page.getByRole("textbox", { name: "Find in document" });
   await search.fill("low tide");
   await press("ArrowLeft", !mac);
+
   if (mac) assert.equal(await search.evaluate(el => el.selectionStart), 4);
   await press("ArrowRight", !mac);
+
   if (mac) assert.equal(await search.evaluate(el => el.selectionStart), 8);
   assert.equal(await pageNumber.inputValue(), "2");
   await search.press("Escape");

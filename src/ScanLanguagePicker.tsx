@@ -22,8 +22,10 @@ export function ScanLanguagePicker({ value, onChange }: { value: ScanLanguage[];
   const [draft, setDraft] = useState(value);
   const selected = SCAN_LANGUAGES.filter(language => value.includes(language.id));
   const filter = searchable(query);
+
   const visible = [...selected, ...SCAN_LANGUAGES.filter(language => !value.includes(language.id))]
     .filter(language => searchable(language.name + " " + language.nativeName).includes(filter));
+
   const summary = selected.length === 1 ? selected[0].name : `${selected.length} languages`;
   const missing = SCAN_LANGUAGES.filter(({ id }) => draft.includes(id) && !installed?.has(id) && id !== "eng");
   const megabytes = (missing.reduce((sum, language) => sum + language.bytes, 0) / 1_000_000).toFixed(1);
@@ -31,8 +33,10 @@ export function ScanLanguagePicker({ value, onChange }: { value: ScanLanguage[];
 
   async function apply() {
     const signal = session.current?.signal;
+
     if (!signal || signal.aborted) return;
     setError("");
+
     try {
       for (const language of missing) {
         setDownloading(language.name);
@@ -40,7 +44,9 @@ export function ScanLanguagePicker({ value, onChange }: { value: ScanLanguage[];
         signal.throwIfAborted();
         setInstalled(previous => new Set(previous).add(language.id));
       }
+
       if (!panel.current?.matches(":popover-open")) return;
+
       if (missing.length || draft.join("+") !== value.join("+")) onChange([...draft]);
       panel.current?.hidePopover();
     } catch (reason) {
@@ -64,6 +70,7 @@ export function ScanLanguagePicker({ value, onChange }: { value: ScanLanguage[];
     <div ref={panel} id={id} popover="auto" role="dialog" aria-label="Choose scan languages" className="scan-picker-panel anchored-popover"
       onToggle={event => {
         session.current?.abort();
+
         if (event.newState !== "open") return;
         session.current = new AbortController();
         const { signal } = session.current;

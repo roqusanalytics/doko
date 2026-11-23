@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import assert from 'node:assert/strict';
 
 const text = s => s.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim();
+
 const pages = [
   { file: 'index.html', lang: 'en', url: 'https://doko.lt/' },
   { file: 'lt/index.html', lang: 'lt', url: 'https://doko.lt/lt/' },
@@ -18,9 +19,11 @@ for (const { file, lang, url } of pages) {
   const tour = [...new Set(html.match(/\/tour\/[a-z]{2}\/[\w-]+\.(?:mp4|jpg)/g))].sort();
   assert.deepEqual(tour, ['pdf', 'canvas', 'photos', 'markdown', 'excel'].flatMap(kind =>
     ['mp4', 'jpg'].map(ext => `/tour/${lang}/${kind}.${ext}`)).sort(), at('tour has all five videos and posters in the page language'));
+
   for (const asset of tour) assert.ok(existsSync(new URL(`../dist${asset}`, import.meta.url)), at(`tour asset exists: ${asset}`));
   assert.match(html, new RegExp(`<html lang="${lang}"`), at(`html lang=${lang}`));
   assert.ok(html.includes(`<link rel="canonical" href="${url}">`), at(`canonical ${url}`));
+
   for (const [hl, href] of [['en', 'https://doko.lt/'], ['lt', 'https://doko.lt/lt/'], ['x-default', 'https://doko.lt/']])
     assert.ok(html.includes(`<link rel="alternate" hreflang="${hl}" href="${href}">`), at(`hreflang ${hl}`));
   assert.ok(html.includes(`<meta property="og:url" content="${url}">`), at('og:url'));
@@ -46,5 +49,7 @@ for (const { file, lang, url } of pages) {
 }
 
 for (const f of ['robots.txt', 'llms.txt', 'sitemap.xml', 'og.png', 'favicon.svg']) assert.ok(existsSync(new URL(`../dist/${f}`, import.meta.url)), `missing dist/${f}`);
+
 const sitemap = readFileSync(new URL('../dist/sitemap.xml', import.meta.url), 'utf8');
+
 for (const { url } of pages) assert.ok(sitemap.includes(`<loc>${url}</loc>`), `sitemap lists ${url}`);

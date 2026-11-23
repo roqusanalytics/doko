@@ -21,18 +21,24 @@ export interface SelectionInfo {
 export function textMarkupQuads(range: Range, viewer: PDFViewer, pageCount: number): TextMarkupQuad[] {
   const rects=[...range.getClientRects()].filter(rect=>rect.width>0 && rect.height>0);
   const quads:TextMarkupQuad[]=[];
+
   for(let index=0;index<pageCount;index++) {
     const view=viewer.getPageView(index), layer=view?.div.querySelector('.textLayer') as HTMLElement|null;
+
     if(!layer) continue;
     const box=layer.getBoundingClientRect();
     const seen=new Set<string>();
+
     for(const rect of rects) {
       if(rect.left<box.left-1 || rect.right>box.right+1 || rect.top<box.top-1 || rect.bottom>box.bottom+1) continue;
-      const key=[rect.left,rect.top,rect.right,rect.bottom].map(n=>n.toFixed(1)).join(); if(seen.has(key)) continue;seen.add(key);
+      const key=[rect.left,rect.top,rect.right,rect.bottom].map(n=>n.toFixed(1)).join();
+
+ if(seen.has(key)) continue;seen.add(key);
       const points=[[rect.left,rect.top],[rect.right,rect.top],[rect.left,rect.bottom],[rect.right,rect.bottom]].flatMap(([x,y])=>view.viewport.convertToPdfPoint(x-box.left,y-box.top));
       quads.push({page:index+1,points});
     }
   }
+
   return quads;
 }
 
@@ -44,18 +50,24 @@ export function useTextSelection(container: HTMLElement | null, enabled: boolean
   useEffect(() => {
     if (!enabled || !container || !pdf) {
       setInfo(null);
+
       return;
     }
+
     let frame = 0;
     let pointerDown = false;
+
     const update = () => {
       frame = 0;
       const selection = document.getSelection();
+
       if (pointerDown || !selection || selection.isCollapsed || !selection.rangeCount) return setInfo(null);
       const anchor = selection.anchorNode instanceof Element ? selection.anchorNode : selection.anchorNode?.parentElement;
+
       if (!anchor || !container.contains(anchor) || !anchor.closest(".textLayer")) return setInfo(null);
       const text = selection.toString().replace(/\s+/g, " ").trim();
       const rects = [...selection.getRangeAt(0).getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+
       if (!text || !rects.length) return setInfo(null);
       const stage = (container.parentElement ?? container).getBoundingClientRect();
       const left = Math.min(...rects.map((r) => r.left));
@@ -70,15 +82,18 @@ export function useTextSelection(container: HTMLElement | null, enabled: boolean
         bottom: Math.max(...rects.map((r) => r.bottom)) - stage.top,
       });
     };
+
     const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
     const down = (e: PointerEvent) => { if (e.button === 0) { pointerDown = true; setInfo(null); } };
     const up = () => { if (pointerDown) { pointerDown = false; schedule(); } };
+
     document.addEventListener("selectionchange", schedule);
     container.addEventListener("pointerdown", down);
     window.addEventListener("pointerup", up);
     container.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
     schedule();
+
     return () => {
       cancelAnimationFrame(frame);
       document.removeEventListener("selectionchange", schedule);
@@ -88,6 +103,7 @@ export function useTextSelection(container: HTMLElement | null, enabled: boolean
       window.removeEventListener("resize", schedule);
     };
   }, [container, enabled, pdf]);
+
   return info?.pdf === pdf ? info : null;
 }
 
@@ -95,6 +111,7 @@ export function useTextSelection(container: HTMLElement | null, enabled: boolean
 function place(info: { x: number; top: number; bottom: number }, width: number, height: number, stageWidth: number) {
   const left = Math.min(Math.max(8, info.x - width / 2), Math.max(8, stageWidth - width - 8));
   const top = info.top - height - 10 >= 8 ? info.top - height - 10 : info.bottom + 10;
+
   return { left, top };
 }
 
@@ -117,6 +134,7 @@ export function SelectionPopover({ info, stageWidth, colors, current, onHighligh
   const [copy, setCopy] = useState<"idle" | "done" | "failed">("idle");
   const [note, setNote] = useState("");
   const width = 30 * colors.length + 210;
+
   return (
     <div
       className="selection-popover"
@@ -164,6 +182,7 @@ export function SelectionPopover({ info, stageWidth, colors, current, onHighligh
         onChange={(e) => setNote(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") { e.preventDefault(); onHighlight(current, note.trim(), style); }
+
           if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onDismiss(); }
         }}
       />
@@ -187,6 +206,7 @@ interface HighlightMenuProps {
 export function HighlightMenu({ rect, stageWidth, colors, current, hasNote, onRecolor, onNote, onAsk, onRemove }: HighlightMenuProps) {
   const width = 30 * colors.length + 300;
   const anchor = { x: (rect.left + rect.right) / 2, top: rect.top, bottom: rect.bottom };
+
   return (
     <div className="selection-popover" role="toolbar" aria-label="Highlight" style={place(anchor, width, 44, stageWidth)}>
       <div className="pop-row">
@@ -233,10 +253,12 @@ export function NoteBox({ anchor, stageWidth, quote, initial, onSave, onClose }:
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
   }, []);
+
   const save = () => {
     onSave(value.trim());
     onClose();
   };
+
   return (
     <div className="note-box" role="dialog" aria-label="Note" style={place(anchor, 320, 170, stageWidth)}>
       {quote && <blockquote>{quote.length > 140 ? quote.slice(0, 140) + "…" : quote}</blockquote>}
@@ -248,6 +270,7 @@ export function NoteBox({ anchor, stageWidth, quote, initial, onSave, onClose }:
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); }
+
           if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); }
         }}
       />

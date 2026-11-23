@@ -40,6 +40,7 @@ export function SignatureDialog({ pdf, pageNumber, targets, onApprove, onClose }
 
   useEffect(() => {
     mounted.current = true;
+
     return () => { mounted.current = false; captureGeneration.current++; streamRef.current?.getTracks().forEach(track => track.stop()); };
   }, []);
 
@@ -52,11 +53,14 @@ export function SignatureDialog({ pdf, pageNumber, targets, onApprove, onClose }
       const viewport = page.getViewport({ scale: Math.min(480 / native.width, 580 / native.height), rotation: 0 });
       const canvas = document.createElement("canvas");
       canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+
       if (cancelled) return;
       const task = page.render({ canvas, viewport }); render = task;
       await task.promise;
+
       if (!cancelled) setPreview({ url: canvas.toDataURL(), width: viewport.width, height: viewport.height, viewport });
     })().catch(reason => { if (!cancelled) setError("Couldn't preview this page: " + String(reason)); });
+
     return () => { cancelled = true; render?.cancel(); };
   }, [pdf, pageNumber]);
 
@@ -73,15 +77,18 @@ export function SignatureDialog({ pdf, pageNumber, targets, onApprove, onClose }
     canvas.width = source.width; canvas.height = source.height;
     const context = canvas.getContext("2d")!;
     context.drawImage(source, 0, 0);
+
     if (crop) { context.strokeStyle = "#2f6fed"; context.lineWidth = Math.max(2, source.width / 250); context.strokeRect(crop[0], crop[1], crop[2], crop[3]); }
   }, [source, crop]);
 
   useEffect(() => {
     if (!source || !crop) return;
+
     const timer = setTimeout(() => {
       try { setSignature(cleanSignature(source, crop, threshold)); setError(""); }
       catch (reason) { setSignature(null); setError((reason as Error).message); }
     }, 80);
+
     return () => clearTimeout(timer);
   }, [source, crop, threshold]);
 
@@ -90,69 +97,96 @@ export function SignatureDialog({ pdf, pageNumber, targets, onApprove, onClose }
     streamRef.current?.getTracks().forEach(track => track.stop()); streamRef.current = null;
     setCamera(false); setCameraReady(false); setCameraStarting(false);
   };
+
   useEffect(() => {
     const onSwitch = () => { if (window.frameElement?.hasAttribute("inert")) stopCamera(); };
+
     window.addEventListener("folio:tab-visibility", onSwitch);
+
     return () => window.removeEventListener("folio:tab-visibility", onSwitch);
   }, []);
+
   const startCamera = async () => {
     const generation = ++captureGeneration.current;
     setCameraStarting(true);
     setError("");
+
     try {
       // Desktop camera permission belongs to the Doko window that asks for consent.
       const devices = window.folioDesktop ? window.parent.navigator.mediaDevices : navigator.mediaDevices;
+
       if (!devices?.getUserMedia) throw new Error("Camera isn't available. Upload a photo instead.");
       const stream = await devices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 } }, audio: false });
-      if (!mounted.current || generation !== captureGeneration.current) { stream.getTracks().forEach(track => track.stop()); return; }
+
+      if (!mounted.current || generation !== captureGeneration.current) { stream.getTracks().forEach(track => track.stop());
+
+ return; }
+
       streamRef.current?.getTracks().forEach(track => track.stop()); streamRef.current = stream; setCamera(true);
     } catch (reason) { if (mounted.current && generation === captureGeneration.current) setError("Couldn't access the camera. Check your camera permissions or upload a photo. " + (reason as Error).message); }
     finally { if (mounted.current && generation === captureGeneration.current) setCameraStarting(false); }
   };
+
   const acceptSource = (image: CanvasImageSource, width: number, height: number) => {
     const factor = Math.min(1, 1600 / Math.max(width, height));
     const canvas = document.createElement("canvas"); canvas.width = Math.round(width * factor); canvas.height = Math.round(height * factor);
     canvas.getContext("2d")!.drawImage(image, 0, 0, canvas.width, canvas.height);
     setSource(canvas); setCrop([0, 0, canvas.width, canvas.height]); setRemember(false); setSaved(false); setSignature(null); setError("");
   };
+
   const capture = () => {
     const video = videoRef.current;
+
     if (!video?.videoWidth) return;
     acceptSource(video, video.videoWidth, video.videoHeight); stopCamera();
   };
+
   const upload = async (file?: File) => {
     if (!file) return;
     stopCamera();
     const generation = ++captureGeneration.current;
+
     try {
       if (file.size > 20 * 1024 * 1024) throw new Error("Please use a photo smaller than 20 MB.");
+
       if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) throw new Error("Choose a PNG, JPEG, or WebP image.");
       const bitmap = await createImageBitmap(file);
+
       try { if (mounted.current && generation === captureGeneration.current) acceptSource(bitmap, bitmap.width, bitmap.height); }
       finally { bitmap.close(); }
     } catch (reason) { if (mounted.current) setError((reason as Error).message); }
   };
+
   const cropPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
+
     return [Math.max(0, Math.min(event.currentTarget.width, (event.clientX - bounds.left) * event.currentTarget.width / bounds.width)),
       Math.max(0, Math.min(event.currentTarget.height, (event.clientY - bounds.top) * event.currentTarget.height / bounds.height))];
   };
+
   const approve = async () => {
     if (!signature || !rect || !preview || busy || source || camera || cameraStarting) return;
     setBusy(true); setError("");
+
     try {
       await onApprove(signature, rect);
+
       if (remember) {
         if (!writeSetting("folio:signature", JSON.stringify(signature))) {
-          setError("Signature added, but couldn't remember it on this device. Close to continue."); setBusy(false); return;
+          setError("Signature added, but couldn't remember it on this device. Close to continue."); setBusy(false);
+
+ return;
         }
       }
+
       onClose();
     } catch (reason) { setError((reason as Error).message); setBusy(false); }
   };
+
   const screenRect = preview && rect ? [...preview.viewport.convertToViewportPoint(rect[0], rect[1]), ...preview.viewport.convertToViewportPoint(rect[2], rect[3])] : null;
 
   const ready = !!signature && !source && !camera && !cameraStarting;
+
   const placeAt = (pointX: number, pointY: number, width = size) => {
     if (!signature || !preview) return;
     const [left, bottom, right, top] = preview.viewport.viewBox;
@@ -214,6 +248,7 @@ export function SignatureDialog({ pdf, pageNumber, targets, onApprove, onClose }
             {targetId === "manual" && <label className="signature-range">Signature width <input aria-label="Signature width" type="range" min="40" max="300" value={size} onChange={event => {
               const width = +event.target.value;
               setSize(width);
+
               if (manualRect) placeAt((manualRect[0] + manualRect[2]) / 2, (manualRect[1] + manualRect[3]) / 2, width);
             }} /></label>}
           </div>}

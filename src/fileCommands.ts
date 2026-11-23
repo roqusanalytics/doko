@@ -7,9 +7,11 @@ export function useFileCommands(active: boolean, kind: Parameters<FolioDesktop["
     const stop = window.folioDesktop?.onFileCommand(command => {
       if (current.current.active && !current.current.busy) current.current.run(command);
     });
+
     if (!stop) return;
     // The parent preload outlives a reloaded reader iframe.
     window.addEventListener("pagehide", stop, { once: true });
+
     return () => {
       window.removeEventListener("pagehide", stop);
       stop();

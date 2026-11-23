@@ -9,13 +9,21 @@ import {_electron as electron} from 'playwright-core';
 import {electronPath} from './electron-path.mjs';
 import {readerPage} from './reader-page.mjs';
 import {assertHidden,closeHidden} from './hidden-window.mjs';
+
 const root=path.resolve(import.meta.dirname,'..'),temp=mkdtempSync(path.join(tmpdir(),'doko-pdf-save-data-'));
 const contentKey=bytes=>`sha256:${createHash('sha256').update(bytes).digest('hex')}:${bytes.length}`;
 const fixture=await PDFDocument.create();
+
 fixture.addPage([400,400]).drawText('SYNTHETIC FIRST PAGE TEXT',{x:30,y:320,size:15});
+
 fixture.addPage([400,400]).drawText('SYNTHETIC SECOND PAGE TEXT',{x:30,y:320,size:15});
-const bytes=await fixture.save(),input=path.join(temp,'source.pdf'),output=path.join(temp,'saved.pdf'),reordered=path.join(temp,'reordered.pdf');writeFileSync(input,bytes);
+
+const bytes=await fixture.save(),input=path.join(temp,'source.pdf'),output=path.join(temp,'saved.pdf'),reordered=path.join(temp,'reordered.pdf');
+
+writeFileSync(input,bytes);
+
 let app;
+
 try {
  const env={...process.env,FOLIO_TEST_USER_DATA:path.join(temp,'profile'),FOLIO_TEST_HIDDEN:'1'};delete env.ELECTRON_RUN_AS_NODE;
  app=await electron.launch({executablePath:electronPath(env),env,args:[root,'--mute-audio',...(process.platform==='linux'&&process.getuid?.()===0?['--no-sandbox']:[])]});
@@ -23,28 +31,38 @@ try {
  await page.getByRole('button',{name:/Try a sample/}).waitFor();
  await app.evaluate(({dialog,ipcMain})=>{
   globalThis.pdfSaves=[];globalThis.pdfSaveCount=0;
-  dialog.showSaveDialog=async()=>{globalThis.pdfSaveCount++;const filePath=globalThis.pdfSaves.shift();return {canceled:!filePath,filePath:filePath||undefined};};
+  dialog.showSaveDialog=async()=>{globalThis.pdfSaveCount++;const filePath=globalThis.pdfSaves.shift();
+
+return {canceled:!filePath,filePath:filePath||undefined};};
+
   ipcMain.removeHandler('folio:ai-status');ipcMain.handle('folio:ai-status',()=>({chatgpt:{connected:false,welcomeSeen:true},claude:{installed:true,loggedIn:true,subscription:true}}));
  });
  const sourceId=contentKey(bytes);
  await page.evaluate(async id=>{
   localStorage.setItem('folio:ai-provider','claude');
   const db=await new Promise((resolve,reject)=>{const req=indexedDB.open('folio');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+
   try{await new Promise((resolve,reject)=>{const tx=db.transaction(['notes','ai'],'readwrite');
    tx.objectStore('notes').put({id,note:'SYNTHETIC LOCAL NOTE',bookmarkedPages:[2],marks:[],updatedAt:Date.now()});
    tx.objectStore('ai').put({id,messages:[{role:'user',content:'SYNTHETIC SAVED CHAT'}],updatedAt:Date.now()});
    tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error);
   });}finally{db.close();}
  },sourceId);
+
  const stored=async id=>page.evaluate(async id=>{
   const db=await new Promise((resolve,reject)=>{const req=indexedDB.open('folio');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+
   try{return await new Promise((resolve,reject)=>{const tx=db.transaction(['notes','ai']);const notes=tx.objectStore('notes').get(id),ai=tx.objectStore('ai').get(id);
    tx.oncomplete=()=>resolve({note:notes.result?.note,bookmarks:notes.result?.bookmarkedPages,marks:notes.result?.marks.length,chat:ai.result?.messages[0]?.content});tx.onabort=()=>reject(tx.error);
   });}finally{db.close();}
  },id);
+
  const open=async file=>{await app.evaluate(({app},file)=>app.emit('open-file',{preventDefault(){}},file),file);await page.window.waitForFunction(name=>document.title===name+' — Doko',path.basename(file));await page.waitForFunction(()=>document.querySelector('.textLayer')?.textContent.includes('SYNTHETIC'));};
+
  await open(input);
- const sidebar=page.getByRole('button',{name:/Toggle sidebar/});if(await sidebar.getAttribute('aria-pressed')==='false')await sidebar.click();
+ const sidebar=page.getByRole('button',{name:/Toggle sidebar/});
+
+if(await sidebar.getAttribute('aria-pressed')==='false')await sidebar.click();
  await page.getByRole('tab',{name:/^Notes/}).click();
  const note=()=>page.getByRole('textbox',{name:'Notes about this document'});assert.equal(await note().inputValue(),'SYNTHETIC LOCAL NOTE');
  await page.evaluate(()=>{
@@ -52,13 +70,18 @@ try {
   const range=document.createRange();range.selectNodeContents(span);const selection=document.getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange'));
  });
  await page.getByRole('dialog',{name:'Selected text',exact:true}).waitFor();await page.getByRole('button',{name:'Highlight yellow',exact:true}).click();await page.locator('.highlightEditor').first().waitFor();
+
  const save=async (target,action=()=>page.keyboard.press('ControlOrMeta+s'))=>{
   const before=await app.evaluate(()=>globalThis.pdfSaveCount);await app.evaluate((_,target)=>globalThis.pdfSaves.push(target),target);
   await action();
+
   for(let tries=0;await app.evaluate(()=>globalThis.pdfSaveCount)===before;tries++){assert.ok(tries<100,'native Save dialog did not open');await new Promise(resolve=>setTimeout(resolve,100));}
+
   await page.waitForFunction(()=>!document.querySelector('.topbar-center[inert]'));
+
   for(let tries=0;target&&!existsSync(target);tries++){assert.ok(tries<100,'native export did not reach disk');await new Promise(resolve=>setTimeout(resolve,50));}
  };
+
  await save(null);assert.equal(await note().inputValue(),'SYNTHETIC LOCAL NOTE');
  assert.equal(await page.window.locator('iframe.document-reader').count(),1,'cancelled save changed active document');
  await save(output);

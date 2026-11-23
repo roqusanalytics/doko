@@ -8,27 +8,38 @@ import { PDFDict, PDFDocument, PDFName, PDFNumber, PDFString, degrees } from "pd
 const root = path.resolve(import.meta.dirname, "..");
 const server = await createServer({ root, server: { middlewareMode: true }, appType: "custom" });
 const key = PDFName.of;
+
 const marker = (pdf, page, text) => {
   const annotation = pdf.context.obj({ Type: "Annot", Subtype: "Text", Rect: [5, 5, 25, 25], Contents: PDFString.of(text), P: page.ref });
   page.node.addAnnot(pdf.context.register(annotation));
 };
+
 const outlines = (pdf, targets) => {
   const outline = pdf.context.obj({ Type: "Outlines", Count: targets.length });
   const outlineRef = pdf.context.register(outline);
+
   const items = targets.map((page, index) => {
     const node = pdf.context.obj({ Title: PDFString.of(`Bookmark ${index + 1}`), Parent: outlineRef, Dest: [page.ref, "Fit"] });
+
     return { node, ref: pdf.context.register(node) };
   });
-  items.forEach(({ node }, index) => { if (index) node.set(key("Prev"), items[index - 1].ref); if (index + 1 < items.length) node.set(key("Next"), items[index + 1].ref); });
+
+  items.forEach(({ node }, index) => { if (index) node.set(key("Prev"), items[index - 1].ref);
+
+ if (index + 1 < items.length) node.set(key("Next"), items[index + 1].ref); });
   outline.set(key("First"), items[0].ref); outline.set(key("Last"), items.at(-1).ref);
   pdf.catalog.set(key("Outlines"), outlineRef);
 };
+
 const pageTitles = pdf => {
   const result = [];
   let current = pdf.context.lookup(pdf.catalog.get(key("Outlines")))?.get(key("First"));
+
   while (current) { const node = pdf.context.lookup(current); result.push([node.get(key("Title")).decodeText(), String(pdf.context.lookup(node.get(key("Dest")))?.get(0))]); current = node.get(key("Next")); }
+
   return result;
 };
+
 try {
   const { changePdfPages, inspectPdfPages } = await server.ssrLoadModule("/src/pdfPages.ts");
   const { inspectPdfPagesInWorker, changePdfPagesInWorker } = await server.ssrLoadModule("/src/pdfPagesWorker.ts");
@@ -39,6 +50,7 @@ try {
     postMessage(...args) { this.input = args; }
     terminate() { this.terminated = true; }
   };
+
   try {
     const input = new Uint8Array([1, 2, 3]), abort = new AbortController();
     const pending = changePdfPagesInWorker(input, { type: "rotate", pages: [0] }, abort.signal);
@@ -55,16 +67,22 @@ try {
     await assert.rejects(failed, /processing failed/); assert.equal(workers.at(-1).terminated, true);
     const setTimer = globalThis.setTimeout;
     let expire, duration, timed;
+
     try {
-      globalThis.setTimeout = (callback, ms) => { expire = callback; duration = ms; return 0; };
+      globalThis.setTimeout = (callback, ms) => { expire = callback; duration = ms;
+
+ return 0; };
+
       timed = inspectPdfPagesInWorker(input, new AbortController().signal);
     } finally { globalThis.setTimeout = setTimer; }
+
     assert.equal(duration, 60000); expire();
     await assert.rejects(timed, /timed out/); assert.equal(workers.at(-1).terminated, true);
     const before = workers.length;
     await assert.rejects(() => inspectPdfPagesInWorker(input, abort.signal), /in-flight abort/);
     assert.equal(workers.length, before, "pre-aborted request created a worker");
   } finally { globalThis.Worker = NativeWorker; }
+
   const original = await PDFDocument.create();
   original.addPage([300, 500]); original.addPage([500, 300]); original.addPage([150, 200]).setRotation(degrees(90));
   marker(original, original.getPage(1), "Surviving note");
@@ -114,9 +132,11 @@ try {
   assert.equal(inserted.getForm().getTextField("Keep field").getText(), "Keep value");
   assert.deepEqual(bytes, unchanged, "operation mutated original/Undo snapshot");
   assert.equal((await PDFDocument.load(bytes)).getPageCount(), 3, "Undo snapshot cannot restore pages");
+
   for (const bad of [new Uint8Array(), new TextEncoder().encode("broken"), new TextEncoder().encode("%PDF-1.7\ntruncated")]) await assert.rejects(() => inspectPdfPages(bad), /empty|valid|damaged/);
   await assert.rejects(() => inspectPdfPages({ byteLength: 301 * 1024 * 1024 }), /300 MB/);
   await assert.rejects(() => changePdfPages(bytes, { type: "delete", pages: [0, 1, 2] }), /at least one/);
+
   for (const pages of [[], [-1], [3], [NaN]]) await assert.rejects(() => changePdfPages(bytes, { type: "delete", pages }), /existing pages/);
   await assert.rejects(() => changePdfPages(bytes, { type: "blank", index: 9, matchPage: 0 }), /insertion position/);
   await assert.rejects(() => changePdfPages(bytes, { type: "blank", index: 0, matchPage: -1 }), /page size/);
@@ -169,13 +189,16 @@ try {
   const brandbook = new Uint8Array(readFileSync(path.join(root, "brand/doko/brandbook.pdf")));
   const brandbookCount = await inspectPdfPages(brandbook);
   assert.equal((await PDFDocument.load(await changePdfPages(brandbook, { type: "delete", pages: [0] }))).getPageCount(), brandbookCount - 1);
+
   for (const importedBytes of [sample, brandbook]) {
     const importedCount = await inspectPdfPages(importedBytes);
     const merged = await PDFDocument.load(await changePdfPages(bytes, { type: "insert", index: 1, bytes: importedBytes }));
     assert.equal(merged.getPageCount(), 3 + importedCount);
     assert.equal(merged.context.enumerateIndirectObjects().filter(([, object]) => object instanceof PDFDict && object.get(key("Type")) === key("Page")).length, merged.getPageCount(), "import created detached page copies");
+
     for (const page of merged.getPages().slice(1, importedCount + 1)) assert.equal(page.node.has(key("StructParents")), false, "imported tag index still points into source structure tree");
   }
+
   const linked = await PDFDocument.create(); linked.addPage([320, 140]); linked.addPage([140, 320]);
   linked.catalog.set(key("Dests"), linked.context.obj({ legacy: [linked.getPage(1).ref, "Fit"] }));
   linked.catalog.set(key("Names"), linked.context.obj({ Dests: { Names: [PDFString.of("modern"), { D: [linked.getPage(0).ref, "Fit"] }] } }));
@@ -204,6 +227,7 @@ if (process.argv.includes("--ui")) {
   const shots = path.join(root, "release/smoke"); mkdirSync(shots, { recursive: true });
   const env = { ...process.env, FOLIO_TEST_USER_DATA: temp, FOLIO_TEST_HIDDEN: "1" }; delete env.ELECTRON_RUN_AS_NODE;
   const app = await electron.launch({ executablePath: electronPath(env), env, args: [root, "--mute-audio", ...(process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : [])], timeout: 60_000 });
+
   try {
     const page = readerPage(await app.firstWindow());
     const errors = []; page.on("pageerror", error => errors.push(String(error)));
@@ -212,15 +236,19 @@ if (process.argv.includes("--ui")) {
     const initial = Number((await page.locator(".page-total").innerText()).replace(/\D/g, ""));
     await page.locator(".sidebar-scroll").evaluate(element => { element.scrollTop = element.scrollHeight; });
     const bookmark = page.getByRole("button", { name: `Bookmark page ${initial}`, exact: true });
+
     if (await bookmark.getAttribute("aria-pressed") !== "true") await bookmark.click();
+
     const open = async (count = initial) => {
       await page.getByRole("button", { name: "More", exact: true }).click();
       await page.getByRole("menuitem", { name: "Organize pages…", exact: true }).click();
       await ready(count);
     };
+
     const dialog = page.getByRole("dialog", { name: "Manage pages", exact: true });
     const ready = async count => page.waitForFunction(count => document.querySelectorAll(".pdf-pages-page").length === count && [...document.querySelectorAll(".pdf-pages-tools button")].some(button => button.textContent === "Blank page" && !button.disabled), count);
     const check = async count => { await ready(count); assert.equal(await dialog.getByRole("checkbox").count(), count); };
+
     await open();
     assert.equal(await dialog.getByRole("button", { name: "Apply changes" }).isDisabled(), true);
     await dialog.getByRole("button", { name: "Blank page", exact: true }).click(); await check(initial + 1);
@@ -237,16 +265,22 @@ if (process.argv.includes("--ui")) {
       const send = Worker.prototype.postMessage;
       window.previewReloadEnabled = [];
       window.restorePreviewWorker = () => { Worker.prototype.postMessage = send; };
+
       Worker.prototype.postMessage = function(message, ...options) {
         if (message?.bytes && message.change === undefined) {
           window.previewReloadEnabled.push([...document.querySelectorAll(".pdf-pages-tools button")]
             .some(button => button.textContent === "Blank page" && !button.disabled));
         }
+
         return send.call(this, message, ...options);
       };
     });
     await dialog.getByRole("button", { name: "Rotate 90°", exact: true }).click(); await check(initial);
-    const reloadEnabled = await page.evaluate(() => { window.restorePreviewWorker(); return window.previewReloadEnabled; });
+
+    const reloadEnabled = await page.evaluate(() => { window.restorePreviewWorker();
+
+ return window.previewReloadEnabled; });
+
     assert.ok(reloadEnabled.length > 0, "Rotation must inspect the changed PDF");
     assert.ok(reloadEnabled.every(enabled => !enabled), "Old page controls must stay disabled when preview reload starts");
     await dialog.getByRole("button", { name: "Undo", exact: true }).click(); await check(initial);
@@ -270,7 +304,9 @@ if (process.argv.includes("--ui")) {
     await page.window.setViewportSize({ width: 390, height: 844 });
     await page.waitForFunction(() => window.innerWidth <= 390);
     assert.equal(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth), true, "page dialog overflows narrow screen");
-    assert.equal(await dialog.getByRole("button", { name: "Apply changes", exact: true }).evaluate(element => { const box = element.getBoundingClientRect(); return box.top >= 0 && box.bottom <= innerHeight; }), true, "Apply action is outside the mobile viewport");
+    assert.equal(await dialog.getByRole("button", { name: "Apply changes", exact: true }).evaluate(element => { const box = element.getBoundingClientRect();
+
+ return box.top >= 0 && box.bottom <= innerHeight; }), true, "Apply action is outside the mobile viewport");
     await page.screenshot({ path: path.join(shots, "pdf-pages-mobile.png") });
     await dialog.getByRole("button", { name: "Apply changes", exact: true }).click();
     await page.waitForFunction(count => !document.querySelector('[role="dialog"][aria-label="Manage pages"]') && document.querySelector(".page-total")?.textContent === `of ${count}`, initial + 1);
@@ -310,7 +346,10 @@ if (process.argv.includes("--ui")) {
       window.__pageWorkers = [];
       window.Worker = class extends NativeWorker {
         constructor(url, options) {
-          if (!String(url).includes("pdfPages.worker")) { super(url, options); return; }
+          if (!String(url).includes("pdfPages.worker")) { super(url, options);
+
+ return; }
+
           const script = URL.createObjectURL(new Blob([`import ${JSON.stringify(String(url))}; const handle = self.onmessage; self.onmessage = event => { self.postMessage({ testStarted: true }); return handle(event); };`], { type: "text/javascript" }));
           super(script, options); URL.revokeObjectURL(script);
           const record = { started: false, terminated: false }; window.__pageWorkers.push(record);
@@ -322,6 +361,7 @@ if (process.argv.includes("--ui")) {
     });
     await open(2 + initial);
     const heavy = await PDFDocument.create(); heavy.addPage();
+
     for (let index = 0; index < 60000; index++) heavy.context.register(heavy.context.obj({ Stress: index, Value: PDFString.of("worker abort fixture") }));
     await dialog.locator('input[type="file"]').setInputFiles({ name: "heavy.pdf", mimeType: "application/pdf", buffer: Buffer.from(await heavy.save({ useObjectStreams: false })) });
     await page.waitForFunction(() => window.__pageWorkers.at(-1)?.started && !window.__pageWorkers.at(-1).terminated);
@@ -336,6 +376,7 @@ if (process.argv.includes("--ui")) {
     await dialog.getByRole("button", { name: "Undo", exact: true }).click(); await check(2 + initial);
     await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
     const many = await PDFDocument.create();
+
     for (let index = 0; index < 120; index++) many.addPage([300, 400]);
     await app.evaluate(({ BrowserWindow }, bytes) => BrowserWindow.getAllWindows()[0].webContents.send("folio:open-file", { name: "Thumbnail lifecycle.pdf", data: Buffer.from(bytes) }), [...await many.save()]);
     await page.window.waitForFunction(() => document.title.startsWith("Thumbnail lifecycle.pdf"));
@@ -346,13 +387,17 @@ if (process.argv.includes("--ui")) {
     await page.waitForFunction(() => window.__firstThumbnail.width === 0 && !window.__firstThumbnail.isConnected);
     assert.ok(await dialog.locator("canvas").count() < 60, "offscreen thumbnail canvases accumulated");
     await dialog.locator(".pdf-pages-grid").evaluate(grid => { grid.scrollTop = 0; });
-    await page.waitForFunction(() => { const canvas = document.querySelector(".pdf-pages-page canvas"); return canvas && canvas !== window.__firstThumbnail && canvas.width > 0; });
+    await page.waitForFunction(() => { const canvas = document.querySelector(".pdf-pages-page canvas");
+
+ return canvas && canvas !== window.__firstThumbnail && canvas.width > 0; });
+
     for (let index = 0; index < 4; index++) {
       await dialog.locator(".pdf-pages-grid").evaluate(grid => { grid.scrollTop = grid.scrollHeight; });
       await page.waitForTimeout(20);
       await dialog.locator(".pdf-pages-grid").evaluate(grid => { grid.scrollTop = 0; });
       await page.waitForTimeout(20);
     }
+
     await page.waitForFunction(() => document.querySelector(".pdf-pages-page canvas")?.width > 0);
     assert.equal(await dialog.getByText("Preview unavailable", { exact: true }).count(), 0, "thumbnail reentry failed");
     await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
