@@ -40,7 +40,7 @@ import { AiPanel, flushAiHistory, stopAiForClose, type AiContext } from "./AiPan
 import { readAiDocumentText } from "./aiDocumentText";
 import { ZoomMenu } from "./ZoomMenu";
 import { SearchBar, type FindResult } from "./SearchBar";
-import { AboutDialog, InfoDialog, OpenUrlDialog, PasswordDialog, ShortcutsDialog } from "./Dialogs";
+import { AboutDialog, InfoDialog, Modal, OpenUrlDialog, PasswordDialog, ShortcutsDialog } from "./Dialogs";
 import { SignatureDialog } from "./SignatureDialog";
 import { ContentEditor, type ContentEditorHandle, type NextSelection } from "./ContentEditor";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
@@ -268,8 +268,11 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     onError: setError,
     onPrepareError: () => { if (docRef.current === doc) setError("Couldn't print this document."); },
   });
-  const [dialog, setDialog] = useState<"info" | "shortcuts" | "about" | "url" | "settings" | "ai-settings" | "changelog" | "upgrade" | null>(
+  const [dialog, setDialog] = useState<"info" | "shortcuts" | "about" | "url" | "settings" | "ai-settings" | "changelog" | "upgrade" | "close" | null>(
     upgradeNotes.length ? "upgrade" : null);
+  const closeAnswer = useRef<((answer: boolean) => void) | null>(null);
+  const answerClose = (answer: boolean) => { setDialog(null); const resolve = closeAnswer.current; closeAnswer.current = null; resolve?.(answer); };
+  useEffect(() => () => closeAnswer.current?.(false), []);
   // A pasted or dropped link waits in Open from URL, so the user sees where it goes before Doko contacts it.
   const [linkDraft, setLinkDraft] = useState("");
   const openUrlDialog = useCallback((link = "") => { setLinkDraft(link); setDialog("url"); }, []);
@@ -1194,7 +1197,8 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       if (current) await flushAiHistory(current.sourceId ?? current.id);
       documentState.setAiStorageError(false);
     };
-    tabs.bind(tabKey, { open: source => { void open(source); }, flush, suspend: async () => {
+    tabs.bind(tabKey, { open: source => { void open(source); }, flush, canClose: async () => documentState.getState().unsaved
+      ? new Promise<boolean>(resolve => { closeAnswer.current?.(false); closeAnswer.current = resolve; setDialog("close"); }) : true, suspend: async () => {
       const current = docRef.current;
       // Reopen only documents whose bytes and reading data are already recoverable.
       // Native save locations belong to this reader; keep it alive until those capabilities can be restored.
@@ -1933,6 +1937,19 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       </Suspense>}
       {printCopy && <PrintDialog pdf={printCopy.pdf} currentPage={printCopy.page} name={printCopy.name}
         onPrint={() => { printPdfBytes(printCopy.bytes); setPrintCopy(null); }} onClose={() => setPrintCopy(null)} />}
+      {dialog === "close" && <Modal title="Unsaved changes" onClose={() => { if (!fileBusy) answerClose(false); }}>
+        <div className="password-form">
+          <p>{`Save a copy of “${doc?.photoName ?? doc?.name ?? ""}” with your changes before closing? The original file is not changed.`}</p>
+          {(photoExportError?.message ?? error) && <p className="form-error" role="alert">{photoExportError?.message ?? error}</p>}
+          <div className="form-actions">
+            <button className="btn ghost" autoFocus disabled={fileBusy} onClick={() => answerClose(false)}>Cancel</button>
+            <button className="btn ghost" disabled={fileBusy} onClick={() => answerClose(true)}>Discard</button>
+            <button className="btn primary" disabled={fileBusy} onClick={() => void (gallery ? exportPhoto("save") : download(false)).then(() => {
+              if (!documentState.getState().unsaved) answerClose(true);
+            })}>{fileBusy ? "Saving…" : "Save copy"}</button>
+          </div>
+        </div>
+      </Modal>}
       {dialog === "shortcuts" && <ShortcutsDialog onClose={() => setDialog(null)} />}
       {dialog === "about" && <AboutDialog onClose={() => setDialog(null)} />}
       {(dialog === "settings" || dialog === "ai-settings") && <SettingsDialog initialSection={dialog === "ai-settings" ? "Ask AI" : "General"}

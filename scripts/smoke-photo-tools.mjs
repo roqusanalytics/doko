@@ -75,10 +75,10 @@ try {
   await sheet.locator('.freeTextEditor .internal[contenteditable="true"]').fill("Photo annotation");
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await switchTo("photo2.png");
-  await page.window.evaluate(() => { window.photoCloseQuestions = []; window.confirm = message => { window.photoCloseQuestions.push(message); return false; }; });
   await page.keyboard.press("ControlOrMeta+w");
-  await page.window.waitForFunction(() => window.photoCloseQuestions.length === 1);
-  assert.match(await page.window.evaluate(() => window.photoCloseQuestions[0]), /discard|unsaved/i);
+  const unsaved = page.getByRole("dialog", { name: "Unsaved changes", exact: true });
+  await unsaved.getByRole("button", { name: "Cancel", exact: true }).click();
+  await unsaved.waitFor({ state: "detached" });
   await switchTo("photo1.png");
   await page.getByRole("button", { name: "Text", exact: true }).click();
   await sheet.locator('.freeTextEditor', { hasText: "Photo annotation" }).waitFor();
@@ -198,10 +198,9 @@ try {
   assert.equal(await page.getByRole("textbox", { name: "Notes about this document", exact: true }).inputValue(), "");
   await page.getByRole("tab", { name: "Pages", exact: true }).click();
   assert.equal(await page.getByRole("button", { name: "Bookmark page 1", exact: true }).getAttribute("aria-pressed"), "false");
-  await page.window.evaluate(() => { window.photoCloseQuestions = []; });
   await page.keyboard.press("ControlOrMeta+w");
-  await page.window.waitForFunction(() => window.photoCloseQuestions.length === 1);
-  assert.match(await page.window.evaluate(() => window.photoCloseQuestions[0]), /discard|unsaved/i, "clearing metadata lost the unsaved photo warning");
+  await unsaved.getByRole("button", { name: "Cancel", exact: true }).click();
+  await unsaved.waitFor({ state: "detached" });
   // Leaving the photo flushes metadata writes before checking that storage stays empty.
   await switchTo("photo2.png"); await switchTo("photo1.png");
   assert.equal(await page.evaluate(() => new Promise((resolve, reject) => {

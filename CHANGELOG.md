@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.22.3
+
+- Closing a PDF or photo with unsaved changes now asks in Doko's own dialog, with Save copy, Discard and Cancel.
+- Internal cleanup of how Doko saves copies, keeps bookmarks in order and clears Ask AI conversations; nothing changes in how they work.
+
 ## 1.22.2
 
 - Stopping an Ask AI answer before its first word no longer leaves "Thinking" showing in a PDF chat.

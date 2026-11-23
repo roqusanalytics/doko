@@ -56,9 +56,10 @@ try {
  await page.getByRole('button',{name:'Retry saving notes',exact:true}).waitFor();
  mkdirSync(path.join(root,'release/smoke'),{recursive:true});
  await page.screenshot({path:path.join(root,'release/smoke/storage-recovery.png')});
- await window.evaluate(()=>{window.confirm=()=>true;});
+ const discard=()=>page.getByRole('dialog',{name:'Unsaved changes',exact:true}).getByRole('button',{name:'Discard',exact:true}).click();
  await page.getByRole('button',{name:'More',exact:true}).click();
  await page.getByRole('menuitem',{name:/^Close document/}).click();
+ await discard();
  await page.getByRole('button',{name:'Retry saving notes',exact:true}).waitFor();
  assert.equal(await note.inputValue(),'KEEP THIS UNSAVED NOTE');
  await page.evaluate(()=>{window.storageTest.failWrite='';});
@@ -83,9 +84,9 @@ try {
  await page.getByText('RESTORED CHAT HISTORY',{exact:true}).waitFor();
  await page.getByText("Couldn't save this conversation. Your messages are still available here.",{exact:true}).waitFor();
  await page.getByRole('button',{name:'Close Ask AI',exact:true}).click();
- await window.evaluate(()=>{window.confirm=()=>true;});
  await page.getByRole('button',{name:'More',exact:true}).click();
  await page.getByRole('menuitem',{name:/^Close document/}).click();
+ await discard();
  await page.getByRole('button',{name:'Ask AI',exact:true}).click();
  await page.getByText('RESTORED CHAT HISTORY',{exact:true}).waitFor();
  await page.evaluate(()=>{window.storageTest.failWrite='';});
