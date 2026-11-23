@@ -4,10 +4,9 @@ import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import type { Element, Root } from "hast";
-import { AiPanel, flushAiHistory, forgetClearedChats, stopAiForClose, type AiContext } from "./AiPanel";
+import { AiPanel, flushAiHistory, stopAiForClose, type AiContext } from "./AiPanel";
 import { MAX_DOC_CHARS } from "./aiDocumentText";
 import { locateMarkdownEdits, STALE_MARKDOWN_EDIT, type MarkdownEdit } from "./markdownAiEdits";
-import { onStoredDataCleared } from "./recent";
 import { IconButton } from "./IconButton";
 import { useFileCommands } from "./fileCommands";
 import { MoreMenu } from "./MoreMenu";
@@ -172,17 +171,8 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
   const [aiOpen, setAiOpen] = useState(false);
   const [aiSettings, setAiSettings] = useState(false);
   const [aiSelection, setAiSelection] = useState<AiContext | null>(null);
-  const [chatGeneration, setChatGeneration] = useState(0);
   const chatId = doc.aiHistoryKey ? `markdown:${doc.aiHistoryKey}` : undefined;
   const active = tabs.active === tabKey;
-  useEffect(() => {
-    if (!chatId) return;
-    return onStoredDataCleared((category, generation) => {
-      if (category !== "ai") return;
-      forgetClearedChats(generation);
-      setChatGeneration(current => Math.max(current, generation));
-    });
-  }, [chatId]);
   const state = useRef({ doc, text, saved });
   state.current = { doc, text, saved };
   const markdownText = useCallback(() => state.current.text, []);
@@ -480,7 +470,7 @@ export default function ContentReader({ tabs, tabKey, initial }: { tabs: Documen
         }} renderPreview={plain || sheet ? undefined : svg ? () => <SvgView image={svgImage} name={doc.name} /> : (headingIds, reveal) => <MarkdownPreview doc={doc} text={text} headingIds={headingIds} reveal={reveal} />} />
       </>}
       </div>
-      {chatId && active && aiOpen && <AiPanel key={`${chatId}:${chatGeneration}`}
+      {chatId && active && aiOpen && <AiPanel key={chatId}
         documentContext={{ kind: "markdown", name: doc.name, displayName: doc.name, readText: readAiText, selection: aiSelection }}
         docId={chatId} persist onClearContext={() => setAiSelection(null)}
         markdownEditing={{ readText: markdownText, apply: applyAiEdits, readOnly: !!doc.readOnly }}

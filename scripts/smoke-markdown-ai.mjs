@@ -271,6 +271,21 @@ try {
   await toggle().click();
   await panel.getByText("Edits discarded", { exact: true }).waitFor();
   assert.equal(await panel.getByText("Edits applied", { exact: true }).count(), 2);
+  await page.getByRole("button", { name: "New tab", exact: true }).click();
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("menuitem", { name: /^Settings/ }).click();
+  await settings.getByRole("button", { name: "Storage", exact: true }).click();
+  const stored = settings.locator(".stored-data");
+  await stored.locator("summary").click();
+  await stored.getByRole("button", { name: "Clear chats…", exact: true }).click();
+  await stored.getByRole("alertdialog").getByRole("button", { name: "Clear chats", exact: true }).click();
+  await stored.getByRole("alertdialog").waitFor({ state: "detached" });
+  await settings.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("tab", { name: "Launch plan.md", exact: true }).click();
+  await panel.waitFor();
+  assert.equal(await panel.getByText("Edits discarded", { exact: true }).count(), 0, "a cleared chat came back in the Markdown reader");
+  assert.equal(await panel.getByText("Edits applied", { exact: true }).count(), 0, "a cleared chat came back in the Markdown reader");
+  console.log("ok  Settings → Clear chats removes the Markdown reader's Ask AI chat");
 
   await fileOpen(readOnlyFile);
   await preview().getByRole("heading", { name: "Launch plan", exact: true }).waitFor();

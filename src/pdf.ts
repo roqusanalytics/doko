@@ -10,6 +10,10 @@ const base = `${import.meta.env.BASE_URL}pdfjs/`;
 
 export type { PDFDocumentProxy };
 
+// Blob copies the bytes itself, so no copy is made here. (The cast: BlobPart rules out views over a
+// SharedArrayBuffer, which pdf.js never hands out, but its types don't say so.)
+export const pdfBlob = (bytes: Uint8Array) => new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "application/pdf" });
+
 export async function loadPdf(data: Uint8Array, signal: AbortSignal, password?: string) {
   checkPdfSize(data.byteLength);
   signal.throwIfAborted();

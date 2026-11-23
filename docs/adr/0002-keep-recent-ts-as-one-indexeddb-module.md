@@ -21,3 +21,9 @@ callers' interface would not get smaller. What did need fixing was smaller: loca
 - One file to read for anything stored in IndexedDB, at the cost of a name narrower than what it holds.
 - Revisit this when a second database appears, or when another reader needs its own reaction to cleared data and the
   reactions now spread across `App.tsx`, `ContentReader.tsx` and `CanvasReader.tsx` start to drift.
+
+## Update, 2026-11-23
+
+The reaction to cleared AI chats now lives in one place, `src/AiPanel.tsx`: it drops the kept conversations and
+restarts any open panel, for every reader. `App.tsx` still clears its AI save error itself, and the reaction to cleared
+annotations stays in `App.tsx`. The decision above is unchanged.

@@ -3,7 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExtern
 import { createPortal } from "react-dom";
 import { Icon } from "./icons";
 import { copyText } from "./clipboard";
-import { getAiHistory, saveAiHistory, type StoredAiMessage } from "./recent";
+import { getAiHistory, onStoredDataCleared, saveAiHistory, type StoredAiMessage } from "./recent";
 import { ProviderLogo } from "./ProviderLogo";
 import { ModelMenu, type ModelGroup } from "./ModelMenu";
 import { CLAUDE_CODE_URL, PROVIDERS, savedProvider, saveAiPreference, signInChatGPT, subscribeAiPreferences, USAGE_URL, type AiProvider } from "./ai";
@@ -46,11 +46,23 @@ const closingChats = new Map<string, () => void>();
 export function stopAiForClose(id: string) { closingChats.get(id)?.(); }
 const conversations = new Map<string, { messages: Message[]; generation: number; persist: boolean }>();
 let lastChatClear = 0;
-export function forgetClearedChats(generation: number) {
-  lastChatClear = Math.max(lastChatClear, generation);
-  for (const [id, chat] of conversations) {
-    if (chat.persist && chat.generation < generation) conversations.delete(id);
+const chatClearListeners = new Set<() => void>();
+let listeningForClears = false;
+// Starts with the first panel and stays for the window's life, so chats kept for closed panels are dropped too.
+function subscribeChatClear(listener: () => void) {
+  if (!listeningForClears) {
+    listeningForClears = true;
+    onStoredDataCleared((category, generation) => {
+      if (category !== "ai") return;
+      lastChatClear = Math.max(lastChatClear, generation);
+      for (const [id, chat] of conversations) {
+        if (chat.persist && chat.generation < generation) conversations.delete(id);
+      }
+      for (const notify of chatClearListeners) notify();
+    });
   }
+  chatClearListeners.add(listener);
+  return () => { chatClearListeners.delete(listener); };
 }
 
 function rememberChat(id: string, persist: boolean, messages: Message[], generation: number) {
@@ -169,7 +181,13 @@ interface Props {
   onSaveError?: (failed: boolean) => void;
 }
 
-export function AiPanel({ documentContext, docId, persist, onClearContext, onGoToPage, onDrawingReply, markdownEditing, onSettings, onClose, onSaveError }: Props) {
+export function AiPanel(props: Props) {
+  const cleared = useSyncExternalStore(subscribeChatClear, () => lastChatClear);
+  // Clearing saved chats restarts the panel empty. A protected document's chat was never saved, so it stays.
+  return <ChatPanel key={props.persist ? cleared : 0} {...props} />;
+}
+
+function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage, onDrawingReply, markdownEditing, onSettings, onClose, onSaveError }: Props) {
   const { kind, name, displayName, readText, selection: context } = documentContext;
   const ai = window.folioDesktop?.ai;
   const markdownText = markdownEditing?.readText;

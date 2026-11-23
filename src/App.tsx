@@ -1,4 +1,4 @@
-import { DocumentState } from "./documentState";
+import { bookmarksInOrder, DocumentState } from "./documentState";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   EventBus,
@@ -9,8 +9,9 @@ import {
   SpreadMode,
 } from "./viewer";
 import { AnnotationEditorParamsType, AnnotationEditorType } from "pdfjs-dist";
-import { loadPdf, copyPdfPages, thumbnailDataUrl, type PDFDocumentProxy } from "./pdf";
-import { contentKey, copySavedPdfData, getAiHistory, getRecent, MAX_RECENT_FILE_BYTES, onStoredDataCleared, removeRecent, saveRecent, updateLastPage } from "./recent";
+import { loadPdf, copyPdfPages, pdfBlob, thumbnailDataUrl, type PDFDocumentProxy } from "./pdf";
+import { changesForCopy, recordPdfSave } from "./pdfCopy";
+import { contentKey, getRecent, MAX_RECENT_FILE_BYTES, onStoredDataCleared, removeRecent, saveRecent, updateLastPage } from "./recent";
 import { readPdfBlob, readPdfResponse } from "./pdfInput";
 import { FIT_SCALES, flushViews, readView, writeView, type ReadingView } from "./session";
 import { DocumentTabBar } from "./DocumentTabBar";
@@ -35,7 +36,7 @@ import { ImageMenu, ImageViewer, type ImageTarget } from "./ImageViewer";
 import { MoreMenu, type MoreItem } from "./MoreMenu";
 import { OpenDocumentMenu } from "./OpenDocumentMenu";
 import { IS_MAC, keys } from "./platform";
-import { AiPanel, forgetClearedChats, flushAiHistory, stopAiForClose, type AiContext } from "./AiPanel";
+import { AiPanel, flushAiHistory, stopAiForClose, type AiContext } from "./AiPanel";
 import { readAiDocumentText } from "./aiDocumentText";
 import { ZoomMenu } from "./ZoomMenu";
 import { SearchBar, type FindResult } from "./SearchBar";
@@ -43,7 +44,7 @@ import { AboutDialog, InfoDialog, OpenUrlDialog, PasswordDialog, ShortcutsDialog
 import { SignatureDialog } from "./SignatureDialog";
 import { ContentEditor, type ContentEditorHandle, type NextSelection } from "./ContentEditor";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
-import { saveVersion, type PdfChange } from "./versionHistory";
+import type { PdfChange } from "./versionHistory";
 import { SettingsDialog } from "./SettingsDialog";
 import { UpdateButton } from "./UpdateButton";
 import { ChangelogDialog } from "./ChangelogDialog";
@@ -132,22 +133,11 @@ interface OpenDoc {
 /** What App keeps with an operation undo to restore the reading position and details. */
 type UndoDetails = { reading: Pick<MarkupState, "note" | "bookmarkedPages">; pageMap: number[]; view: ReadingView; autoFit: boolean };
 
-function changesForCopy(doc: OpenDoc, annotated: boolean, order?: number[]) {
-  const changes = [...(doc.edits?.changes ?? [])];
-  if (annotated && !changes.some(change => change.kind === "annotations")) changes.push({ kind: "annotations" });
-  if (order) changes.push({ kind: "pages", order });
-  return changes;
-}
-
 interface Pending {
   name: string;
   data: Uint8Array;
   error?: string;
 }
-
-// Blob copies the bytes itself, so no copy is made here. (The cast: BlobPart rules out views over a
-// SharedArrayBuffer, which pdf.js never hands out, but its types don't say so.)
-const pdfBlob = (bytes: Uint8Array) => new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "application/pdf" });
 
 function saveBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -197,13 +187,10 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const [documentState] = useState(() => new DocumentState(!!initialGallery));
   const { dirty, editorDirty, pageDraft, pageOrder, storageError, aiStorageError, photos, currentPhotoDirty, unsaved, copyName, operationUndo, canUndoOperation } =
     useSyncExternalStore(documentState.subscribe, documentState.getState);
-  const [chatGeneration, setChatGeneration] = useState(0);
   const [notesGeneration, setNotesGeneration] = useState(0);
   useEffect(() => onStoredDataCleared((category, generation) => {
     if (category === "ai") {
-      forgetClearedChats(generation);
       documentState.setAiStorageError(false);
-      setChatGeneration(current => Math.max(current, generation));
     } else if (category === "notes") {
       markupRef.current?.clearSaved(generation);
       documentState.forgetPhotoReadings();
@@ -518,10 +505,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         const next: OpenDoc = { id, saveKey: previous?.saveKey ?? id, name, size: data.byteLength, pdf, password, sourceId: revision?.sourceId ?? revision?.id, historyAllowed: historyAllowed && !galleryRef.current, edits, photoName: revision?.photoName ?? galleryRef.current?.selected, photoKey: revision?.photoKey ?? photoKeys.current.get(galleryRef.current?.selected ?? "") };
         // Password-protected documents aren't stored by Doko (same rule as Recent).
         const reading = readingOverride ?? (revision || exported && (!window.folioDesktop || exported.password) ? markupRef.current!.state : exported ? undefined : documentState.getState().photos?.drafts.get(galleryRef.current?.selected ?? "")?.reading as Pick<MarkupState, "note" | "bookmarkedPages"> | undefined);
-        if (reading?.bookmarkedPages && exportedOrder) {
-          const bookmarks = new Set(reading.bookmarkedPages);
-          reading.bookmarkedPages = exportedOrder.flatMap((n, i) => bookmarks.has(n) ? [i + 1] : []);
-        }
+        if (reading?.bookmarkedPages && exportedOrder) reading.bookmarkedPages = bookmarksInOrder(reading.bookmarkedPages, exportedOrder);
         const persist = !password && !revision && !galleryRef.current;
         await markupRef.current!.load(next.photoKey ?? id, next.photoKey ? "reading" : persist, reading, signal);
         persistRef.current = persist;
@@ -1131,41 +1115,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
           return copy && { ...copy, blob: pdfBlob(copy.bytes), reading: doc.photoName ? photoReading() : undefined };
         },
         persist: persistFile,
-        recordSave: async pageOrder => {
-          const copyDataAllowed = !!window.folioDesktop && !doc.password && !gallery &&
-            await doc.pdf.getMetadata().then(({ info }) => !(info as { EncryptFilterName?: string }).EncryptFilterName).catch(() => false);
-          let savedData: { notes: Pick<MarkupState, "note" | "bookmarkedPages">; generation: number; ai: Awaited<ReturnType<typeof getAiHistory>> } | undefined;
-          if (copyDataAllowed) {
-            const controller = markupRef.current!;
-            controller.sync();
-            await controller.flush();
-            await flushAiHistory(doc.sourceId ?? doc.id);
-            const state = controller.state;
-            savedData = { notes: { note: state.note, bookmarkedPages: state.bookmarkedPages && (pageOrder ?
-              pageOrder.flatMap((page, index) => state.bookmarkedPages!.includes(page) ? [index + 1] : []) : [...state.bookmarkedPages]) },
-              generation: controller.storageGeneration, ai: await getAiHistory(doc.sourceId ?? doc.id) };
-          }
-          return async ({ bytes, blob, name, annotated }) => {
-            const changes = changesForCopy(doc, annotated, pageOrder);
-            let dataMessage = "";
-            if (savedData) {
-              try {
-                await copySavedPdfData(await contentKey(bytes), { ...savedData.notes, bookmarkedPages: savedData.notes.bookmarkedPages ?? [] }, savedData.generation, savedData.ai);
-              } catch { dataMessage = "File saved. Couldn’t keep its document notes, bookmarks or conversation on this device."; }
-            }
-            let historyMessage = "";
-            if (changes.length && doc.historyAllowed && blob.size <= MAX_RECENT_FILE_BYTES) {
-              try {
-                const original = doc.edits?.original ?? pdfBlob(await doc.pdf.getData());
-                await saveVersion({ id: doc.sourceId ?? doc.id, name: doc.name, data: original },
-                  { id: await contentKey(bytes), name, data: blob }, changes);
-              } catch { historyMessage = "Copy exported. Couldn’t save its version history on this device."; }
-            } else if (changes.length) {
-              historyMessage = "Copy exported. History is available for unencrypted PDFs up to 50 MB.";
-            }
-            return { dataFailed: !!dataMessage, messages: [historyMessage, dataMessage].filter(Boolean) };
-          };
-        },
+        recordSave: pageOrder => recordPdfSave(doc, markupRef.current!, !!gallery, pageOrder),
         reopen: async (name, bytes, pageOrder) => {
           setError(null);
           await openBytes(name, bytes, undefined, beginOpen(), pageOrder ? pageOrder.indexOf(pageRef.current) + 1 : pageRef.current, undefined, doc, pageOrder);
@@ -1312,7 +1262,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     const autoFit=photoAutoFit.current;
     const nextView=source.photoName ? {...view,page:1,rotation:0,scale:"page-fit",top:undefined,left:undefined} : undefined;
     if(source.photoName) photoAutoFit.current=true;
-    const reading={note:state.note,bookmarkedPages:state.bookmarkedPages && (pageOrder ? pageOrder.flatMap((page,index)=>state.bookmarkedPages!.includes(page)?[index+1]:[]) : [...state.bookmarkedPages])};
+    const reading={note:state.note,bookmarkedPages:state.bookmarkedPages && bookmarksInOrder(state.bookmarkedPages,pageOrder)};
     const mapping=originalPages?.map(page=>page ? pageOrder?.[page-1] ?? page : 0);
     if (!await openBytes(source.name, bytes, undefined, beginOpen(), 1, {doc:source,change:mapping ? {kind:"pages",order:mapping} : {kind:"annotations"},view:nextView},undefined,mapping)) throw new Error("Couldn't open the edited copy.");
     setContentEditing(false);
@@ -1933,7 +1883,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
           onClose={() => setHistoryOpen(false)} />}
         {doc && aiOpen && !focus && (
           <AiPanel
-            key={`${doc.sourceId ?? doc.id}:${doc.password ? 0 : chatGeneration}`}
+            key={doc.sourceId ?? doc.id}
             documentContext={{ kind: "pdf", name: doc.name, displayName: doc.name.replace(/\.pdf$/i, ""),
               readText: readAiText, selection: aiContext }}
             docId={doc.sourceId ?? doc.id}
