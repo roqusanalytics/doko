@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.22.2
+
+- Stopping an Ask AI answer before its first word no longer leaves "Thinking" showing in a PDF chat.
+- With the image viewer open over a PDF, File menu Save, Print and Properties now wait until it closes, like their keyboard shortcuts.
+- Clearing stored notes or AI conversations in Settings no longer reports a failure when other open windows can't be told about it.
+
 ## 1.22.1
 
 - First published release with the 1.22.0 changes below: Ask AI for Markdown, colored Markdown source, Canvas tools in the Doko toolbar, document type cards and the Open menu.
