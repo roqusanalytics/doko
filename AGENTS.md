@@ -47,7 +47,8 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
 - Run the affected regression tests from `package.json` and `.github/workflows/ci.yml`.
   For desktop URL, IPC, or security changes, include `npm run test:reader-security` and `npm run test:ipc-contract`.
   For Markdown or galleries, include `npm run test:content`; its Electron E2E also runs in `npm run smoke`.
-  There is no generic `npm test` or lint script; use the actual commands in those files.
+  There is no generic `npm test` script; use the actual commands in those files. `npm run lint` runs Oxlint with the
+  vendored anti-slop rules (`tools/oxlint/anti-slop/`); new code must not add errors or warnings.
 - Report local results separately from the Windows/macOS/Linux CI matrix; a check on one OS does not prove the others.
 
 ## Releasing: one way only
