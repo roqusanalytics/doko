@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { CaptureUpdateAction, Excalidraw, MainMenu } from "@excalidraw/excalidraw";
 import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { AiPanel, flushAiHistory, forgetClearedChats, stopAiForClose } from "../AiPanel";
+import { AiPanel, flushAiHistory, stopAiForClose } from "../AiPanel";
 import { Modal, OpenUrlDialog } from "../Dialogs";
 import { SettingsDialog } from "../SettingsDialog";
-import { onStoredDataCleared } from "../recent";
 import { summarizeScene } from "./canvasDocumentSceneSummary";
 import type { PreparedDrawing } from "./canvasDocumentAiReply";
 import { insertCanvasDocumentDrawing, prepareCanvasDocumentDrawing } from "./insertCanvasDocumentDrawing";
@@ -62,7 +61,6 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiSettings, setAiSettings] = useState(false);
   const [chatId] = useState(() => `canvasDocument:${initial.id ?? initial.draftId ?? crypto.randomUUID()}`);
-  const [chatGeneration, setChatGeneration] = useState(0);
   const flushAi = useCallback(async () => { stopAiForClose(chatId); await flushAiHistory(chatId); }, [chatId]);
   const file = useCanvasDocumentFile(tabs, tabKey, initial, editor, flushAi);
   const onSceneChange: NonNullable<Parameters<typeof Excalidraw>[0]["onChange"]> = (elements, state, files) => {
@@ -72,11 +70,6 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
     if (sidebar !== state.openSidebar?.tab) setSidebar(state.openSidebar?.tab);
     file.onChange(elements, state, files);
   };
-  useEffect(() => onStoredDataCleared((category, generation) => {
-    if (category !== "ai") return;
-    forgetClearedChats(generation);
-    setChatGeneration(current => Math.max(current, generation));
-  }), []);
   const readScene = useCallback(async () => {
     if (!editor.current) throw new Error("The drawing editor is still loading.");
     return summarizeScene(editor.current.getSceneElements(), editor.current.getAppState().selectedElementIds);
@@ -246,7 +239,7 @@ export default function CanvasReader({ tabs, tabKey, initial }: {
           </div>} />}
       </div>
       {focus && <button className="exit-focus" onClick={toggleFocus} title="Exit focus mode"><kbd>Esc</kbd> to exit focus mode</button>}
-      {active && aiOpen && <AiPanel key={chatGeneration}
+      {active && aiOpen && <AiPanel
         documentContext={{ kind: "canvasDocument", name: file.document.name, displayName: file.document.name, selection: null, readText: readScene }}
         docId={chatId} persist onDrawingReply={insertDrawing} onClose={() => setAiOpen(false)} onSettings={() => setAiSettings(true)} />}
     </main>

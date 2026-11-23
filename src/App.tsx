@@ -35,7 +35,7 @@ import { ImageMenu, ImageViewer, type ImageTarget } from "./ImageViewer";
 import { MoreMenu, type MoreItem } from "./MoreMenu";
 import { OpenDocumentMenu } from "./OpenDocumentMenu";
 import { IS_MAC, keys } from "./platform";
-import { AiPanel, forgetClearedChats, flushAiHistory, stopAiForClose, type AiContext } from "./AiPanel";
+import { AiPanel, flushAiHistory, stopAiForClose, type AiContext } from "./AiPanel";
 import { readAiDocumentText } from "./aiDocumentText";
 import { ZoomMenu } from "./ZoomMenu";
 import { SearchBar, type FindResult } from "./SearchBar";
@@ -197,13 +197,10 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
   const [documentState] = useState(() => new DocumentState(!!initialGallery));
   const { dirty, editorDirty, pageDraft, pageOrder, storageError, aiStorageError, photos, currentPhotoDirty, unsaved, copyName, operationUndo, canUndoOperation } =
     useSyncExternalStore(documentState.subscribe, documentState.getState);
-  const [chatGeneration, setChatGeneration] = useState(0);
   const [notesGeneration, setNotesGeneration] = useState(0);
   useEffect(() => onStoredDataCleared((category, generation) => {
     if (category === "ai") {
-      forgetClearedChats(generation);
       documentState.setAiStorageError(false);
-      setChatGeneration(current => Math.max(current, generation));
     } else if (category === "notes") {
       markupRef.current?.clearSaved(generation);
       documentState.forgetPhotoReadings();
@@ -1933,7 +1930,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
           onClose={() => setHistoryOpen(false)} />}
         {doc && aiOpen && !focus && (
           <AiPanel
-            key={`${doc.sourceId ?? doc.id}:${doc.password ? 0 : chatGeneration}`}
+            key={doc.sourceId ?? doc.id}
             documentContext={{ kind: "pdf", name: doc.name, displayName: doc.name.replace(/\.pdf$/i, ""),
               readText: readAiText, selection: aiContext }}
             docId={doc.sourceId ?? doc.id}
