@@ -1,5 +1,5 @@
 // Captures Electron test fixtures into release/capture-fixtures/site/, never public landing images.
-// Run from the repo root after `npm run build`:  node site/scripts/capture-mockups.mjs
+// Run from the repo root after `bun run build`:  node site/scripts/capture-mockups.mjs
 // Uses a throwaway profile and fictional sample documents in a temp dir; both are removed at the end.
 import assert from "node:assert/strict";
 import { _electron as electron, chromium } from "playwright-core";
@@ -113,11 +113,11 @@ A short list for the **Saltmere** spring release. Everything below is \`ready\` 
 
 ## Release command
 
-Run \`npm run release -- --dry-run\` once more, then publish.
+Run \`bun run release -- --dry-run\` once more, then publish.
 
 \`\`\`bash
-npm run build
-npm run release
+bun run build
+bun run release
 \`\`\`
 `);
 

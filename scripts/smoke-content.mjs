@@ -1,4 +1,4 @@
-// Real desktop content flows, with an isolated profile and no visible window. Run after npm run build.
+// Real desktop content flows, with an isolated profile and no visible window. Run after bun run build.
 import { _electron as electron } from "playwright-core";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSync } from "node:fs";

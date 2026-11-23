@@ -1,4 +1,4 @@
-// Real image-only PDFs, real OCR, isolated hidden Electron profile. Run after npm run build.
+// Real image-only PDFs, real OCR, isolated hidden Electron profile. Run after bun run build.
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

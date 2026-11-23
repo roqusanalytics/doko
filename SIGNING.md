@@ -8,7 +8,7 @@ in GitHub. A workflow file in a tag cannot enforce restrictions on someone who c
 
 Require a reviewed pull request and the three `CI / build` platform checks on `main`. Keep its history and
 release tags protected from deletion or rewriting, including by administrators. The trusted release administrator
-needs a bypass for the pull-request/check rules and tag creation: `npm run release` atomically pushes its version
+needs a bypass for the pull-request/check rules and tag creation: `bun run release` atomically pushes its version
 commit to `main` and creates the tag before CI can run. Use that bypass only for the release version commit.
 The publisher independently waits for successful `ci.yml` push checks on that exact commit, including when
 resuming with `--publish-only`, and checks them again immediately before publishing. An administrator can still
@@ -48,7 +48,7 @@ Missing signing credentials fail the release instead of producing an ad-hoc upda
 D=~/.local/share/doko-release/macsign
 security unlock-keychain -p "$(cat "$D/keychain-password.txt")" "$D/doko-signing.keychain-db"
 DOKO_MAC_SIGN_KEYCHAIN="$D/doko-signing.keychain-db" DOKO_MAC_SIGN_IDENTITY=C1D1C0D9EC7D8B849C48DADC2F9E278B40C33919 \
-  CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --publish never \
+  CSC_IDENTITY_AUTO_DISCOVERY=false bunx electron-builder --mac --publish never \
   -c.mac.identity=- -c.mac.sign=./scripts/mac-sign.cjs -c.extraMetadata.folioMacSigned=true
 ```
 

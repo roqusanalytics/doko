@@ -1,5 +1,5 @@
 import { closeHidden } from "./hidden-window.mjs";
-// Run after npm run build; use a disposable profile and keep Electron hidden.
+// Run after bun run build; use a disposable profile and keep Electron hidden.
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

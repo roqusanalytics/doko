@@ -1,7 +1,7 @@
 import { closeHidden } from "./hidden-window.mjs";
 // Generates developer smoke fixtures, not the public practical gallery: launches the built app on the sample document and captures
 // highlights and notes (light theme), Ask AI with a local demo response, and search (dark theme).
-// No provider sign-in or network request is needed. Run `npm run build` first.
+// No provider sign-in or network request is needed. Run `bun run build` first.
 import assert from "node:assert/strict";
 import { electronPath } from "./electron-path.mjs";
 import { readerPage } from "./reader-page.mjs";

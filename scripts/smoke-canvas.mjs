@@ -1,4 +1,4 @@
-// Run after npm run build. Drive both Canvas entries with a hidden, disposable Doko window.
+// Run after bun run build. Drive both Canvas entries with a hidden, disposable Doko window.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

@@ -20,7 +20,7 @@ test("release notes exist for the exact next version before versioning or taggin
   assert.throws(() => verifyReleaseNotes("", "invalid", "patch"), /numeric release version/);
   assert.throws(() => verifyReleaseNotes("", "1.20.28", "invalid"), /numeric release version/);
   const source = readFileSync(new URL("./release.mjs", import.meta.url), "utf8");
-  assert.ok(source.indexOf('  verifyReleaseNotes(') < source.indexOf('  run(`npm version'));
+  assert.ok(source.indexOf('  verifyReleaseNotes(') < source.indexOf('  run(`bun pm version'));
 });
 
 const tag = "v1.2.3";
@@ -52,7 +52,7 @@ test("macOS packaging rejects unsigned releases and verifies the persistent cert
       if [ "$1" = list-keychains ] && [ "$#" -gt 3 ]; then printf '%s\\n' "$@" > "$RUNNER_TEMP/keychain-args"; fi;
       if [ "$1" = delete-keychain ]; then return "\${MOCK_DELETE_STATUS:-0}"; fi;
     }
-    npx() { printf '%s\\n' "$@" >> "$RUNNER_TEMP/package-args"; }
+    bunx() { printf '%s\\n' "$@" >> "$RUNNER_TEMP/package-args"; }
     codesign() { printf '%s\\n' "$@" >> "$RUNNER_TEMP/verify-args"; return "\${MOCK_VERIFY_STATUS:-0}"; }
   `;
 
@@ -128,7 +128,7 @@ test("normal and resumed publication execute the CI gate and recheck it after do
     let ciReads = 0;
     export function execSync(command) {
       appendFileSync("calls", command + "\\n");
-      if (command.startsWith("npm version")) writeFileSync("package.json", JSON.stringify({ version: "1.2.3" }));
+      if (command.startsWith("bun pm version")) writeFileSync("package.json", JSON.stringify({ version: "1.2.3" }));
       return command.includes("rev-parse") ? build.head_sha : "";
     }
     export function execFileSync(command, args) {
@@ -177,7 +177,7 @@ test("normal and resumed publication execute the CI gate and recheck it after do
 
       if (scenario === "private") {
         assert.match(result.stderr, /public release repository/);
-        assert.ok(!calls.includes('["git","push"') && !calls.includes("npm version") && !calls.includes('["gh","run","download"'));
+        assert.ok(!calls.includes('["git","push"') && !calls.includes("bun pm version") && !calls.includes('["gh","run","download"'));
         continue;
       }
 
@@ -206,7 +206,7 @@ test("normal and resumed publication execute the CI gate and recheck it after do
   assert.equal(missingNotes.status, 1);
   assert.match(missingNotes.stderr, /Add ## 1\.2\.3.*CHANGELOG.md before releasing/);
   const missingCalls = readFileSync(path.join(folder, "calls"), "utf8");
-  assert.ok(!missingCalls.includes("npm version") && !missingCalls.includes('["git","push"') && !missingCalls.includes('["gh","release","create"'));
+  assert.ok(!missingCalls.includes("bun pm version") && !missingCalls.includes('["git","push"') && !missingCalls.includes('["gh","release","create"'));
 });
 
 test("source and downloads use the public Doko repository", () => {

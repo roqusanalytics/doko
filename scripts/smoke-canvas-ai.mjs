@@ -1,4 +1,4 @@
-// Run after npm run build. Use the real Canvas, renderer, IPC and SSE reader with a local response.
+// Run after bun run build. Use the real Canvas, renderer, IPC and SSE reader with a local response.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

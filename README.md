@@ -344,17 +344,17 @@ user account can read it.
 
 ## Building from source
 
-Requires [Node.js](https://nodejs.org/) 22 or newer.
+Requires [Node.js](https://nodejs.org/) 22.12 or newer and [Bun](https://bun.sh/).
 
 ```sh
-npm install
-npm run app        # build and run the desktop app
-npm run smoke      # end-to-end check: launches the built app and exercises the basics
-npm run dev        # browser version with hot reload at http://localhost:5173
+bun install
+bun run app        # build and run the desktop app
+bun run smoke      # end-to-end check: launches the built app and exercises the basics
+bun run dev        # browser version with hot reload at http://localhost:5173
 
-npm run dist:win   # on Windows: release/Doko-Setup.exe and release/Doko-Portable.exe
-npm run dist:mac   # on macOS: release/Doko-mac.dmg (universal: Apple Silicon and Intel)
-npm run dist:linux # on Linux: release/Doko-linux-x86_64.AppImage and release/Doko-linux-amd64.deb
+bun run dist:win   # on Windows: release/Doko-Setup.exe and release/Doko-Portable.exe
+bun run dist:mac   # on macOS: release/Doko-mac.dmg (universal: Apple Silicon and Intel)
+bun run dist:linux # on Linux: release/Doko-linux-x86_64.AppImage and release/Doko-linux-amd64.deb
 ```
 
 Each platform's installers are built on that platform; GitHub Actions builds all three for every release. If your
@@ -374,8 +374,8 @@ Open a JPG, PNG, WebP, GIF, BMP, or AVIF to browse the supported images in its f
 the previous/next buttons and arrow keys. Refresh updates the folder listing. HEIC, TIFF, and RAW are not included.
 In the browser edition, only selected images are available and Markdown saving downloads a copy.
 
-After `npm ci` and `npm run build`, `npm run test:content` exercises the new disk and desktop flows.
-`npm run build:local` prepares an Apple Silicon `Doko.app` and update-ready `Doko-mac.zip` under the system temporary
+After `bun install --frozen-lockfile` and `bun run build`, `bun run test:content` exercises the new disk and desktop flows.
+`bun run build:local` prepares an Apple Silicon `Doko.app` and update-ready `Doko-mac.zip` under the system temporary
 folder's `doko-local-build/`, without publishing. The ZIP target also embeds the updater configuration. Building outside synced folders avoids Finder metadata breaking codesigning.
 It uses the existing fork profile and the roqusanalytics/doko update feed; the original upstream Folio profile stays independent.
 Public releases still follow the existing three-platform release procedure.

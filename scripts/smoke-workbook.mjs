@@ -1,5 +1,5 @@
 // Excel workbooks in the real desktop app (so also in a real utility process): opened from the OS and from the picker,
-// read-only, one sheet at a time. Isolated profile, no visible window. Run after npm run build.
+// read-only, one sheet at a time. Isolated profile, no visible window. Run after bun run build.
 import { _electron as electron } from "playwright-core";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";

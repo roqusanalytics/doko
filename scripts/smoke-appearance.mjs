@@ -1,4 +1,4 @@
-// Run after npm run build. Every window stays hidden and uses a disposable profile.
+// Run after bun run build. Every window stays hidden and uses a disposable profile.
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
