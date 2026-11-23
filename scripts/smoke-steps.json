@@ -172,6 +172,9 @@
     "scripts/smoke-ai-request-end.mjs"
   ],
   [
+    "scripts/smoke-command-blocking.mjs"
+  ],
+  [
     "scripts/test-security-worker-lifecycle.mjs"
   ],
   [
