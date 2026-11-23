@@ -268,6 +268,8 @@ export type StoredCategory = typeof NOTES | typeof AI;
 const CLEAR_CHANNEL = "folio:stored-data-cleared";
 
 export function onStoredDataCleared(listener: (category: StoredCategory, generation: number) => void) {
+  // Without BroadcastChannel (an old browser), other tabs simply aren't told; the generation check still stops their writes.
+  if (typeof BroadcastChannel === "undefined") return () => {};
   const channel = new BroadcastChannel(CLEAR_CHANNEL);
   channel.onmessage = ({ data }) => listener(data.category, data.generation);
   return () => channel.close();
@@ -303,9 +305,12 @@ export async function clearStoredData(category: StoredCategory) {
     generations.put(current + 1, category);
     return store.clear();
   });
-  const channel = new BroadcastChannel(CLEAR_CHANNEL);
-  channel.postMessage({ category, generation: generation + 1 });
-  channel.close();
+  // The data is cleared by now; failing to tell other tabs must not report the clear as failed.
+  try {
+    const channel = new BroadcastChannel(CLEAR_CHANNEL);
+    channel.postMessage({ category, generation: generation + 1 });
+    channel.close();
+  } catch { /* Other tabs still can't write it back: see withGeneration. */ }
 }
 
 async function readStored<T>(category: StoredCategory, id: string) {
