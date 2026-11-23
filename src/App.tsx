@@ -9,8 +9,9 @@ import {
   SpreadMode,
 } from "./viewer";
 import { AnnotationEditorParamsType, AnnotationEditorType } from "pdfjs-dist";
-import { loadPdf, copyPdfPages, thumbnailDataUrl, type PDFDocumentProxy } from "./pdf";
-import { contentKey, copySavedPdfData, getAiHistory, getRecent, MAX_RECENT_FILE_BYTES, onStoredDataCleared, removeRecent, saveRecent, updateLastPage } from "./recent";
+import { loadPdf, copyPdfPages, pdfBlob, thumbnailDataUrl, type PDFDocumentProxy } from "./pdf";
+import { changesForCopy, recordPdfSave } from "./pdfCopy";
+import { contentKey, getRecent, MAX_RECENT_FILE_BYTES, onStoredDataCleared, removeRecent, saveRecent, updateLastPage } from "./recent";
 import { readPdfBlob, readPdfResponse } from "./pdfInput";
 import { FIT_SCALES, flushViews, readView, writeView, type ReadingView } from "./session";
 import { DocumentTabBar } from "./DocumentTabBar";
@@ -43,7 +44,7 @@ import { AboutDialog, InfoDialog, OpenUrlDialog, PasswordDialog, ShortcutsDialog
 import { SignatureDialog } from "./SignatureDialog";
 import { ContentEditor, type ContentEditorHandle, type NextSelection } from "./ContentEditor";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
-import { saveVersion, type PdfChange } from "./versionHistory";
+import type { PdfChange } from "./versionHistory";
 import { SettingsDialog } from "./SettingsDialog";
 import { UpdateButton } from "./UpdateButton";
 import { ChangelogDialog } from "./ChangelogDialog";
@@ -132,22 +133,11 @@ interface OpenDoc {
 /** What App keeps with an operation undo to restore the reading position and details. */
 type UndoDetails = { reading: Pick<MarkupState, "note" | "bookmarkedPages">; pageMap: number[]; view: ReadingView; autoFit: boolean };
 
-function changesForCopy(doc: OpenDoc, annotated: boolean, order?: number[]) {
-  const changes = [...(doc.edits?.changes ?? [])];
-  if (annotated && !changes.some(change => change.kind === "annotations")) changes.push({ kind: "annotations" });
-  if (order) changes.push({ kind: "pages", order });
-  return changes;
-}
-
 interface Pending {
   name: string;
   data: Uint8Array;
   error?: string;
 }
-
-// Blob copies the bytes itself, so no copy is made here. (The cast: BlobPart rules out views over a
-// SharedArrayBuffer, which pdf.js never hands out, but its types don't say so.)
-const pdfBlob = (bytes: Uint8Array) => new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "application/pdf" });
 
 function saveBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -1125,40 +1115,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
           return copy && { ...copy, blob: pdfBlob(copy.bytes), reading: doc.photoName ? photoReading() : undefined };
         },
         persist: persistFile,
-        recordSave: async pageOrder => {
-          const copyDataAllowed = !!window.folioDesktop && !doc.password && !gallery &&
-            await doc.pdf.getMetadata().then(({ info }) => !(info as { EncryptFilterName?: string }).EncryptFilterName).catch(() => false);
-          let savedData: { notes: Pick<MarkupState, "note" | "bookmarkedPages">; generation: number; ai: Awaited<ReturnType<typeof getAiHistory>> } | undefined;
-          if (copyDataAllowed) {
-            const controller = markupRef.current!;
-            controller.sync();
-            await controller.flush();
-            await flushAiHistory(doc.sourceId ?? doc.id);
-            const state = controller.state;
-            savedData = { notes: { note: state.note, bookmarkedPages: state.bookmarkedPages && bookmarksInOrder(state.bookmarkedPages, pageOrder) },
-              generation: controller.storageGeneration, ai: await getAiHistory(doc.sourceId ?? doc.id) };
-          }
-          return async ({ bytes, blob, name, annotated }) => {
-            const changes = changesForCopy(doc, annotated, pageOrder);
-            let dataMessage = "";
-            if (savedData) {
-              try {
-                await copySavedPdfData(await contentKey(bytes), { ...savedData.notes, bookmarkedPages: savedData.notes.bookmarkedPages ?? [] }, savedData.generation, savedData.ai);
-              } catch { dataMessage = "File saved. Couldn’t keep its document notes, bookmarks or conversation on this device."; }
-            }
-            let historyMessage = "";
-            if (changes.length && doc.historyAllowed && blob.size <= MAX_RECENT_FILE_BYTES) {
-              try {
-                const original = doc.edits?.original ?? pdfBlob(await doc.pdf.getData());
-                await saveVersion({ id: doc.sourceId ?? doc.id, name: doc.name, data: original },
-                  { id: await contentKey(bytes), name, data: blob }, changes);
-              } catch { historyMessage = "Copy exported. Couldn’t save its version history on this device."; }
-            } else if (changes.length) {
-              historyMessage = "Copy exported. History is available for unencrypted PDFs up to 50 MB.";
-            }
-            return { dataFailed: !!dataMessage, messages: [historyMessage, dataMessage].filter(Boolean) };
-          };
-        },
+        recordSave: pageOrder => recordPdfSave(doc, markupRef.current!, !!gallery, pageOrder),
         reopen: async (name, bytes, pageOrder) => {
           setError(null);
           await openBytes(name, bytes, undefined, beginOpen(), pageOrder ? pageOrder.indexOf(pageRef.current) + 1 : pageRef.current, undefined, doc, pageOrder);
