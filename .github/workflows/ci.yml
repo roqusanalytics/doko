@@ -25,9 +25,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version-file: package.json
+      # The repository allows only GitHub-owned actions, so install the pinned Bun with npm.
+      - run: npm install --global "$(node --print "require('./package.json').packageManager")"
+        shell: bash
       - run: bun install --frozen-lockfile
       - run: node scripts/test-electron-install.mjs
       # Everything, not --omit=dev: the libraries bundled into the app (pdf.js, KaTeX, the Markdown and OCR
