@@ -1,4 +1,4 @@
-import { DocumentState } from "./documentState";
+import { bookmarksInOrder, DocumentState } from "./documentState";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   EventBus,
@@ -515,10 +515,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         const next: OpenDoc = { id, saveKey: previous?.saveKey ?? id, name, size: data.byteLength, pdf, password, sourceId: revision?.sourceId ?? revision?.id, historyAllowed: historyAllowed && !galleryRef.current, edits, photoName: revision?.photoName ?? galleryRef.current?.selected, photoKey: revision?.photoKey ?? photoKeys.current.get(galleryRef.current?.selected ?? "") };
         // Password-protected documents aren't stored by Doko (same rule as Recent).
         const reading = readingOverride ?? (revision || exported && (!window.folioDesktop || exported.password) ? markupRef.current!.state : exported ? undefined : documentState.getState().photos?.drafts.get(galleryRef.current?.selected ?? "")?.reading as Pick<MarkupState, "note" | "bookmarkedPages"> | undefined);
-        if (reading?.bookmarkedPages && exportedOrder) {
-          const bookmarks = new Set(reading.bookmarkedPages);
-          reading.bookmarkedPages = exportedOrder.flatMap((n, i) => bookmarks.has(n) ? [i + 1] : []);
-        }
+        if (reading?.bookmarkedPages && exportedOrder) reading.bookmarkedPages = bookmarksInOrder(reading.bookmarkedPages, exportedOrder);
         const persist = !password && !revision && !galleryRef.current;
         await markupRef.current!.load(next.photoKey ?? id, next.photoKey ? "reading" : persist, reading, signal);
         persistRef.current = persist;
@@ -1138,8 +1135,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
             await controller.flush();
             await flushAiHistory(doc.sourceId ?? doc.id);
             const state = controller.state;
-            savedData = { notes: { note: state.note, bookmarkedPages: state.bookmarkedPages && (pageOrder ?
-              pageOrder.flatMap((page, index) => state.bookmarkedPages!.includes(page) ? [index + 1] : []) : [...state.bookmarkedPages]) },
+            savedData = { notes: { note: state.note, bookmarkedPages: state.bookmarkedPages && bookmarksInOrder(state.bookmarkedPages, pageOrder) },
               generation: controller.storageGeneration, ai: await getAiHistory(doc.sourceId ?? doc.id) };
           }
           return async ({ bytes, blob, name, annotated }) => {
@@ -1309,7 +1305,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     const autoFit=photoAutoFit.current;
     const nextView=source.photoName ? {...view,page:1,rotation:0,scale:"page-fit",top:undefined,left:undefined} : undefined;
     if(source.photoName) photoAutoFit.current=true;
-    const reading={note:state.note,bookmarkedPages:state.bookmarkedPages && (pageOrder ? pageOrder.flatMap((page,index)=>state.bookmarkedPages!.includes(page)?[index+1]:[]) : [...state.bookmarkedPages])};
+    const reading={note:state.note,bookmarkedPages:state.bookmarkedPages && bookmarksInOrder(state.bookmarkedPages,pageOrder)};
     const mapping=originalPages?.map(page=>page ? pageOrder?.[page-1] ?? page : 0);
     if (!await openBytes(source.name, bytes, undefined, beginOpen(), 1, {doc:source,change:mapping ? {kind:"pages",order:mapping} : {kind:"annotations"},view:nextView},undefined,mapping)) throw new Error("Couldn't open the edited copy.");
     setContentEditing(false);

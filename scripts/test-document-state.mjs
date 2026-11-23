@@ -13,7 +13,18 @@ const oracle = ({ storageError, aiStorageError, photos, doc, dirty, editorDirty,
 
 const server = await createServer({ root: path.resolve(import.meta.dirname, ".."), server: { middlewareMode: true }, appType: "custom" });
 try {
-  const { DocumentState } = await server.ssrLoadModule("/src/documentState.ts");
+  const { DocumentState, bookmarksInOrder } = await server.ssrLoadModule("/src/documentState.ts");
+
+  // Bookmarks follow their page to its new position; a page left out loses its bookmark.
+  assert.deepEqual(bookmarksInOrder([1, 3], [3, 1, 2]), [1, 2], "a moved page keeps its bookmark at its new position");
+  assert.deepEqual(bookmarksInOrder([1, 3], [2, 3]), [2], "a removed page's bookmark is dropped");
+  assert.deepEqual(bookmarksInOrder([2], [2, 1, 2]), [1, 3], "a page placed twice is bookmarked at both positions");
+  assert.deepEqual(bookmarksInOrder([1], [0, 1]), [2], "an inserted page (0) is never bookmarked");
+  assert.deepEqual(bookmarksInOrder([], [2, 1]), []);
+  const unchanged = [4, 2];
+  const kept = bookmarksInOrder(unchanged, undefined);
+  assert.deepEqual(kept, [4, 2], "without a new order, bookmarks keep their page numbers");
+  assert.notEqual(kept, unchanged, "the result is a copy, so later edits to either list stay separate");
 
   // Full truth table: every combination of the eight inputs reaches the same unsaved as the old formula.
   const bools = [false, true];
@@ -304,7 +315,7 @@ try {
     assert.match(result.error.message, /newer content edit/);
   }
 
-  console.log(`PASS document state: ${cases} unsaved cases, revision guard, page draft, subscriptions, save sequence, photo drafts, operation undo`);
+  console.log(`PASS document state: bookmarks in a new page order, ${cases} unsaved cases, revision guard, page draft, subscriptions, save sequence, photo drafts, operation undo`);
 } finally {
   await server.close();
 }

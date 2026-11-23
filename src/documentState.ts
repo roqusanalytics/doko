@@ -46,6 +46,14 @@ function copyNameFor(doc: DocumentIdentity | null, pageOrder: number[] | undefin
   return pageOrder && doc ? pdfName(doc.name) + " (reordered).pdf" : doc?.name ?? "document.pdf";
 }
 
+/**
+ * Bookmarked pages (one-based) once the pages are put in `order`, where `order[i]` is the old page now at i + 1.
+ * Pages left out lose their bookmark. Without an order the pages keep their numbers.
+ */
+export function bookmarksInOrder(bookmarkedPages: readonly number[], order: readonly number[] | undefined) {
+  return order ? order.flatMap((page, index) => bookmarkedPages.includes(page) ? [index + 1] : []) : [...bookmarkedPages];
+}
+
 type Inputs = {
   doc: DocumentIdentity | null;
   saving: boolean;
