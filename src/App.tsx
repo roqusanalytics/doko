@@ -1354,8 +1354,12 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     } catch(error) {setError((error as Error).message);} finally {setFileBusy(false);}
   };
 
+  // Something covering the document owns the keyboard and the menu: reader commands wait until it closes,
+  // whether they come from a shortcut or from the File menu.
+  const overlayOpen = !!dialog || !!workDialog || !!exportDialog || !!pending || !!imageView || !!printCopy || signing;
+
   const fileCommand = (command: FileCommand) => {
-    if (fileBusy || workDialog || exportDialog || dialog || printCopy || photoBusy || refreshingPhotos || signing) return;
+    if (overlayOpen || fileBusy || photoBusy || refreshingPhotos) return;
     if (command === "recent") { tabs.library(); return; }
     if (!docRef.current) return;
     if (command === "save" || command === "save-as") { if (galleryRef.current) void exportPhoto(command); else void download(command === "save-as"); }
@@ -1365,7 +1369,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     else if (command === "hand") void chooseHand();
   };
   useFileCommands(active, doc ? gallery ? "photo" : "pdf" : "none",
-    fileBusy || !!workDialog || loading || !!exportDialog || !!dialog || !!printCopy || !!pending || signing || photoBusy || refreshingPhotos || !!photoFailure, fileCommand);
+    overlayOpen || fileBusy || loading || photoBusy || refreshingPhotos || !!photoFailure, fileCommand);
 
   const photoAction = async (name: string, action: string) => {
     const current = galleryRef.current;
@@ -1414,7 +1418,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         (target instanceof HTMLElement && target.isContentEditable));
       if (e.altKey && !mod && !e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
         if (e.defaultPrevented) return;
-        if (typing || signing || pending || imageView || printCopy || document.querySelector('[aria-modal="true"]')) {
+        if (typing || overlayOpen || document.querySelector('[aria-modal="true"]')) {
           // Chromium can leave the web reader here; macOS uses Option+arrow for native text editing.
           if (!IS_MAC && !window.folioDesktop) e.preventDefault();
         } else if (docRef.current) {
@@ -1450,7 +1454,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
         else pickFile();
         return;
       }
-      if (gallery && !mod && !e.altKey && !e.shiftKey && !typing && !signing && !dialog && !pending && !imageView && !printCopy && !contentEditing && !e.defaultPrevented && ["ArrowLeft", "ArrowRight"].includes(e.key)) {
+      if (gallery && !mod && !e.altKey && !e.shiftKey && !typing && !overlayOpen && !contentEditing && !e.defaultPrevented && ["ArrowLeft", "ArrowRight"].includes(e.key)) {
         const index = gallery.files.indexOf(gallery.selected);
         const name = gallery.files[index + (e.key === "ArrowRight" ? 1 : -1)];
         if (name) { e.preventDefault(); void openPhoto(gallery, name); }
@@ -1463,7 +1467,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       if (!docRef.current) return;
       // A dialog owns the keyboard, and closes itself on Escape. The reader's shortcuts are swallowed
       // rather than left to act on the document behind it (or to fall through to the browser's own).
-      if (dialog || workDialog || pending || imageView) {
+      if (overlayOpen) {
         const key = e.key.toLowerCase();
         if (mod && (["f", "s", "p", "=", "+", "-", "0", "\\"].includes(key) || (!typing && (key === "z" || key === "y")))) e.preventDefault();
         return;
