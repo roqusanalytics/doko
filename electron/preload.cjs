@@ -1,50 +1,40 @@
 // Minimal bridge between the Doko page and the desktop shell.
 const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
-contextBridge.exposeInMainWorld("folioDesktop", {
+/**
+ * Listens to a main-process event until the returned function is called. `args` turns the event's arguments into
+ * the callback's. Each channel is still named here, so this file stays the allowlist of what the page can reach.
+ * @param {string} channel
+ * @param {(...values: any[]) => any[]} [args]
+ */
+const subscribe = (channel, args = value => [value]) => callback => {
+  const listener = (_event, ...values) => callback(...args(...values));
+  ipcRenderer.on(channel, listener);
+  return () => ipcRenderer.removeListener(channel, listener);
+};
+
+// Typed against src/desktop.d.ts: `npm run build` fails when the two disagree (tsconfig.preload.json).
+/** @type {FolioDesktop} */
+const folioDesktop = {
   openFiles: type => ipcRenderer.invoke("folio:open-files", type),
   saveFile: request => ipcRenderer.invoke("folio:save-file", request),
   captureDesktop: () => ipcRenderer.invoke("folio:capture-desktop").then(png => png ? new Uint8Array(png) : null),
   cancelScreenshot: () => ipcRenderer.invoke("folio:screenshot-cancel"),
   setFileMenu: state => ipcRenderer.send("folio:file-menu", state),
-  onFileCommand(callback) {
-    const listener = (_event, command) => callback(command);
-    ipcRenderer.on("folio:file-command", listener);
-    return () => ipcRenderer.removeListener("folio:file-command", listener);
-  },
+  onFileCommand: subscribe("folio:file-command"),
   getPrinters: () => ipcRenderer.invoke("folio:printers"),
   printSheets: (job) => ipcRenderer.invoke("folio:print-sheets", job),
   /** Called with (name, data, note?) whenever a PDF is opened from Explorer, or a Word document has been converted. */
-  onOpenFile(callback) {
-    const listener = (_e, file) => callback(file.name, new Uint8Array(file.data), file.note ?? undefined, file.token);
-    ipcRenderer.on("folio:open-file", listener);
-    return () => ipcRenderer.removeListener("folio:open-file", listener);
-  },
+  onOpenFile: subscribe("folio:open-file", file => [file.name, new Uint8Array(file.data), file.note ?? undefined, file.token]),
   /** Called with the file name when a Word document starts converting, and with a message if it fails. */
-  onConverting(callback) {
-    const listener = (_e, file) => callback(file.name, file.token);
-    ipcRenderer.on("folio:converting", listener);
-    return () => ipcRenderer.removeListener("folio:converting", listener);
-  },
-  onOpenFailed(callback) {
-    const listener = (_e, failure) => callback(failure.message, failure.token);
-    ipcRenderer.on("folio:open-failed", listener);
-    return () => ipcRenderer.removeListener("folio:open-failed", listener);
-  },
-  onTabCommand(callback) {
-    const listener = (_e, command) => callback(command);
-    ipcRenderer.on("folio:tab-command", listener);
-    return () => ipcRenderer.removeListener("folio:tab-command", listener);
-  },
+  onConverting: subscribe("folio:converting", file => [file.name, file.token]),
+  onOpenFailed: subscribe("folio:open-failed", failure => [failure.message, failure.token]),
+  onTabCommand: subscribe("folio:tab-command"),
   /** Returns the converted PDF to the tab that opened the Word document. */
   openDocument: (file) => ipcRenderer.invoke("folio:open-document", webUtils.getPathForFile(file)),
   content: {
     open: file => ipcRenderer.invoke("folio:content-open", webUtils.getPathForFile(file)),
-    onOpen(callback) {
-      const listener = (_event, document, token) => callback(document, token);
-      ipcRenderer.on("folio:open-content", listener);
-      return () => ipcRenderer.removeListener("folio:open-content", listener);
-    },
+    onOpen: subscribe("folio:open-content", (document, token) => [document, token]),
     save: (id, text, copy = false, utf8 = false) => ipcRenderer.invoke("folio:content-save", id, text, copy, utf8),
     saveCanvasDocument: (id, text, copy = false) => ipcRenderer.invoke("folio:content-save-canvas-document", id, text, copy),
     reload: id => ipcRenderer.invoke("folio:content-reload", id),
@@ -84,32 +74,19 @@ contextBridge.exposeInMainWorld("folioDesktop", {
   openInstallation: () => ipcRenderer.invoke("folio:open-installation"),
   setTheme: (theme) => ipcRenderer.send("folio:theme", theme),
   setWindowTransparency: enabled => ipcRenderer.invoke("folio:set-window-transparency", enabled),
-  onWindowTransparency(callback) {
-    const listener = (_event, enabled) => callback(enabled);
-    ipcRenderer.on("folio:window-transparency", listener);
-    return () => ipcRenderer.removeListener("folio:window-transparency", listener);
-  },
-  onCloseCancelled(callback) {
-    const listener = () => callback();
-    ipcRenderer.on("folio:close-cancelled", listener);
-    return () => ipcRenderer.removeListener("folio:close-cancelled", listener);
-  },
-  onPrepareClose(callback) {
-    const listener = (_event, id) => {
-      Promise.resolve().then(callback).then(ready => {
-        ipcRenderer.send("folio:prepared-close", id, ready ? "ready" : "cancelled");
-      }, () => ipcRenderer.send("folio:prepared-close", id, "error"));
-    };
-    ipcRenderer.on("folio:prepare-close", listener);
-    return () => ipcRenderer.removeListener("folio:prepare-close", listener);
-  },
+  onWindowTransparency: subscribe("folio:window-transparency"),
+  onCloseCancelled: subscribe("folio:close-cancelled", () => []),
+  onPrepareClose: callback => subscribe("folio:prepare-close")(id => {
+    Promise.resolve().then(callback).then(ready => {
+      ipcRenderer.send("folio:prepared-close", id, ready ? "ready" : "cancelled");
+    }, () => ipcRenderer.send("folio:prepared-close", id, "error"));
+  }),
   installUpdate: () => ipcRenderer.send("folio:install-update"),
   /** Called with the updater state ({ state, version?, percent?, message? }) now and whenever it changes. */
   onUpdateStatus(callback) {
-    const listener = (_e, status) => callback(status);
-    ipcRenderer.on("folio:update-status-changed", listener);
+    const stop = subscribe("folio:update-status-changed")(callback);
     ipcRenderer.invoke("folio:update-state").then(callback);
-    return () => ipcRenderer.removeListener("folio:update-status-changed", listener);
+    return stop;
   },
   checkForUpdates: () => ipcRenderer.send("folio:check-update"),
   getAutoUpdateEnabled: () => ipcRenderer.invoke("folio:auto-update-setting"),
@@ -126,10 +103,8 @@ contextBridge.exposeInMainWorld("folioDesktop", {
     ask: (request) => ipcRenderer.invoke("folio:ai-ask", request),
     cancel: (id) => ipcRenderer.invoke("folio:ai-cancel", id),
     /** Called with { id, type: "delta" | "done" | "error", text?, message?, code?, link? } for every answer. */
-    onEvent(callback) {
-      const listener = (_e, event) => callback(event);
-      ipcRenderer.on("folio:ai-event", listener);
-      return () => ipcRenderer.removeListener("folio:ai-event", listener);
-    },
+    onEvent: subscribe("folio:ai-event"),
   },
-});
+};
+
+contextBridge.exposeInMainWorld("folioDesktop", folioDesktop);

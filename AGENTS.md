@@ -22,7 +22,8 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
   Keep stored credentials in the main process. Preserve the existing privacy rules for password-protected PDFs
   (see [README.md](README.md#privacy)).
 - Desktop APIs cross `electron/main.cjs` → `electron/preload.cjs` → `src/desktop.d.ts` → renderer callers.
-  Update all affected layers together. Preserve sandboxing, context isolation, and the shared CSP in `electron/csp.cjs`.
+  Update all affected layers together; `npm run test:ipc-contract` checks that they agree and that every handler checks
+  its sender. Preserve sandboxing, context isolation, and the shared CSP in `electron/csp.cjs`.
 - `site/` is the doko.lt landing page: a separate Astro (Vite) project with its own `package.json`; it is not part of the
   Electron build. Work inside `site/`: `npm ci`, `npm run dev` (LAN-reachable), `npm run build` (also runs
   `scripts/check-seo.mjs` on `dist/`). Page markup is `src/components/Landing.astro`, rendered in English at `/` and
@@ -43,7 +44,7 @@ The `predev` and `prebuild` hooks copy PDF.js and OCR assets into `public/`; use
 - `npm run build` type-checks and builds; `npx tsc --noEmit` checks types alone. Run the required smoke check below
   against the built app, extending the existing scripts when the changed flow is not covered.
 - Run the affected regression tests from `package.json` and `.github/workflows/ci.yml`.
-  For desktop URL, IPC, or security changes, include `npm run test:reader-security`.
+  For desktop URL, IPC, or security changes, include `npm run test:reader-security` and `npm run test:ipc-contract`.
   For Markdown or galleries, include `npm run test:content`; its Electron E2E also runs in `npm run smoke`.
   There is no generic `npm test` or lint script; use the actual commands in those files.
 - Report local results separately from the Windows/macOS/Linux CI matrix; a check on one OS does not prove the others.
