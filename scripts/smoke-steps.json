@@ -169,6 +169,9 @@
     "scripts/smoke-ocr-ai.mjs"
   ],
   [
+    "scripts/smoke-ai-request-end.mjs"
+  ],
+  [
     "scripts/test-security-worker-lifecycle.mjs"
   ],
   [

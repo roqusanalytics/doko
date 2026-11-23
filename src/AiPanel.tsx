@@ -80,6 +80,16 @@ function CopyResponse({ text }: { text: string }) {
   );
 }
 
+/**
+ * The conversation once an answer has ended, however it ended. An answer with no words and no error is dropped, so it
+ * never shows "Thinking" after nothing is running; `dropIncomplete` also drops a partial answer (Markdown edits and
+ * drawings are only usable whole).
+ */
+export function endedReply<T extends Pick<Message, "role" | "content" | "error" | "markdownReply">>(list: T[], dropIncomplete: boolean) {
+  const last = list.at(-1);
+  return last?.role === "assistant" && (dropIncomplete || (!last.content && !last.error && !last.markdownReply)) ? list.slice(0, -1) : list;
+}
+
 // Failed and empty answers aren't kept.
 const storedMessages = (messages: Message[]) =>
   messages.filter(m => !m.error && (m.content || m.markdownReply)).map(
@@ -184,6 +194,13 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
   const [confirmNew, setConfirmNew] = useState(false);
   const busyRef = useRef<string | null>(null);
   const preparing = useRef<{ id: string; controller: AbortController } | null>(null);
+  // Every way an answer ends (finished, failed, Stop, closing, unmount) goes through here.
+  const release = () => {
+    preparing.current?.controller.abort();
+    preparing.current = null;
+    busyRef.current = null;
+    setBusy(null);
+  };
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const newConversationRef = useRef<HTMLButtonElement>(null);
@@ -280,9 +297,8 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
           } catch (error) {
             result = { content: "", error: { message: error instanceof Error ? error.message : "Couldn’t read the suggested edits." } };
           }
-          busyRef.current = null;
+          release();
           setMessages(list => [...list.slice(0, -1), { ...list[list.length - 1], ...result }]);
-          setBusy(null);
           return;
         }
       }
@@ -310,9 +326,8 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
               result = { content: "", error: { message: `Couldn’t add the drawing. ${reason}` } };
             }
             if (!isCurrent()) return;
-            busyRef.current = null;
+            release();
             setMessages(list => [...list.slice(0, -1), { ...list[list.length - 1], ...result }]);
-            setBusy(null);
           })();
           return;
         }
@@ -323,11 +338,10 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
         if (!last || last.role !== "assistant") return list;
         if (event.type === "delta") next[next.length - 1] = { ...last, content: last.content + (event.text ?? "") };
         if (event.type === "error") next[next.length - 1] = { ...last, error: { message: event.message ?? "Something went wrong.", code: event.code, link: event.link } };
-        return next;
+        return event.type === "delta" ? next : endedReply(next, false);
       });
       if (event.type !== "delta") {
-        busyRef.current = null;
-        setBusy(null);
+        release();
         if (event.code === "signed_out") void ai.status().then(setStatus);
       }
     });
@@ -363,28 +377,21 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
   useEffect(() => {
     closingChats.set(docId, () => {
       const request = busyRef.current;
-      preparing.current?.controller.abort();
-      preparing.current = null; busyRef.current = null;
+      release();
       if (request) void ai?.cancel(request).catch(() => {});
-      setBusy(null);
       const list = messagesRef.current;
-      const kept = request && cancelIncompleteReply && list.at(-1)?.role === "assistant" ? list.slice(0, -1) : list;
+      const kept = request ? endedReply(list, cancelIncompleteReply) : list;
       if (kept !== list) setMessages(kept);
       if (generation !== null) rememberChat(docId, persist, kept, generation);
     });
     return () => { closingChats.delete(docId); };
   }, [ai, docId, persist, generation, cancelIncompleteReply]);
   useEffect(() => () => {
-    preparing.current?.controller.abort();
-    preparing.current = null;
     const id = busyRef.current;
-    setBusy(null);
+    release();
     if (!id) return;
-    busyRef.current = null;
     void ai?.cancel(id);
-    const list = messagesRef.current;
-    const last = list[list.length - 1];
-    const kept = last?.role === "assistant" && (cancelIncompleteReply || (!last.content && !last.error)) ? list.slice(0, -1) : list;
+    const kept = endedReply(messagesRef.current, cancelIncompleteReply);
     setMessages(kept);
     if (generation !== null) {
       rememberChat(docId, persist, kept, generation);
@@ -394,20 +401,11 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
   }, [ai, readText, docId, persist, generation, cancelIncompleteReply]);
   const stop = () => {
     if (!busy) return;
-    if (preparing.current?.id !== busy) {
-      if (cancelIncompleteReply) {
-        busyRef.current = null;
-        setBusy(null);
-        setMessages(list => list.slice(0, -1));
-      }
-      void ai?.cancel(busy);
-      return;
-    }
-    preparing.current?.controller.abort();
-    preparing.current = null;
-    busyRef.current = null;
-    setBusy(null);
-    setMessages(list => list.slice(0, -1));
+    // A plain answer keeps its words so far: it ends when the main process confirms the cancel.
+    if (preparing.current?.id !== busy && !cancelIncompleteReply) { void ai?.cancel(busy); return; }
+    if (preparing.current?.id !== busy) void ai?.cancel(busy);
+    release();
+    setMessages(list => endedReply(list, true));
   };
 
   const send = useCallback(async (question: string) => {
@@ -432,9 +430,7 @@ export function AiPanel({ documentContext, docId, persist, onClearContext, onGoT
     } catch {
       if (busyRef.current !== id) return;
       const readingFailed = preparing.current?.id === id;
-      preparing.current = null;
-      busyRef.current = null;
-      setBusy(null);
+      release();
       if (readingFailed) setInput(question);
       setMessages((list) => {
         const next = list.slice();
