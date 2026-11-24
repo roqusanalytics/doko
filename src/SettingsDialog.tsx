@@ -255,9 +255,9 @@ export function SettingsDialog(props: Props | { initialSection: "Ask AI"; onClos
     <Modal title="Settings" onClose={onClose}>
       <div className="settings">
         <nav className="settings-nav" aria-label="Settings sections">
-          {(["General", "Ask AI", "Storage"] as const).filter(name => name === "Ask AI" ? ai : general).map(name =>
+          {(["General", "Ask AI", "Storage"] as const).flatMap(name => !(name === "Ask AI" ? ai : general) ? [] : [
             <button key={name} type="button" aria-current={section === name ? "page" : undefined}
-              onClick={() => { setSection(name); setError(null); }}>{name}</button>)}
+              onClick={() => { setSection(name); setError(null); }}>{name}</button>])}
         </nav>
         {general && section === "General" && <><Section title="Appearance">
           <Row label="Theme">

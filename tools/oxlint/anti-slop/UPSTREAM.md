@@ -11,9 +11,11 @@
 ## Intentional deviations
 
 - These rules are set to `warn` instead of `error`, because the existing code had many violations at install time
-  (about 6,800 findings, mostly `require-readable-spacing`): `no-array-filter-map`, `no-chained-type-assertions`,
-  `no-conditional-empty-object-spread`, `no-known-value-widening`, `no-object-parameters`, `no-reflect-get`,
-  `no-runtime-typeof`, `no-shape-in-symbol-names`, `no-unknown-parameters`, `no-unsafe-dictionary-type`,
+  (about 6,800 findings, mostly `require-readable-spacing`): `no-known-value-widening`, `no-runtime-typeof`,
+  `no-shape-in-symbol-names`, `no-unknown-parameters`, `no-unsafe-dictionary-type`,
   `require-safety-comment-for-type-assertion`. Move each back to `error` once its findings are cleaned up.
-  `require-readable-spacing` was cleaned up with its autofix and is back at `error`.
+  `require-readable-spacing` (autofix), `no-array-filter-map`, `no-chained-type-assertions`,
+  `no-conditional-empty-object-spread`, `no-object-parameters` and `no-reflect-get` were cleaned up and are back at
+  `error`. Three sites keep a justified `oxlint-disable-next-line`: the duck-typed find-controller adapter in
+  `src/App.tsx` and the two Proxy `get` traps that forward unknown keys with `Reflect.get`.
 - `.scratch/**` is added to `ignorePatterns` (local agent scratch space).

@@ -361,6 +361,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       eventBus,
       linkService,
       // The adapter exposes PDFViewer's find contract while isolating each search generation.
+      // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- duck-typed adapter for pdf.js's untyped find contract
       findController: findController as unknown as import("./viewer").PDFFindController,
       annotationEditorMode: AnnotationEditorType.NONE,
       annotationEditorHighlightColors: HIGHLIGHTS.map((c) => `${c.name.toLowerCase()}=${c.hex}`).join(","),
@@ -773,7 +774,7 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
     photoAutoFit.current = false;
     const v = viewerRef.current!;
 
-    if (v.pdfDocument) v.updateScale({ steps, drawingDelay: 150, origin: undefined as unknown as number[] });
+    if (v.pdfDocument) v.updateScale({ steps, drawingDelay: 150 });
   };
 
   const setScaleValue = (value: string) => {
@@ -955,8 +956,8 @@ export default function App({ tabs, tabKey, upgradeNotes, initialGallery }: { ta
       const pageEl = (e.target as HTMLElement).closest<HTMLElement>(".page");
       const pageNumber = Number(pageEl?.dataset.pageNumber);
 
-      const view = pageNumber ? (viewerRef.current?.getPageView(pageNumber - 1) as unknown as
-        { pdfPage?: { imageCoordinates?: ArrayLike<number> | null }; viewport?: { rotation: number } } | undefined) : undefined;
+      const view: { pdfPage?: { imageCoordinates?: ArrayLike<number> | null }; viewport?: { rotation: number } } | undefined =
+        pageNumber ? viewerRef.current?.getPageView(pageNumber - 1) : undefined;
 
       const surface = pageEl?.querySelector(".canvasWrapper");
 

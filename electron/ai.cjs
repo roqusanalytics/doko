@@ -747,10 +747,18 @@ function register(handle, send) {
     const ask = { chatgpt: askChatGPT, claude: askClaude, openrouter: openRouter.ask }[req.provider];
     const { kind, name, text, truncated } = req.document;
 
-    const messages = req.messages.map(({ role, content, context }) => context
-      ? { role, content, context: { text: context.text, ...(kind === "pdf" ? { page: context.page } : {}) } } : { role, content });
+    const messages = req.messages.map(({ role, content, context }) => {
+      if (!context) return { role, content };
+      const quoted = { text: context.text };
 
-    Promise.resolve(ask({ model: req.model, document: { ...(kind !== "pdf" ? { kind } : {}), name, text, truncated }, messages }, emit, controller.signal))
+      if (kind === "pdf") quoted.page = context.page;
+
+      return { role, content, context: quoted };
+    });
+
+    const document = kind === "pdf" ? { name, text, truncated } : { kind, name, text, truncated };
+
+    Promise.resolve(ask({ model: req.model, document, messages }, emit, controller.signal))
       .then(() => send("folio:ai-event", { id: req.id, type: "done" }))
       .catch((e) => send("folio:ai-event", controller.signal.aborted ? { id: req.id, type: "done" }
         : { id: req.id, type: "error", message: e.message || "Something went wrong.", code: e.code ?? "", link: e.link ?? "" }))

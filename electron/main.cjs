@@ -541,7 +541,7 @@ function createWindow() {
       sandbox: true,
       plugins: true, // Chromium's PDF viewer, used for printing
       // A hidden window is throttled like a background tab; tests need it to render at full speed.
-      ...(TEST_HIDDEN ? { backgroundThrottling: false } : {}),
+      backgroundThrottling: !TEST_HIDDEN,
     },
   });
 

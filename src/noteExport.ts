@@ -27,10 +27,12 @@ export function notesMarkdown(name: string, { note, marks, bookmarkedPages }: Ma
 }
 
 // pdf.js returns typed arrays for some geometry. JSON needs ordinary arrays of numbers.
+const isTypedArray = (value: unknown): value is ArrayLike<number> => ArrayBuffer.isView(value) && !(value instanceof DataView);
+
 function numbers(value: unknown) {
   if (Array.isArray(value)) return value;
 
-  if (ArrayBuffer.isView(value) && "length" in value) return Array.from(value as unknown as ArrayLike<number>);
+  if (isTypedArray(value)) return Array.from(value);
 }
 
 function annotation(mark: Mark) {

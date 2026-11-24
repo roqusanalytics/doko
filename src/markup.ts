@@ -341,7 +341,7 @@ export class MarkupController {
   #setEditorNote(editor: Editor, note: string) {
     try {
       // Stored on the pdf.js editor too, so saved copies of the PDF carry the note as a pop-up.
-      (editor as unknown as { comment: string }).comment = note;
+      Object.assign(editor, { comment: note });
     } catch {
       /* the note still lives in Doko's own record */
     }
@@ -637,8 +637,8 @@ export class MarkupController {
     for (const editor of this.#liveEditors()) {
       if (editor.constructor._type !== "highlight" || !editor.__folioMark) continue;
 
-      const view = this.#viewer.getPageView(editor.pageIndex) as unknown as
-        { div?: HTMLElement; viewport?: { convertToViewportPoint(x: number, y: number): number[] } } | undefined;
+      const view: { div?: HTMLElement; viewport?: { convertToViewportPoint(x: number, y: number): number[] } } | undefined =
+        this.#viewer.getPageView(editor.pageIndex);
 
       const surface = view?.div?.querySelector(".canvasWrapper") ?? view?.div;
 

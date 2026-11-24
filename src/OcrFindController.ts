@@ -104,7 +104,7 @@ export class OcrFindController {
     this.failed = false;
 
     for (const name of ["updatefindmatchescount", "updatefindcontrolstate", "updatetextlayermatches"]) {
-      this.events.on(name, (event: object) => {
+      this.events.on(name, (event: Parameters<EventBus["dispatch"]>[1]) => {
         if (generation === this.generation) this.options.eventBus.dispatch(name, event);
       });
     }
@@ -131,6 +131,7 @@ export class OcrFindController {
           } catch (error) { return fail(error); }
         } };
       } catch (error) { return fail(error); }
+    // oxlint-disable-next-line anti-slop/no-reflect-get -- a Proxy get trap forwards every other key unchanged
     } : Reflect.get(target, key, target) }));
     this.options.eventBus.dispatch("searchtextchanged", {});
     this.options.eventBus.dispatch("updatetextlayermatches", { pageIndex: -1 });

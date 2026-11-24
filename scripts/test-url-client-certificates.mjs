@@ -98,7 +98,7 @@ try {
   assert.deepEqual(downloads.map(req => req.path), ["/redirect", "/paper.pdf"]);
   assert.equal(captures.filter(req => req.path === "/webpage").length, 2, "both the probe and the capture loaded the page");
   assert.ok(captures.some(req => req.path === "/image"), "the captured page loaded its subresource");
-  const identified = [...downloads, ...captures].filter(req => req.peer !== null).map(req => req.path);
+  const identified = [...downloads, ...captures].flatMap(req => req.peer === null ? [] : [req.path]);
   assert.deepEqual(identified, [], "URLs that received the generated client identity");
 
   if (installIdentity) {
