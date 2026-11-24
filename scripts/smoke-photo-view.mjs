@@ -91,10 +91,14 @@ try {
   await strip.hover(); await page.mouse.wheel(0, 700);
   await page.waitForFunction(() => document.querySelector('.photo-carousel-thumbnails').scrollLeft > 200);
   assert.equal(await page.getByLabel("Image position").innerText(), "2 / 25", "thumbnail scrolling changed selected image");
+  // One trackpad gesture must not skip multiple photos as the current photo finishes loading. The page clock stands
+  // still meanwhile: on a slow CI runner these wheel calls can land >180 ms apart, which the app rightly counts as two gestures.
+  await page.evaluate(() => { const now = performance.now(); performance.now = () => now; });
   await page.locator('.page').hover(); await page.mouse.wheel(0, 120);
+  await ready("photo3.png");
 
-  // One trackpad gesture must not skip multiple photos as the current photo finishes loading.
   for (let i = 0; i < 4; i++) await page.mouse.wheel(0, 20);
+  await page.evaluate(() => delete performance.now);
   await ready("photo3.png"); await checkFit(...sizes[2]);
   assert.equal(await page.getByLabel("Image position").innerText(), "3 / 25");
   await page.window.emulateMedia({ reducedMotion: "reduce" });
