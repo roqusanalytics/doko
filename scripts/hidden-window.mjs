@@ -26,7 +26,13 @@ export async function closeHidden(app) {
   });
 
   // Playwright uses a cmd.exe launcher on Windows; killing only it leaves Electron alive.
-  if (process.platform === "win32") execFileSync("taskkill", ["/PID", String(app.process().pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
-  else app.process().kill("SIGKILL");
+  if (process.platform === "win32") {
+    try {
+      execFileSync("taskkill", ["/PID", String(app.process().pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+    } catch (error) {
+      // 128: the process tree already exited after its windows were destroyed.
+      if (error.status !== 128) throw error;
+    }
+  } else app.process().kill("SIGKILL");
   await app.close();
 }

@@ -57,6 +57,34 @@ test("hidden cleanup prevents auto-quit before acknowledgement and refuses a non
 });
 
 
+test("hidden cleanup accepts a process tree that already exited", { skip: process.platform !== "win32" }, async () => {
+  const previous = process.env.FOLIO_TEST_USER_DATA;
+  process.env.FOLIO_TEST_USER_DATA = "synthetic-isolated-profile";
+  let closed = false;
+
+  const app = {
+    evaluate: async fn => fn({ app: { removeAllListeners() {} }, BrowserWindow: { getAllWindows: () => [] } }),
+    process: () => ({ pid: 12345 }),
+    close: async () => { closed = true; },
+  };
+
+  const taskkill = mock.method(childProcess, "execFileSync", () => { throw Object.assign(new Error("not found"), { status: 128 }); });
+  syncBuiltinESMExports();
+
+  try {
+    await closeHidden(app);
+    assert.equal(closed, true);
+    taskkill.mock.mockImplementation(() => { throw Object.assign(new Error("access denied"), { status: 1 }); });
+    await assert.rejects(closeHidden(app), /access denied/);
+  } finally {
+    taskkill.mock.restore();
+    syncBuiltinESMExports();
+
+    if (previous === undefined) delete process.env.FOLIO_TEST_USER_DATA;
+    else process.env.FOLIO_TEST_USER_DATA = previous;
+  }
+});
+
 test("recursive smoke cleanup uses bounded retries", () => {
   for (const file of readdirSync(import.meta.dirname).filter(name => /^smoke-.*\.mjs$/.test(name))) {
     const source = readFileSync(new URL(file, import.meta.url), "utf8");
