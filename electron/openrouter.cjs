@@ -95,11 +95,13 @@ function createOpenRouter({ net, safeStorage, file, writeAtomic }) {
     const signal = options.signal || AbortSignal.timeout(20_000);
     let response;
 
+    const headers = { Accept: options.body ? "text/event-stream" : "application/json", Authorization: "Bearer " + key };
+
+    if (options.body) headers["Content-Type"] = "application/json";
+
     try {
       response = await net.fetch(API + endpoint, {
-        ...options, signal, credentials: "omit", redirect: "error", referrerPolicy: "no-referrer",
-        headers: { Accept: options.body ? "text/event-stream" : "application/json", Authorization: "Bearer " + key,
-          ...(options.body ? { "Content-Type": "application/json" } : {}) },
+        ...options, signal, credentials: "omit", redirect: "error", referrerPolicy: "no-referrer", headers,
       });
     } catch { throw new Error("Couldn't reach OpenRouter. Check your connection and try again."); }
 

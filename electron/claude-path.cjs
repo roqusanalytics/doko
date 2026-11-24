@@ -19,8 +19,11 @@ const isFile = (file) => { try { return fs.statSync(file).isFile(); } catch { re
  */
 function findClaude({ platform, home, envPath, extraFolders = installFolders(platform, home) }) {
   const dirs = [path.join(home, ".local", "bin"), ...String(envPath ?? "").split(path.delimiter), ...extraFolders]
-    .map((d) => d.trim().replace(/^"|"$/g, ""))
-    .filter((d) => d && path.isAbsolute(d));
+    .flatMap((raw) => {
+      const d = raw.trim().replace(/^"|"$/g, "");
+
+      return d && path.isAbsolute(d) ? [d] : [];
+    });
 
   const candidates = platform === "win32"
     ? dirs.flatMap((d) => [path.join(d, "claude.exe"), ...(isFile(path.join(d, "claude.cmd")) ? [path.join(d, NPM_WINDOWS_EXE)] : [])])

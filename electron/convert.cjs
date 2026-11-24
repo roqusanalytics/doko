@@ -60,7 +60,7 @@ async function withWord(source, target) {
 
 function libreOffice() {
   const candidates = process.platform === "win32"
-    ? [process.env.ProgramFiles, process.env["ProgramFiles(x86)"]].filter(Boolean).map((dir) => path.join(dir, "LibreOffice", "program", "soffice.exe"))
+    ? [process.env.ProgramFiles, process.env["ProgramFiles(x86)"]].flatMap((dir) => dir ? [path.join(dir, "LibreOffice", "program", "soffice.exe")] : [])
     : process.platform === "darwin"
       ? ["/Applications/LibreOffice.app/Contents/MacOS/soffice", path.join(os.homedir(), "Applications/LibreOffice.app/Contents/MacOS/soffice")]
       : ["/usr/bin/soffice", "/usr/bin/libreoffice", "/usr/local/bin/soffice", "/usr/lib/libreoffice/program/soffice", "/opt/libreoffice/program/soffice", "/snap/bin/libreoffice"];

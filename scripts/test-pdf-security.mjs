@@ -109,7 +109,7 @@ try {
   const safe = await PDFDocument.load(new Uint8Array(result.redacted), {updateMetadata:false});
   assert.equal(safe.context.trailerInfo.Info,undefined,"redacted copy contains metadata");
   assert.equal(safe.getTitle(),undefined); assert.equal(safe.getSubject(),undefined);
-  const images = [...safe.context.enumerateIndirectObjects()].map(([,object])=>object).filter(object=>object instanceof PDFRawStream && object.dict.get(PDFName.of("Subtype"))===PDFName.of("Image"));
+  const images = [...safe.context.enumerateIndirectObjects()].flatMap(([,object])=>object instanceof PDFRawStream && object.dict.get(PDFName.of("Subtype"))===PDFName.of("Image") ? [object] : []);
   assert.equal(images.length,3,"copy must contain exactly one sanitized raster per page");
   assert.ok(decodePDFRawStream(images[2]).decode().some(channel=>channel<100),"unaffected public page lost its visible text");
   assert.equal([...safe.context.enumerateIndirectObjects()].filter(([,o])=>o.get?.(PDFName.of("Type"))===PDFName.of("Font")).length,0,"source fonts survived");

@@ -6,6 +6,12 @@ export interface PageOcrWorker {
 }
 
 /** Own the native worker before initialization: Tesseract 7's createWorker hides it until initialization succeeds. */
+// The tesseract.js worker fields Doko sends; the worker validates them.
+type WorkerPayload = {
+  langs?: string[]; oem?: OEM; config?: Record<string, never>; image?: Uint8Array;
+  options?: Record<string, string | boolean | string[]>; params?: Record<string, PSM>; output?: Record<string, boolean>;
+};
+
 export async function startOcrWorker(base: string, languages: string[], cachePath: string, signal: AbortSignal): Promise<PageOcrWorker> {
   signal.throwIfAborted();
   const path = new URL(base, window.location.href).href;
@@ -38,7 +44,7 @@ export async function startOcrWorker(base: string, languages: string[], cachePat
     else job.resolve({ jobId, data });
   };
 
-  function request<T = unknown>(action: string, payload: object): Promise<T> {
+  function request<T = unknown>(action: string, payload: WorkerPayload): Promise<T> {
     signal.throwIfAborted();
 
     if (stopped) return Promise.reject(new Error("OCR worker stopped."));

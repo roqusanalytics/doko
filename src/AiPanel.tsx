@@ -114,9 +114,8 @@ export function endedReply<T extends Pick<Message, "role" | "content" | "error" 
 
 // Failed and empty answers aren't kept.
 const storedMessages = (messages: Message[]) =>
-  messages.filter(m => !m.error && (m.content || m.markdownReply)).map(
-    ({ role, content, context, createdAt, drawingReply, markdownReply, markdownEditStatus }) =>
-      ({ role, content, context, createdAt, drawingReply, markdownReply, markdownEditStatus }));
+  messages.flatMap(({ role, content, context, createdAt, drawingReply, markdownReply, markdownEditStatus, error }) =>
+    !error && (content || markdownReply) ? [{ role, content, context, createdAt, drawingReply, markdownReply, markdownEditStatus }] : []);
 
 function InsertAgain({ message, apply }: { message: Message; apply: ApplyDrawingReply }) {
   const pending = useRef<AbortController | null>(null);
@@ -350,7 +349,9 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
             if (stream.oversized) throw new Error("This reply is too large. Ask for fewer changes.");
             const { description, edits } = parseMarkdownReply(stream.raw);
             locateMarkdownEdits(markdownText(), edits);
-            result = { content: description, ...(edits.length ? { markdownReply: stream.raw } : {}) };
+            result = { content: description };
+
+            if (edits.length) result.markdownReply = stream.raw;
           } catch (error) {
             result = { content: "", error: { message: error instanceof Error ? error.message : "Couldn’t read the suggested edits." } };
           }
@@ -502,7 +503,9 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
 
   const send = useCallback(async (question: string) => {
     if (!ai || !question.trim() || busyRef.current || !ready) return;
-    const turn: Message = { role: "user", content: question.trim(), createdAt: Date.now(), ...(context ? { context } : {}) };
+    const turn: Message = { role: "user", content: question.trim(), createdAt: Date.now() };
+
+    if (context) turn.context = context;
     const history = [...messages.filter((m) => !m.error && m.content), turn];
     const id = crypto.randomUUID();
     const controller = new AbortController();
@@ -521,7 +524,13 @@ function ChatPanel({ documentContext, docId, persist, onClearContext, onGoToPage
       if (preparing.current?.id !== id) return;
       preparing.current = null;
       await ai.ask({ id, provider, model, document: { kind, name, ...doc },
-        messages: history.map(({ role, content, context }) => ({ role, content, ...(context ? { context } : {}) })) });
+        messages: history.map(({ role, content, context }) => {
+          const message: Pick<Message, "role" | "content" | "context"> = { role, content };
+
+          if (context) message.context = context;
+
+          return message;
+        }) });
     } catch {
       if (busyRef.current !== id) return;
       const readingFailed = preparing.current?.id === id;

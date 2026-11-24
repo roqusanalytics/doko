@@ -34,7 +34,7 @@ function paperColor(surface: Surface, target: EditTarget) {
   return 'rgb(' + [r,g,b].join(" ") + ')';
 }
 
-function inputStyle(t: EditTarget, v: PageViewport, paper: string): CSSProperties {
+function inputStyle(t: EditTarget, v: PageViewport, paper: string, family?: string): CSSProperties {
   const s = t.style!, [x,y] = s.origin;
   const [ox,oy] = v.convertToViewportPoint(x,y);
   const [ex,ey] = v.convertToViewportPoint(x+s.axis[0], y+s.axis[1]);
@@ -44,7 +44,7 @@ function inputStyle(t: EditTarget, v: PageViewport, paper: string): CSSPropertie
   const width = Math.abs(Math.cos(angle))*box.width + Math.abs(Math.sin(angle))*box.height;
 
   return { left: ox, top: oy, minWidth: Math.max(width+4, size), fontSize: size,
-    fontFamily: s.flags & 1 ? "monospace" : s.flags & 2 ? "serif" : "sans-serif",
+    fontFamily: family ?? (s.flags & 1 ? "monospace" : s.flags & 2 ? "serif" : "sans-serif"),
     fontWeight: s.bold ? 700 : 400, fontStyle: s.flags & 64 ? "italic" : "normal", color: s.color, background: paper,
     transform: 'rotate(' + angle + 'rad) translateY(-0.88em)' };
 }
@@ -276,8 +276,7 @@ export function ContentEditor({ ref, nextSelection, pdf, viewer, bus, snapshot, 
       {selected?.page === s.page && (selected.target.kind === "text" ? <>
         <div className="folio-old-text" style={{ ...rectangle(selected.target,s.viewport), background: selected.paper }} />
         <input ref={input} className="folio-inline-text" aria-label="Edit text on page" maxLength={32767}
-          style={{ ...inputStyle(selected.target,s.viewport,selected.paper),
-            ...(face?.target === selected.target ? { fontFamily: face.family } : {}) }} value={value} readOnly={busy}
+          style={inputStyle(selected.target,s.viewport,selected.paper,face?.target === selected.target ? face.family : undefined)} value={value} readOnly={busy}
           onChange={e => { setValue(e.target.value); setError(""); }}
           onKeyDown={e => {
             if (e.nativeEvent.isComposing) return;

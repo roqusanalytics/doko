@@ -182,7 +182,10 @@ export class DocumentState {
     const dirtyPhotos = new Set(photos.dirty);
 
     if (dirty) dirtyPhotos.add(name); else dirtyPhotos.delete(name);
-    this.setPhotos({ drafts, dirty: dirtyPhotos, ...(savedId === undefined ? {} : { savedId }) });
+    const patch: Partial<PhotoDrafts> = { drafts, dirty: dirtyPhotos };
+
+    if (savedId !== undefined) patch.savedId = savedId;
+    this.setPhotos(patch);
   }
 
   /** The open photo is being left for another; keeps its current bytes when it changed or already had a draft. */

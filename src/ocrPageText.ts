@@ -24,6 +24,7 @@ export function prepareOcrHighlighter(view: PDFPageView) {
   highlighter.findController = new Proxy(highlighter.findController, { get(target, key) {
     // PDF.js enables a new native text layer before Doko can populate its OCR mapping.
     if (key === "pageMatches" && !highlighter.textDivs?.[0]?.hasAttribute?.("data-ocr-word")) return [];
+    // oxlint-disable-next-line anti-slop/no-reflect-get -- a Proxy get trap forwards every other key unchanged
     const value = Reflect.get(target, key, target);
 
     return typeof value === "function" ? value.bind(target) : value;

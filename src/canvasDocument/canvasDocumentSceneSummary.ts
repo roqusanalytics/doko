@@ -12,8 +12,11 @@ export function summarizeScene(elements: readonly ExcalidrawElement[], selected:
     const { id, type, x, y, width, height } = element;
     const bounds = [x, y, width, height].map(value => Math.round(value));
 
+    // JSON.stringify drops undefined fields, so non-arrows carry no start or end.
+    const arrow = type === "arrow";
+
     const summary = { id, type, bounds, selected: selected[id] === true, frame: element.frameId || undefined,
-      ...(type === "arrow" ? { start: element.startBinding?.elementId, end: element.endBinding?.elementId } : {}) };
+      start: arrow ? element.startBinding?.elementId : undefined, end: arrow ? element.endBinding?.elementId : undefined };
 
     const label = type === "image" || type === "freedraw" ? undefined
       : type === "text" ? element.text : type === "frame" ? element.name : textByContainer.get(id);

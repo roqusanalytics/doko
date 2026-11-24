@@ -164,7 +164,10 @@ function linePoints(value: Record<string, unknown>): Point[] {
 function readElement(input: unknown): DrawingElement {
   const value = record(input);
   const common = ["type", "id", "x", "y", ...STYLE_FIELDS];
-  const base = { x: coordinate(value.x), y: coordinate(value.y), ...(value.id === undefined ? {} : { id: idValue(value.id) }), ...styleValues(value) };
+  const base: Base = { x: coordinate(value.x), y: coordinate(value.y) };
+
+  if (value.id !== undefined) base.id = idValue(value.id);
+  Object.assign(base, styleValues(value));
   const type = value.type;
 
   switch (type) {
@@ -176,23 +179,34 @@ function readElement(input: unknown): DrawingElement {
       fields(value, [...common, "text"]);
 
       return { ...base, type, text: textValue(value.text) };
-    case "frame":
+    case "frame": {
       fields(value, [...common, "width", "height", "name", "children"]);
 
       if (!Array.isArray(value.children) || value.children.length > MAX_ELEMENTS) return invalid("A frame needs a list of its child ids.");
 
-      return { ...base, type, width: size(value.width), height: size(value.height), children: value.children.map(idValue),
-        ...(value.name === undefined ? {} : { name: textValue(value.name) }) };
+      const frame: Extract<DrawingElement, { type: "frame" }> = { ...base, type, width: size(value.width), height: size(value.height),
+        children: value.children.map(idValue) };
+
+      if (value.name !== undefined) frame.name = textValue(value.name);
+
+      return frame;
+    }
+
     case "line":
       fields(value, [...common, "width", "height", "points"]);
 
       return { ...base, type, points: linePoints(value) };
-    case "arrow":
+    case "arrow": {
       fields(value, [...common, "width", "height", "points", "label", "start", "end"]);
+      const arrow: Extract<DrawingElement, { type: "arrow" }> = { ...base, type, points: linePoints(value), ...labelValue(value.label) };
 
-      return { ...base, type, points: linePoints(value), ...labelValue(value.label),
-        ...(value.start === undefined ? {} : { start: endpoint(value.start) }),
-        ...(value.end === undefined ? {} : { end: endpoint(value.end) }) };
+      if (value.start !== undefined) arrow.start = endpoint(value.start);
+
+      if (value.end !== undefined) arrow.end = endpoint(value.end);
+
+      return arrow;
+    }
+
     default: return invalid("The drawing contains an unsupported Element type.");
   }
 }
